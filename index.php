@@ -24,7 +24,7 @@
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="keywords" content="chromozoom, genome, genome browser, human genome, yeast genome, html5" />
+  <meta name="keywords" content="ChromoZoom, genome, genome browser, human genome, yeast genome, html5" />
   <meta name="description" content="ChromoZoom is the most interactive, easy-to-use online genome browser for both curated and custom data." />
   <title>ChromoZoom, the interactive genome browser</title>
   <script src="js/jquery.min.js"></script>
@@ -176,7 +176,7 @@
       
       <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" tabindex="-1" role="dialog" aria-labelledby="ui-dialog-title-intro-dialog" id="about-dialog-cont">
         <div id="about-dialog" class="ui-dialog-content ui-widget-content">
-          <h2 id="about">About chromozoom</h2>
+          <h2 id="about">About ChromoZoom</h2>
           <p>
             ChromoZoom was written by Theodore Pak with the advice and support of Dr. Frederick "Fritz" Roth in 2012.
           </p>
