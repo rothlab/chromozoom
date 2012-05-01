@@ -1,8 +1,8 @@
-<img src="img/chromozoom-large.png"/>
+<a id="logo-header" href="../"><img src="img/chromozoom-large.png"/></a>
 
 # User Guide
 
-Welcome!  ChromoZoom aims to be the most interactive genome browser on the web for both curated and custom data, with a focus on ease of use and flexibility.
+Welcome!  [ChromoZoom](../) aims to be the most interactive genome browser on the web for both curated and custom data, with a focus on ease of use and flexibility.
 
 ## The interface
 
