@@ -105,7 +105,7 @@ The third step of the workflow, or `rake tiles[GENOME]`, is usually the most tim
 
 To launch NUMBER worker processes in a split layout of GNU `screen`, you can run
 
-    $ rake tiles[GENOME,NUMBER]
+    $ rake tiles[GENOME,0,NUMBER]
 
 You will be able to monitor what the processes are doing by their output, and terminate them if necessary by sending SIGINT to each split-screen or with `kill` from another terminal.  For more information on usage of `screen` please check your system's manpage with `man screen`.
 
