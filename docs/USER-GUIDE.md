@@ -2,7 +2,7 @@
 
 # User Guide
 
-Welcome!  Chromozoom aims to be the most interactive genome browser on the web for both curated and custom data, with a focus on ease of use and flexibility.
+Welcome!  ChromoZoom aims to be the most interactive genome browser on the web for both curated and custom data, with a focus on ease of use and flexibility.
 
 ## The interface
 
@@ -36,7 +36,7 @@ Welcome!  Chromozoom aims to be the most interactive genome browser on the web f
 
 ### Mouse interactions
 
-Chromozoom is designed for effortless navigation by mouse.  A quick reference for the major mouse interactions can be found by clicking the "Getting started" link in the footer of the main interface.
+ChromoZoom is designed for effortless navigation by mouse.  A quick reference for the major mouse interactions can be found by clicking the "Getting started" link in the footer of the main interface.
 
 <img src="../css/intro-panel-1.gif"> <img src="../css/intro-panel-2.gif"> <img src="../css/intro-panel-3.gif">
 
@@ -63,11 +63,11 @@ Chromozoom is designed for effortless navigation by mouse.  A quick reference fo
 
 Click the **show tracks...** button to add or remove standard tracks from the display at any time.
 
-We have provided the default tracks displayed by UCSC for the human genome, and all of the tracks displayable by UCSC for the yeast genome.  Details on the data contained within each track and the drawing methods are accessible by clicking the **show tracks...** button, mousing over a track of interest and clicking the "more info..." link.  Note that these pages are provided by UCSC, and changing settings will not affect the display in **chromozoom**.
+We have provided the default tracks displayed by UCSC for the human genome, and all of the tracks displayable by UCSC for the yeast genome.  Details on the data contained within each track and the drawing methods are accessible by clicking the **show tracks...** button, mousing over a track of interest and clicking the "more info..." link.  Note that these pages are provided by UCSC, and changing settings will not affect the display in **ChromoZoom**.
 
 ## Custom Tracks {#custom-tracks}
 
-Chromozoom is rather unique among online genome browsers in that you can display custom data from a file *on your local disk* without uploading it to a server[^1].  Using a local file is currently supported by Firefox, Chrome, and Opera; Safari 5 unfortunately does not have the correct API, but it is likely to be added in Safari 6.  Custom data stored on a webserver can also be used by providing the URL to the file.
+ChromoZoom is rather unique among online genome browsers in that you can display custom data from a file *on your local disk* without uploading it to a server[^1].  Using a local file is currently supported by Firefox, Chrome, and Opera; Safari 5 unfortunately does not have the correct API, but it is likely to be added in Safari 6.  Custom data stored on a webserver can also be used by providing the URL to the file.
 
 We currently support the [BED](http://genome.ucsc.edu/FAQ/FAQformat.html#format1), [WIG](http://genome.ucsc.edu/FAQ/FAQformat.html#format6), [VCFTabix](http://genome.ucsc.edu/FAQ/FAQformat.html#format10.1), [bigBed](http://genome.ucsc.edu/FAQ/FAQformat.html#format1.5) and [bigWig](http://genome.ucsc.edu/FAQ/FAQformat.html#format6.1) formats, as they are specified by the UCSC genome browser. 
 
@@ -97,4 +97,4 @@ You can [fork this project on Github](http://github.com/rothlab/chromozoom).
 
 ### License
 
-Chromozoom is free for academic, nonprofit, and personal use.  The source code is licensed under the [GNU Affero General Public License v3](http://www.gnu.org/licenses/agpl-3.0.html).  In a nutshell, this license means that you are free to copy, redistribute, and modify the source code, but you are expected to provide the source for any code derived from chromozoom to anybody that receives the modified code or uses it over a computer network (e.g. as a web application).  Chromozoom is not free for commercial use.  For commercial licensing, please contact the [Roth laboratory](http://llama.mshri.on.ca).
+ChromoZoom is free for academic, nonprofit, and personal use.  The source code is licensed under the [GNU Affero General Public License v3](http://www.gnu.org/licenses/agpl-3.0.html).  In a nutshell, this license means that you are free to copy, redistribute, and modify the source code, but you are expected to provide the source for any code derived from ChromoZoom to anybody that receives the modified code or uses it over a computer network (e.g. as a web application).  ChromoZoom is not free for commercial use.  For commercial licensing, please contact the [Roth laboratory](http://llama.mshri.on.ca).
