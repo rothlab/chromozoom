@@ -11,7 +11,7 @@ the tiles created by the tile stitcher could conceivably power other visualizati
 
 ## License
 
-Provision of this source code is made conditional to an agreement of confidentiality between you and the Roth Laboratory (http://llama.mshri.on.ca).  Use or reproduction of this code is presently restricted to those cases granted explicitly by Ted Pak or Fritz Roth in writing.  Therefore, this code is currently *not* public and *not* open source, and all rights are reserved to Ted Pak and the Roth Laboratory.  Upon public release, this code will likely be licensed under the AGPL.  
+Chromozoom is free for academic, nonprofit, and personal use.  The source code is licensed under the [GNU Affero General Public License v3](http://www.gnu.org/licenses/agpl-3.0.html).  In a nutshell, this license means that you are free to copy, redistribute, and modify the source code, but you are expected to provide the source for any code derived from chromozoom to anybody that receives the modified code or uses it over a computer network (e.g. as a web application).  Chromozoom is not free for commercial use.  For commercial licensing, please contact the [Roth laboratory](http://llama.mshri.on.ca).
 
 ## Requirements
 
