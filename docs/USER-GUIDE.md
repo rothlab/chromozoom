@@ -87,10 +87,6 @@ Each format begins with a *track line* that starts with the string `track` and s
   - For a relatively small number (<10k elements), use BED.
   - For a relatively large number (>10k elements), use bigBed.
 
-### BED format
-
-
-
 ## Source code
 
 You can [fork this project on Github](http://github.com/rothlab/chromozoom).
