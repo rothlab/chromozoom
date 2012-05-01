@@ -1,8 +1,12 @@
 --- 
+# These display in the genome picker in the bottom-right corner
 species: Human
 assembly_date: Mar. 2006
+# Where tiles/lockfiles will be created
 output_dir: 'hg18/'
+# If you want to save them to a Tokyo Cabinet hashtable, add this.
 output_tch: 'hg18.tch'
+# The zoom levels to scrape, in base pairs per pixel (bppp)
 bppps:
     - 2.9e+5
     - 1.0e+5
@@ -15,7 +19,9 @@ bppps:
     - 3.3e+1
     - 1.0e+1
     - 3.3e+0
+# The width of each tile in pixels
 tile_every: 1000
+# Don't bother trying to scan for fixed heights underneath this zoom level
 no_fh_below: 3.3e+0
 subdir_for_bppps_under: 3.0e+2
 slice_for_bppps_under: 3.3e+1
