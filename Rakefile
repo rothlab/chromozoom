@@ -59,7 +59,7 @@ end
 desc "Create tiles for a genome (optionally using multiple workers)"
 task :tiles, [:genome, :exhaustive, :workers] => :config do |t, args|
   if !args.workers.nil? && (workers = args.workers.to_i) > 1
-    Subscreens.split(workers, "rake tiles[#{args.genome || c.genome}]")
+    Subscreens.split(workers, "rake tiles[#{args.genome || c.genome},#{args.exhaustive || ''}]")
   else
     c.make_tiles(:exhaustive => args.exhaustive)
   end
