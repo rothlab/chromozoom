@@ -181,26 +181,3 @@ Once you're ready to proceed, go to the root of this repo and run:
 and the files under `ext/` will be compiled into a Ruby extension suitable for your platform.  If this works, you will no longer see the "native image processing extension" warning when you start the tile stitcher.
 
 Note that the native extension will only run if you have installed Tokyo Cabinet per the directions above.
-
-## Public custom tracks that currently work
-
-### hg18
-
-- [A sample galaxy track from Taka](http://dalai.mshri.on.ca/~galaxy/ucsc_tracks/idx023_YOR330C_MIP1.txt)
-- [Transcribed ultraconserved regions](http://genome-test.cse.ucsc.edu/goldenPath/customTracks/hg18/T-UCRs_hg18.txt)
-- Tracks providing CpG island strength predictions
-  - [Specific map](http://genome-test.cse.ucsc.edu/goldenPath/customTracks/hg18/UCSC_GGM_SpecificCGIs_Track_hg18.bed)
-  - [Less specific map](http://genome-test.cse.ucsc.edu/goldenPath/customTracks/hg18/UCSC_GGM_BalancedCGIs_Track_hg18.bed)
-  - [Sensitive map](http://genome-test.cse.ucsc.edu/goldenPath/customTracks/hg18/UCSC_GGM_SensitiveCGIs_Track_hg18.bed) (46k features, 1.7M!)
-
-## Public custom tracks that don't work.
-
-### hg18
-
-- [HOX microarray expression data from John Rinn et al.](http://hgwdev.cse.ucsc.edu/goldenPath/customTracks/hg18/hox.bed)
-  - `array` type not yet supported.
-- Tracks providing CpG island strength predictions
-  - [All of them](http://genome-test.cse.ucsc.edu/goldenPath/customTracks/hg18/UCSC_GGM_All_Tracks_hg18.bed)
-    - struggles to load, then usually crashes the tab while moving around.
-- [DNA binding sites for nuclear receptor HNF4alpha](http://genome-test.cse.ucsc.edu/goldenPath/customTracks/hg18/sladekPbm.txt) (159k features, 6.8M)
-  - seems to be loading for a while... then the Web Worker crashes?
