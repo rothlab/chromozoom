@@ -1,10 +1,10 @@
 # ChromoZoom
 
-Stitches images from the [UCSC Genome Browser](http://genome.ucsc.edu/) into tiles, and presents
-these tiles via a dynamic web interface called ChromoZoom.
-
 The goal of ChromoZoom is to make genome browsing as effortless as navigating the world on Google Maps,
 while retaining the data density and customizability of UCSC's browser.
+
+To achieve this goal, this project stitches images from the [UCSC Genome Browser](http://genome.ucsc.edu/) 
+into tiles, and presents these tiles via a dynamic web interface called ChromoZoom.
 
 Although the below steps will most directly guide you toward setting up your own instance of ChromoZoom,
 the tiles created by the tile stitcher could conceivably power other visualizations.
