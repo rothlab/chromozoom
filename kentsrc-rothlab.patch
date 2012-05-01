@@ -1,0 +1,47 @@
+diff -ru src/hg/hgTracks/hgTracks.h src/hg/hgTracks/hgTracks.h
+--- src/hg/hgTracks/hgTracks.h	2012-02-21 13:01:54.000000000 -0500
++++ src/hg/hgTracks/hgTracks.h	2012-02-27 16:34:44.000000000 -0500
+@@ -51,8 +51,12 @@
+ #ifdef LOWELAB
+ #define MAXPIXELS 60000
+ #else
++#ifdef ROTHLAB
++#define MAXPIXELS 100000
++#else
+ #define MAXPIXELS 14000
+ #endif
++#endif
+ 
+ struct track
+ /* Structure that displays of tracks. The central data structure
+diff -ru src/hg/lib/trackLayout.c src/hg/lib/trackLayout.c
+--- src/hg/lib/trackLayout.c	2012-02-21 13:01:54.000000000 -0500
++++ src/hg/lib/trackLayout.c	2012-02-27 16:35:14.000000000 -0500
+@@ -20,9 +18,14 @@
+     if (tl->picWidth > 60000)
+       tl->picWidth = 60000;   
+ #else
++#ifdef ROTHLAB
++    if (tl->picWidth > 100000)
++      tl->picWidth = 100000;
++#else
+     if (tl->picWidth > 5000)
+       tl->picWidth = 5000;   
+ #endif
++#endif
+     if (tl->picWidth < 320)
+         tl->picWidth = 320;
+     }
+diff -ru kent1/src/inc/common.mk kent2/src/inc/common.mk
+--- src/inc/common.mk	2012-02-21 13:01:54.000000000 -0500
++++ src/inc/common.mk	2012-02-27 16:35:28.000000000 -0500
+@@ -188,6 +188,9 @@
+     LOWELAB_WIKI=1
+     LOWELAB_DEF=-DLOWELAB
+ endif
++ifdef ROTHLAB
++    LOWELAB_DEF=-DROTHLAB
++endif
+ ifdef LOWELAB_WIKI
+     LOWELAB_WIKI_DEF=-DLOWELAB_WIKI
+ endif

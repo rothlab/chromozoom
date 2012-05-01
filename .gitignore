@@ -1,0 +1,10 @@
+bin/
+vendor/
+.bundle/
+*.tch
+*.json
+*.yaml
+.DS_Store
+options.js
+!*.dist.yaml
+!*.example.yaml

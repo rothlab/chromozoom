@@ -1,0 +1,7 @@
+obj/
+*.o
+*.png
+Makefile
+png_fifo_chunker
+png_fifo_chunker.*
+!png_fifo_chunker.c
