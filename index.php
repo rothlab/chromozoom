@@ -70,10 +70,10 @@
             <div class="help-line">
               Valid formats are:
               <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format1">BED</a>,
-              <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format6">WIG</a>,
-              <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format1.5">bigBed</a>,
-              <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format6.1">bigWig</a>,
-              and <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format10.1">VCFTabix</a>,
+              <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/wiggle.html">WIG</a>,
+              <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigBed.html">bigBed</a>,
+              <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigWig.html">bigWig</a>,
+              and <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/vcf.html">VCFTabix</a>,
               using the same specifications as the UCSC browser.
             </div>
           </div>

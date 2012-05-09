@@ -69,7 +69,7 @@ We have provided the default tracks displayed by UCSC for the human genome, and 
 
 ChromoZoom is rather unique among online genome browsers in that you can display custom data from a file *on your local disk* without uploading it to a server[^1].  Using a local file is currently supported by Firefox, Chrome, and Opera; Safari 5 unfortunately does not have the correct API, but it is likely to be added in Safari 6.  Custom data stored on a webserver can also be used by providing the URL to the file.
 
-We currently support the [BED](http://genome.ucsc.edu/FAQ/FAQformat.html#format1), [WIG](http://genome.ucsc.edu/FAQ/FAQformat.html#format6), [VCFTabix](http://genome.ucsc.edu/FAQ/FAQformat.html#format10.1), [bigBed](http://genome.ucsc.edu/FAQ/FAQformat.html#format1.5) and [bigWig](http://genome.ucsc.edu/FAQ/FAQformat.html#format6.1) formats, as they are specified by the UCSC genome browser. 
+We currently support the [BED](http://genome.ucsc.edu/FAQ/FAQformat.html#format1), [WIG](http://genome.ucsc.edu/goldenPath/help/wiggle.html), [VCFTabix](http://genome.ucsc.edu/goldenPath/help/vcf.html), [bigBed](http://genome.ucsc.edu/goldenPath/help/bigBed.html) and [bigWig](http://genome.ucsc.edu/goldenPath/help/bigWig.html) formats, as they are specified by the UCSC genome browser. 
 
 Note that bigBed, bigWig and VCFTabix are "big" formats, and *require* that a file (or several files) are uploaded to a webserver you control.  BED and WIG are "small" formats and can be read straight from your disk or pasted into the browser.
 
