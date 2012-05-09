@@ -105,6 +105,7 @@ body {
 .picker .form-line {
   margin: 0 0.5em;
   font-size: 0.8em;
+  clear: both;
 }
 .picker .form-line strong {
   float: left;
