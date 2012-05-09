@@ -862,10 +862,11 @@
         trackSpec;
       
       function persistentCookie(k, v) { $.cookie(k, v, {expires: 60}); }
+      function removeCookie(k) { $.cookie(k, null); }
       persistentCookie('db', o.genome);
       self.storage = {
-        session: window.sessionStorage || {setItem: $.cookie, getItem: $.cookie},
-        persistent: window.localStorage || {setItem: persistentCookie, getItem: $.cookie}
+        session: window.sessionStorage || {setItem: $.cookie, getItem: $.cookie, removeItem: removeCookie},
+        persistent: window.localStorage || {setItem: persistentCookie, getItem: $.cookie, removeItem: removeCookie}
       };
       _.each(o.savableParams, function(keys, dest) {
         _.each(keys, function(k) {
@@ -1604,8 +1605,11 @@
       self.state = state;
       self.storage && _.each(o.savableParams, function(keys, dest) {
         _.each(keys, function(k) {
+          var fullKey = (dest != 'persistent' ? o.genome + '.' : '') + k;
           if (!_.isUndefined(state[k])) { 
-            self.storage[dest].setItem((dest != 'persistent' ? o.genome + '.' : '') + k, state[k]); 
+            self.storage[dest].setItem(fullKey, state[k]); 
+          } else {
+            self.storage[dest].removeItem(fullKey);
           }
         });
       });
