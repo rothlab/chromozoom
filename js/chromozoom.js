@@ -832,8 +832,9 @@
         $elems = self.element.add(o.navBar);
       $elems.addClass('msie');
       $(o.zoomSlider).parent().find('.tick').last().addClass('last');
-      if (parseFloat($.browser.version) >= 9.0) { return; }
+      $(o.trackPicker[3]).find('textarea.paste').css('white-space', 'pre-wrap').attr('wrap', 'off');
       
+      if (parseFloat($.browser.version) >= 9.0) { return; }
       // Stuff for old MSIE's (< MSIE 9)
       // Show the warning dialog
       $(o.footerBar).find('a[href="#old-msie"]').click();
