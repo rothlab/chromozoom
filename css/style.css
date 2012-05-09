@@ -276,7 +276,7 @@ body {
 #navbar.narrow .ui-button .wide { display: none; }
 
 #linking.ui-button { font-size: 0.7em; }
-#linking img { padding: 2px 0 3px 0; }
+#linking img { padding: 2px 0 3px 0; border: none; }
 
 #link-picker {
   display: none;
