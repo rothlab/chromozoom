@@ -833,6 +833,9 @@
       $elems.addClass('msie');
       $(o.lineMode).find('input[value=single]').attr('checked', true);
       $(o.zoomSlider).parent().find('.tick').last().addClass('last');
+      if (parseFloat($.browser.version) >= 9.0) { return; }
+      
+      // Stuff for really old IE's
       self.element.click(function(e) {
         var $a = $(e.target);
         if (e.target.nodeName.toLowerCase() == 'a' && $a.hasClass('area')) {
