@@ -2,6 +2,19 @@
 /* = MSIE-specific CSS = */
 /* ===================== */
 
+#old-msie-dialog-cont {
+  width: 560px;
+  margin-left: -280px;
+}
+
+#old-msie-icon { 
+  background: white url(ie-trash.png) top left no-repeat;
+  width: 108px;
+  height: 150px;
+  margin: 30px 10px 15px 0;
+  float: left;
+}
+
 .msie #line-mode { display: none; }
 
 #zoom-cont .ticks .tick.last {

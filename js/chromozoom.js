@@ -289,7 +289,7 @@
       reticOpacity: 0.8,
       verticalDragDeadZone: 12,
       maxNtRequest: 20000,
-      dialogs: ['#quickstart', '#about'],
+      dialogs: ['#quickstart', '#about', '#old-msie'],
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
       trackDescURL: 'http://genome.ucsc.edu/cgi-bin/hgTrackUi',
       bpppFormat: function(bppp) { return bppp.toExponential(2).replace(/(\+|-)(\d)$/, '$10$2'); },
@@ -831,11 +831,15 @@
         o = self.options,
         $elems = self.element.add(o.navBar);
       $elems.addClass('msie');
-      $(o.lineMode).find('input[value=single]').attr('checked', true);
       $(o.zoomSlider).parent().find('.tick').last().addClass('last');
       if (parseFloat($.browser.version) >= 9.0) { return; }
       
-      // Stuff for really old IE's
+      // Stuff for old MSIE's (< MSIE 9)
+      // Show the warning dialog
+      $(o.footerBar).find('a[href="#old-msie"]').click();
+      // Disable multiline mode
+      $(o.lineMode).find('input[value=single]').attr('checked', true);
+      // Old IE's have issues with creating new tabs when clicking features
       self.element.click(function(e) {
         var $a = $(e.target);
         if (e.target.nodeName.toLowerCase() == 'a' && $a.hasClass('area')) {

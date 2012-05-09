@@ -142,6 +142,7 @@
         <h2 class="description"></h2>
         <div id="genome-picker" class="ui-widget ui-widget-content ui-corner-top shadow picker picker-dark"></div>
       </div>
+      <a href="#old-msie" style="display: none"></a>
     </div>
     
     <div id="dialogs">
@@ -218,6 +219,31 @@
           <button type="button" class="ui-state-default ui-corner-all loading">Close</button>
         </div>
       </div>
+      
+      <!--[if lte IE 8]>
+      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" tabindex="-1" role="dialog" aria-labelledby="ui-dialog-title-intro-dialog" id="old-msie-dialog-cont">
+        <div id="old-msie-dialog" class="ui-dialog-content ui-widget-content">
+          <div id="old-msie-icon"></div>
+          <h2 id="old-msie">Old browser alert!</h2>
+          <p>
+            We've detected you're using an older version of Internet Explorer.
+            ChromoZoom runs well only on Internet Explorer <strong>9 or later</strong>.
+          </p>
+          <p>
+            On Windows Vista or 7, you can <a href="http://windows.microsoft.com/en-us/internet-explorer/products/ie/home">
+            download it from Microsoft</a> or run Windows Update to upgrade your browser.
+          </p>
+          <p>
+            If you are using an older version of Windows (like XP), we suggest that you check out
+            <a href="http://getfirefox.com">Mozilla Firefox</a> or <a href="http://www.google.com/chrome">Google Chrome</a>,
+            both of which are free and much faster than Internet Explorer!
+          </p>
+        </div>
+        <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
+          <button type="button" class="ui-state-default ui-corner-all loading">Proceed anyway</button>
+        </div>
+      </div>
+      <![endif]-->
       
     </div>
     
