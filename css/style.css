@@ -148,6 +148,7 @@ body {
 }
 #custom-picker .form-line textarea.paste {
   width: 200px;
+  height: 3em;
   font-size: 0.8em;
   float: left;
   white-space: nowrap;
