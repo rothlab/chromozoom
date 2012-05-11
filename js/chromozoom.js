@@ -37,6 +37,12 @@
   // Faster than Math.floor (http://webdood.com/?p=219)
   function floorHack(num) { return (num << 0) - (num < 0 ? 1 : 0); }
   
+  // Decode characters that are safe within our query strings, for increased readability
+  function decodeSafeOctets(query) {
+    var safe = {'3A': ':', '40': '@', '7C': '|', '2F': '/'};
+    return query.replace(/%([0-9A-F]{2})/gi, function(m, oct) { return safe[oct] || m; });
+  }
+  
   // Make a unique ID for an arbitary element, using the given prefix string
   $.uniqId = function(prefix, alsoDisallow) {
     var rand = function() { return floorHack(Math.random()*1000000); };
@@ -232,7 +238,10 @@
       d = function (s) { return decodeURIComponent(s.replace(a, " ")); },
       q = window.location.search.substring(1);
 
-    while (e = r.exec(q)) { p[d(e[1])] = d(e[2]); }
+    while (e = r.exec(q)) { 
+      var k = d(e[1]), v = d(e[2]); 
+      p[k] = p[k] ? (_.isArray(p[k]) ? p[k].push(v) : [p[k], v]) : v; 
+    }
     return p;
   };
 
@@ -363,7 +372,7 @@
       $(o.lineMode).buttonset().click(function() { self._fixNumLines(self.centralLine); });
       $(o.lineMode).find('input,a').focus(function() { var $t = $(this); _.defer(function() { $t.blur(); }); });
       $elem.bind('trackload', _.bind(self._recvTrackLoad, self));
-      $(window).bind('popstate', _.bind(self._initFromParams, self, null));
+      $(window).bind('popstate', function() { self._initFromParams(null, true); });
       
       // Initialize the footer, the search bar, hotkeys, the AJAX proxy, mobile interactions, IE fixes
       // Finally, apply params from either the URL or the session state
@@ -373,7 +382,7 @@
       self._initAjax();
       self._initMobileFeatures();
       if ($.browser.msie) { self._initIEFixes(); }
-      $(window).trigger('resize', function() { self._initFromParams(); });
+      $(window).trigger('resize', function() { self._initFromParams(null, true); });
     },
     
     _initSlider: function() {
@@ -431,6 +440,7 @@
             closePicker();
             $('body').unbind('mousedown.picker');
           });
+          if ($btn.is('a.ui-button')) { $btn.addClass('ui-state-active'); }
         }
         $picker.slideToggle(100); 
       });
@@ -535,6 +545,12 @@
         },
         $urlInput, $urlGet, $div, $b;
       
+      self._customTrackUrls = {
+        requested: [],
+        processing: [],
+        loaded: []
+      };
+      
       function customTrackError(e) {
         $picker.find('.spinner').hide();
         var msg = e.message.replace(/^Uncaught Error: /, '');
@@ -605,16 +621,21 @@
           url = $.trim($url.val());
         if (!url.length) { return; }
         $spinner.show();
+        self._customTrackUrls.requested = _.without(self._customTrackUrls.requested, url);
+        self._customTrackUrls.processing = _.union(self._customTrackUrls.processing, [url]);
         $.ajax(url, {
           success: function(data) {
             CustomTracks.parseAsync(data, browserOpts, function(tracks) {
               $spinner.hide();
               $url.val('');
+              self._customTrackUrls.loaded = _.union(self._customTrackUrls.loaded, [url]);
               self._addCustomTracks(basename(url), tracks);
               $overlay.add($overlayMessage).fadeOut();
             });
           },
-          error: function() { 
+          error: function() {
+            $overlay.hide();
+            $overlayMessage.hide();
             customTrackError({message: "No valid custom track data was found at this URL."}); 
           }
         });
@@ -850,7 +871,7 @@
       });
     },
     
-    _initFromParams: function(params) {
+    _initFromParams: function(params, suppressRepeat) {
       var self = this,
         o = self.options,
         $elem = self.element,
@@ -876,16 +897,21 @@
         });
       });
       params = params || _.extend({}, sessionVars, $.urlParams());
+      if (suppressRepeat && self._lastParams && _.isEqual(self._lastParams, params)) { return; }
+      self._lastParams = _.clone(params);
       
-      if (params.customTracks) {
+      self._customTrackUrls.requested = _.union(self._customTrackUrls.requested, params.customTracks || []);
+      var unprocessedUrls = _.difference(self._customTrackUrls.requested, self._customTrackUrls.processing);
+      
+      // If there are custom track URLs somewhere in the parameters that have not been processed yet...
+      if (unprocessedUrls.length) {
+        // they need to be loaded before we can make sense of the rest of the params
         $overlay.show();
         $overlayMessage.show().text('Loading custom track...');
-        $urlInput.val(params.customTracks); $urlGet.click();
-        delete params.customTracks;
+        $urlInput.val(unprocessedUrls[0]); $urlGet.click();
+        // This should have added the URL to self._customTrackUrls.processing, so it will not be submitted again
         self._nextDirectives = params;
       } else {
-        if (params.position) { self.jumpTo(params.position); }
-        if (params.mode) { $(o.lineMode).find('[value="'+params.mode+'"]').click(); }
         if (params.tracks) {
           trackSpec = _.map(params.tracks.split('|'), function(v) { 
             var split = v.split(':'), trk = {n: split[0]};
@@ -894,6 +920,8 @@
           });
           self._fixTracks({}, trackSpec);
         }
+        if (params.position) { self.jumpTo(params.position); }
+        if (params.mode) { $(o.lineMode).find('[value="'+params.mode+'"]').click(); }
       }
     },
     
@@ -1104,6 +1132,13 @@
           $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
           $c.bind('change', _.bind(self._fixTracks, self));
           $('<h3 class="name"/><p class="long-desc"/>').appendTo($d);
+          if (browserDirectives.tracks) {
+            // If track settings are to be applied, ensure any new custom tracks are added to them
+            // This prevents new tracks from being added and then immediately hidden (confusing)
+            if (!_.find(browserDirectives.tracks.split('|'), function(v) { return v.split(':')[0] == n; })) {
+              browserDirectives.tracks += '|' + n;
+            }
+          }
         } else { $d = $ul.find('[name='+n+']').parent().children('.desc'); }
         // TODO: if the track is not new, inform that its data was replaced with the new track information
         self.availTracks[n] = {
@@ -1131,6 +1166,7 @@
       self._fixTracks({complete: function() {
         // If browser directives were included, we need to obey them.
         if (_.keys(browserDirectives).length) { self._initFromParams(browserDirectives); }
+        // Right now only position is supported.
         // TODO: other browser directives at http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#lines
         self._nextDirectives = {};
       }}); 
@@ -1450,7 +1486,7 @@
         d = [manualDelta, e.originalEvent.wheelDeltaY, e.originalEvent.wheelDelta, 
           e.originalEvent.axis == 2 && -e.originalEvent.detail],
         userAgent = navigator && navigator.userAgent,
-        adjust = [[(/chrome/i), 0.1], [(/safari/i), 0.03], [(/opera/i), 0.01]];
+        adjust = [[(/chrome/i), 0.1], [(/safari/i), 0.03], [(/opera|msie/i), 0.01]];
       if ($(e.target).closest('.picker').length) { return; } // You can scroll the track pickers
       self.element.find('.drag-cont').stop(); // Stop any current inertial scrolling
       if (_.isUndefined(self._wheelDelta)) { self._wheelDelta = 0; }
@@ -1580,9 +1616,11 @@
         $ucscLink = $linkPicker.find('a[name=ucsc]'),
         url, start, end, ucscParams;
       state.tracks = _.map(o.tracks, function(t) { return t.n + ':' + t.h; }).join('|');
+      state.customTracks = self._customTrackUrls.loaded;
       if (lineMode != self._defaultLineMode) { state.mode = lineMode; }
       
-      url = '?' + $.param(_.extend({db: o.genome}, state));
+      // $.param({...}, true) --> don't add [] to array params
+      url = '?' + decodeSafeOctets($.param(_.extend({db: o.genome}, state), true));
       // If the HTML5 history API is implemented, save the state to the URL bar after the first change
       if (window.history && window.history.replaceState && self.state) {
         var now = (new Date).getTime(),

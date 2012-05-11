@@ -91,7 +91,7 @@
         <div class="control-seg">
           <input type="button" id="zoom-in" name="zoom-in" value="+" />
         </div>
-        <div class="control-seg">
+        <div class="control-seg last">
           <div id="line-mode">
             <input type="radio" id="line-mode-multi" name="linemode" checked="checked" value="multi" />
             <label for="line-mode-multi">
