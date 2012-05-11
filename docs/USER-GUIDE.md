@@ -122,7 +122,7 @@ To generate the link programmatically, the base URL is [http://chromozoom.org/](
 
 - `customTracks` — URLs to custom track files that will be loaded into the browser.  *This parameter can be repeated*.  Here is an example of loading two BED files onto the human genome and centering the display on an area of interest:
 
-        http://chromozoom.org/?db=hg18&position=chr2:1-25000
+        http://chromozoom.org/?db=hg18&position=chr2:210000-225000
           &tracks=ruler:50|knownGene:40|_hg18-1-bed_Reads-Group-A:40|_hg18-2-bed_Reads-Group-B:40
           &customTracks=http://chromozoom.org/docs/examples/hg18-1.bed
           &customTracks=http://chromozoom.org/docs/examples/hg18-2.bed
