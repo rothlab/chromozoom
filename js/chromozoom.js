@@ -509,14 +509,15 @@
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div);
       _.each(self.availTracks, function(t, n) {
         var $l = $('<label class="clickable"/>').appendTo($('<li class="choice"/>').appendTo($ul)),
-         $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
-         $d = $('<div class="desc"></div>').appendTo($l),
-         href = o.trackDescURL + '?db=' + o.genome + '&g=' + n + '#TRACK_HTML',
-         $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '';
+          $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
+          $d = $('<div class="desc"></div>').appendTo($l),
+          href = o.trackDescURL + '?db=' + o.genome + '&g=' + n + '#TRACK_HTML',
+          $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '';
         $('<h3/>').addClass('name').text(d[n].sm).append($a).appendTo($d);
         if (d[n].lg) { $('<p/>').addClass('long-desc').text(d[n].lg).appendTo($d); }
         if (_.find(o.tracks, function(trk) { return trk.n==n; })) { $c.attr('checked', true); }
         $l.bind('click', function(e) { if ($(e.target).is('a')) { e.stopPropagation(); }});
+        $l.attr('title', n);
         $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
         $c.bind('change', _.bind(self._fixTracks, self));
       });
@@ -912,6 +913,7 @@
         // This should have added the URL to self._customTrackUrls.processing, so it will not be submitted again
         self._nextDirectives = params;
       } else {
+        if (params.mode) { $(o.lineMode).find('[value="'+params.mode+'"]').click(); }
         if (params.tracks) {
           trackSpec = _.map(params.tracks.split('|'), function(v) { 
             var split = v.split(':'), trk = {n: split[0]};
@@ -921,7 +923,6 @@
           self._fixTracks({}, trackSpec);
         }
         if (params.position) { self.jumpTo(params.position); }
-        if (params.mode) { $(o.lineMode).find('[value="'+params.mode+'"]').click(); }
       }
     },
     
@@ -1130,6 +1131,7 @@
           $c = $('<input type="checkbox" checked="checked"/>').attr('name', n).prependTo($l),
           $d = $('<div class="desc"></div>').appendTo($l);
           $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+          $l.attr('title', n);
           $c.bind('change', _.bind(self._fixTracks, self));
           $('<h3 class="name"/><p class="long-desc"/>').appendTo($d);
           if (browserDirectives.tracks) {
@@ -1165,10 +1167,10 @@
       }
       self._fixTracks({complete: function() {
         // If browser directives were included, we need to obey them.
-        if (_.keys(browserDirectives).length) { self._initFromParams(browserDirectives); }
+        self._nextDirectives = {};
         // Right now only position is supported.
         // TODO: other browser directives at http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#lines
-        self._nextDirectives = {};
+        if (_.keys(browserDirectives).length) { self._initFromParams(browserDirectives); }
       }}); 
     },
     
