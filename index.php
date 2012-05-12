@@ -74,7 +74,8 @@
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigBed.html">bigBed</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigWig.html">bigWig</a>,
               and <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/vcf.html">VCFTabix</a>,
-              using the same specifications as the UCSC browser.
+              using the same specifications as the UCSC browser.<br/>
+              For more details, please see the <a target="_blank" href="docs/#custom-tracks">User Guide.</a>
             </div>
           </div>
         </div>

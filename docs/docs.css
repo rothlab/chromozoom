@@ -84,8 +84,9 @@ padding-left: 3em;
 border-left: 0.5em #EEE solid;
 }
 hr { display: block; height: 2px; border: 0; border-top: 1px solid #aaa;border-bottom: 1px solid #eee; margin: 1em 0; padding: 0; }
-pre, code, kbd, samp { color: #000; font-family: Menlo, "Bitstream Vera Sans Mono", Consolas, Monaco, monospace, monospace; _font-family: 'courier new', monospace; font-size: 0.95em; }
+pre, code, kbd, samp { color: #000; font-family: Menlo, "Bitstream Vera Sans Mono", Consolas, Monaco, monospace, monospace; _font-family: 'courier new', monospace; font-size: 0.85em; }
 pre { white-space: pre; white-space: pre-wrap; word-wrap: break-word; }
+pre code { font-size: 1em; }
 
 b, strong { font-weight: bold; }
 
