@@ -124,7 +124,7 @@ To generate the link programmatically, the base URL is [http://chromozoom.org/](
 
 - `mode` — You can force the browser to be in either `single` or `multi` mode.
 
-- `customTracks` — URLs to custom track files that will be loaded into the browser.  *This parameter can be repeated*.  Here is [an example link][example-link-2] that loads two BED files onto the human genome and centers the display on the area of interest:
+- `customTracks` — URLs to custom track files that will be loaded into the browser.  *This parameter can be repeated*.  Here is [an example link][example-link-2] that loads two BED files, [hg18-1.bed][bed-1] and [hg18-2.bed][bed-2], onto the human genome and centers the display on the area of interest:
 
         http://chromozoom.org/?db=hg18&position=chr2:210000-225000
           &tracks=ruler:50|knownGene:150|_hg18-1-bed_Reads-Group-A:40
@@ -133,6 +133,8 @@ To generate the link programmatically, the base URL is [http://chromozoom.org/](
           &customTracks=http://chromozoom.org/docs/examples/hg18-2.bed
 
 [example-link-2]: http://chromozoom.org/?db=hg18&position=chr2:210000-225000&tracks=ruler:50|knownGene:150|_hg18-1-bed_Reads-Group-A:40|_hg18-2-bed_Reads-Group-B:40&customTracks=http://chromozoom.org/docs/examples/hg18-1.bed&customTracks=http://chromozoom.org/docs/examples/hg18-2.bed
+[bed-1]: http://chromozoom.org/docs/examples/hg18-1.bed
+[bed-2]: http://chromozoom.org/docs/examples/hg18-2.bed
 
 ## Source code
 
