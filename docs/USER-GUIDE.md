@@ -91,9 +91,11 @@ Each format begins with a *track line* that starts with the string `track` and s
 
 ## Linking to ChromoZoom {#linking}
 
-You may easily construct links from your webpages or web applications to ChromoZoom.  These links can open ChromoZoom in a particular genome, located at a specific position, with certain tracks that should be visible, etc.  Here is an [example link](http://chromozoom.org/?db=sacCer3&position=chrII:4000@0.1&tracks=ruler:25|sgdGene:20|cutters:250) that opens the yeast genome at the closest zoom level around `chrII:4000` with the SGD Genes and the Restriction Enzymes tracks expanded to their fullest height.  The URL is:
+You may easily construct links from your webpages or web applications to ChromoZoom.  These links can open ChromoZoom in a particular genome, located at a specific position, with certain tracks that should be visible, etc.  Here is [an example link][example-link-1] that opens the yeast genome at the closest zoom level around `chrII:4000` with the SGD Genes and the Restriction Enzymes tracks expanded to their fullest height.  The URL is:
 
     http://chromozoom.org/?db=sacCer3&position=chrII:4000@0.1&tracks=ruler:25|sgdGene:20|cutters:250
+
+[example-link-1]: http://chromozoom.org/?db=sacCer3&position=chrII:4000@0.1&tracks=ruler:25|sgdGene:20|cutters:250
 
 The simplest way to generate such a link is to open ChromoZoom, move it to the desired area and add/resize tracks until you are satisfied, and then copy the link from the "links" pulldown in the navbar.  If you are using a modern browser (Chrome, Firefox, Safari) it will actually already be in your address bar.
 
@@ -120,12 +122,15 @@ To generate the link programmatically, the base URL is [http://chromozoom.org/](
 
 - `mode` — You can force the browser to be in either `single` or `multi` mode.
 
-- `customTracks` — URLs to custom track files that will be loaded into the browser.  *This parameter can be repeated*.  Here is an example of loading two BED files onto the human genome and centering the display on an area of interest:
+- `customTracks` — URLs to custom track files that will be loaded into the browser.  *This parameter can be repeated*.  Here is [an example link][example-link-2] that loads two BED files onto the human genome and centers the display on the area of interest:
 
         http://chromozoom.org/?db=hg18&position=chr2:210000-225000
-          &tracks=ruler:50|knownGene:150|_hg18-1-bed_Reads-Group-A:40|_hg18-2-bed_Reads-Group-B:40
+          &tracks=ruler:50|knownGene:150|_hg18-1-bed_Reads-Group-A:40
+            |_hg18-2-bed_Reads-Group-B:40
           &customTracks=http://chromozoom.org/docs/examples/hg18-1.bed
           &customTracks=http://chromozoom.org/docs/examples/hg18-2.bed
+
+[example-link-2]: http://chromozoom.org/?db=hg18&position=chr2:210000-225000&tracks=ruler:50|knownGene:150|_hg18-1-bed_Reads-Group-A:40|_hg18-2-bed_Reads-Group-B:40&customTracks=http://chromozoom.org/docs/examples/hg18-1.bed&customTracks=http://chromozoom.org/docs/examples/hg18-2.bed
 
 ## Source code
 
