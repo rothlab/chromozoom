@@ -82,14 +82,16 @@ Each format begins with a *track line* that starts with the string `track` and s
 ### Picking a format
 
 - If you are plotting sequence variations, e.g. SNPs and indels, use VCFTabix.
+
 - If you have *continuous*, *quantitative* data, e.g., floating-point values spread over base-pair positions:
   - For a relatively small amount (<100k points) of data, use WIG.
   - For a relatively large amount (>100k points) of data, use bigWig.
+
 - If you have *range-based* features, e.g., selected regions of interest:
   - For a relatively small number (<10k elements), use BED.
   - For a relatively large number (>10k elements), use bigBed.
 
-## Linking to ChromoZoom {#linking}
+## Linking {#linking}
 
 You may easily construct links from your webpages or web applications to ChromoZoom.  These links can open ChromoZoom in a particular genome, located at a specific position, with certain tracks that should be visible, etc.  Here is [an example link][example-link-1] that opens the yeast genome at the closest zoom level around `chrII:4000` with the SGD Genes and the Restriction Enzymes tracks expanded to their fullest height.  The URL is:
 
@@ -101,7 +103,7 @@ The simplest way to generate such a link is to open ChromoZoom, move it to the d
 
 To generate the link programmatically, the base URL is [http://chromozoom.org/](http://chromozoom.org/), and the following query parameters are available:
 
-- `db` — **Required.** Which genome to display.  To find out the db name of a genome, 
+- `db` — **Required.** Which genome to display.  To find out the `db` name of a genome, 
   select it from the genome picker and observe the change in your browser's address bar.
   
 - `position` — Which part of the genome will be displayed.  Possible formats are (examples for yeast):
