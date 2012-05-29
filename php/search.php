@@ -28,7 +28,7 @@ if (isset($genome_config['search_tch'])) {
     if (is_array($genome_config['search_tch'])) {
       $tt = @Tyrant::connect($genome_config['search_tch'][0], $genome_config['search_tch'][1]);
     } else {
-      $sock = preg_replace('/[^a-z0-9]|\\.tch$/i', '', $genome_config['search_tch']);
+      $sock = preg_replace('/[^a-z0-9.]|\\.tch$/i', '', $genome_config['search_tch']);
       $tt = @Tyrant::connect("/tmp/$sock.sock", 0);
     }
     $value = $tt[$query];
@@ -87,5 +87,5 @@ if ($suggest !== NULL) {
 }
 
 $out = json_encode($result);
-if ($tt !== NULL && strlen($pos) < 7) { $tt[$query] = gzdeflate($out); echo $tt[$query]; }
-else { echo $out; }
+echo $out;
+if ($tt !== NULL && strlen($pos) < 7) { $tt[$query] = gzdeflate($out); }
