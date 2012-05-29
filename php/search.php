@@ -87,5 +87,5 @@ if ($suggest !== NULL) {
 }
 
 $out = json_encode($result);
-echo $out;
-if ($tt !== NULL && strlen($pos) < 7) { $tt[$query] = gzdeflate($out); }
+if ($tt !== NULL && strlen($pos) < 7) { $tt[$query] = gzdeflate($out); echo $tt[$query]; }
+else { echo $out; }

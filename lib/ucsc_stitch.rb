@@ -576,7 +576,7 @@ class UCSCClient
                 query = cols[c][0...chrs]
                 next if already_did[query]
                 puts cols[c][0...chrs]
-                `php search.php #{@genome} #{cols[c][0...chrs]} 2>&1 >/dev/null`
+                `php search.php #{@genome} #{cols[c][0...chrs]}`
                 already_did[query] = true
               end
             end
