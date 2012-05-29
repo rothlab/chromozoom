@@ -3,8 +3,12 @@
 header("Content-type: application/json");
 require_once("../lib/spyc.php");
 
-$db = urlencode(isset($_GET['db']) ? preg_replace('/[^a-z0-9]/i', '', $_GET['db']) : 'hg18');
-$pos = urlencode($_GET['position']);
+/* Allow calling from the command line, when filling the search cache */
+$php_cli = isset($_SERVER['argv']) && $_SERVER['argc'] >= 3
+$db_input = $php_cli ? $_SERVER['argv'][1] : (isset($_GET['db']) ? $_GET['db'] : 'hg18');
+$pos_input = $php_cli ? $_SERVER['argv'][2] : $_GET['position']
+$db = urlencode(preg_replace('/[^a-z0-9]/i', '', $db_input));
+$pos = urlencode(strtoupper($pos_input));
 
 if (!file_exists("../$db.yaml")) {
   exit('{"error":"specified genome does not exist"}');
@@ -15,8 +19,24 @@ $serve_tracks = array();
 foreach($genome_config['serve_tracks'] as $trk) {
   $serve_tracks[$trk['n']] = true;
 }
+$query = "db=$db&position=$pos";
 
-$url = "{$ucsc_config['browser_hosts']['local']}{$ucsc_config['browser_urls']['tracks']}?db=$db&position=$pos";
+$tt = NULL;
+if (isset($genome_config['search_tch'])) {
+  include('../lib/Tyrant.php');
+  try {
+    if (is_array($genome_config['search_tch'])) {
+      $tt = @Tyrant::connect($genome_config['search_tch'][0], $genome_config['search_tch'][1]);
+    } else {
+      $sock = preg_replace('/[^a-z0-9]|\\.tch$/i', '', $genome_config['search_tch']);
+      $tt = @Tyrant::connect("/tmp/$sock.sock", 0);
+    }
+    $value = $tt[$query];
+    if ($value !== NULL) { echo gzinflate($value); exit; }
+  } catch (Exception $e) { $tt = NULL; }
+}
+
+$url = "{$ucsc_config['browser_hosts']['local']}{$ucsc_config['browser_urls']['tracks']}?$query";
 if (function_exists('curl_init')) {
   $ch = curl_init($url);
   
@@ -66,4 +86,6 @@ if ($suggest !== NULL) {
   }
 }
 
-echo json_encode($result);
+$out = json_encode($result);
+echo $out;
+if ($tt !== NULL && strlen($pos) < 7) { $tt[$query] = gzdeflate($out); }

@@ -379,7 +379,7 @@ class UCSCClient
     puts "Finished making tiles for all tracks." unless options[:dry_run]
   end
   
-  # Create the JSON file that holds the run-time configuration for the UCSCin web interface
+  # Create the JSON file that holds the run-time configuration for the ChromoZoom web interface
   def make_json(save_to=nil, format=nil)
     serve_tracks = @genome_config['serve_tracks']
     puts "Generating JSON run-time configuration."
@@ -555,6 +555,37 @@ class UCSCClient
     save_to = prompt("Where do you want to save the configuration file?", "#{@genome}.yaml") if save_to.nil?
     File.open(save_to, 'w') {|out| YAML.dump(config, out) }
     puts "Saved configuration file to #{save_to}."
+  end
+  
+  # Hits the search service repeatedly to prefill the cache for searching
+  def prefill_search_tch
+    raise "No search_tch specified in genome configuration" if @genome_config['search_tch'].nil?
+    raise "No search_warmup_list specified in genome configuration" if @genome_config['search_warmup_list'].nil?
+    w_list = @genome_config['search_warmup_list']
+    raise "No search_warmup_list.tsv_url specified in genome configuration" if w_list['tsv_url'].nil?
+    raise "No search_warmup_list.columns specified in genome configuration" if w_list['columns'].nil?
+    already_did = {}
+    Dir.chdir("#{@init_pwd}/php") do
+      begin
+        tsv = URI.parse(w_list['tsv_url']).open do |f|
+          while (l = f.gets) do
+            cols = l.split("\t")
+            w_list['columns'].each do |c|
+              next unless cols.size > c
+              (0...[cols[c].size, 8].min).each do |chrs|
+                query = cols[c][0...chrs]
+                next if already_did[query]
+                puts cols[c][0...chrs]
+                system("php", "search.php", @genome, cols[c][0...chrs])
+                already_did[query] = true
+              end
+            end
+          end
+        end
+      rescue OpenURI::HTTPError
+        raise "Couldn't retrieve gene names from #{w_list['tsv_url']}"
+      end
+    end
   end
   
   # ==================================

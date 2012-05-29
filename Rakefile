@@ -17,7 +17,7 @@ REQUIRED_LINKS = {
 REQUIRED_LINK_WARN = <<-EOS
 WARN: could not find the following in your $PATH: %1$s
   You won't need %2$s if you are just tile stitching, but they are needed 
-  to serve custom tracks for the UCSCin interface.
+  to serve custom tracks for the ChromoZoom interface.
   To acquire %2$s, try visiting the following sites:
    - %3$s
 EOS
@@ -34,7 +34,7 @@ file "ucsc.yaml" do
   cp "ucsc.dist.yaml", "ucsc.yaml"
 end
 
-desc "Checks that all requirements for UCSCin are in place"
+desc "Checks that all requirements for ChromoZoom are in place"
 task :check => ["ucsc.yaml", "bin"] + REQUIRED_LINKS.keys.map{|l| "bin/#{l}" } do |t|
   if missing = REQUIRED_BINS.keys.find{|b| `which #{b}`.strip.size == 0 }
     fail "FAIL: Could not find \`#{missing}\` in your $PATH; please ensure #{REQUIRED_BINS[missing]} is installed."
@@ -70,7 +70,7 @@ task :stat_tiles, [:genome, :exhaustive] => :config do |t, args|
   c.make_tiles(:dry_run => true, :exhaustive => args.exhaustive)
 end
 
-desc "Rebuilds the JSON file that holds a genome's configuration for the UCSCin web interface"
+desc "Rebuilds the JSON file that holds a genome's configuration for the ChromoZoom web interface"
 task :json, [:genome, :skip_tiles] => [:config, :json_clean] do |t, args|
   $skip_tiles = args.skip_tiles
   Rake::Task["#{c.genome}.json"].invoke
@@ -82,7 +82,13 @@ task :tch, [:genome] => :config do |t, args|
   Rake::Task["#{args.genome || c.genome}.tch"].invoke
 end
 
-desc "Deletes the JSON file that holds a genome's configuration for the UCSCin web interface"
+desc "Warms up the search cache for a genome"
+task :search_tch, [:genome] => :config do |t, args|
+  fail "You must specify the genome as an argument, e.g., \"rake search_tch[hg18]\"" unless args.genome || c.genome
+  c.prefill_search_tch
+end
+
+desc "Deletes the JSON file that holds a genome's configuration for the ChromoZoom web interface"
 task :json_clean, [:genome] do |t, args|
   fail "You must specify the genome as an argument, e.g., \"rake json_clean[hg18]\"" unless args.genome || c.genome
   rm "#{args.genome || c.genome}.json", :force => true
