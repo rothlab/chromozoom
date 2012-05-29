@@ -6,7 +6,7 @@ require_once("../lib/spyc.php");
 /* Allow calling from the command line, when filling the search cache */
 $php_cli = isset($_SERVER['argv']) && $_SERVER['argc'] >= 3;
 $db_input = $php_cli ? $_SERVER['argv'][1] : (isset($_GET['db']) ? $_GET['db'] : 'hg18');
-$pos_input = $php_cli ? $_SERVER['argv'][2] : $_GET['position']
+$pos_input = $php_cli ? $_SERVER['argv'][2] : $_GET['position'];
 $db = urlencode(preg_replace('/[^a-z0-9]/i', '', $db_input));
 $pos = urlencode(strtoupper($pos_input));
 
