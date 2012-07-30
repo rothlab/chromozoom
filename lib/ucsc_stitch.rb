@@ -572,12 +572,14 @@ class UCSCClient
             cols = l.split("\t")
             w_list['columns'].each do |c|
               next unless cols.size > c
-              (0...[cols[c].size, 8].min).each do |chrs|
-                query = cols[c][0...chrs]
-                next if already_did[query]
-                puts cols[c][0...chrs]
-                `php search.php #{@genome} #{cols[c][0...chrs]}`
-                already_did[query] = true
+              cols[c].split(/\s+/).each do |term|
+                (0...[term.size, 8].min).each do |chrs|
+                  query = term[0...chrs]
+                  next if already_did[query]
+                  puts term[0...chrs]
+                  `php search.php #{@genome} #{term[0...chrs]}`
+                  already_did[query] = true
+                end
               end
             end
           end
