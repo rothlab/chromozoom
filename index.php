@@ -94,11 +94,11 @@
         </div>
         <div class="control-seg last">
           <div id="line-mode">
-            <input type="radio" id="line-mode-multi" name="linemode" checked="checked" value="multi" />
+            <input type="radio" id="line-mode-multi" name="linemode" value="multi" />
             <label for="line-mode-multi">
               <img src="css/multi-line.png" alt="multi" /><span class="wide"> multi</span>
             </label>
-            <input type="radio" id="line-mode-single" name="linemode" value="single" />
+            <input type="radio" id="line-mode-single" name="linemode" checked="checked" value="single" />
             <label id="for-line-mode-single" for="line-mode-single">
               <img src="css/single-line.png" alt="single" /><span class="wide"> single</span>
             </label>

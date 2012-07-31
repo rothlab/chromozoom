@@ -558,7 +558,7 @@ class UCSCClient
   end
   
   # Hits the search service repeatedly to prefill the cache for searching
-  def prefill_search_tch
+  def prefill_search_tch(start_at=nil)
     raise "No search_tch specified in genome configuration" if @genome_config['search_tch'].nil?
     raise "No search_warmup_list specified in genome configuration" if @genome_config['search_warmup_list'].nil?
     w_list = @genome_config['search_warmup_list']
@@ -568,20 +568,23 @@ class UCSCClient
     Dir.chdir("#{@init_pwd}/php") do
       begin
         tsv = URI.parse(w_list['tsv_url']).open do |f|
+          line_no = 0
           while (l = f.gets) do
             cols = l.split("\t")
+            next if start_at and start_at > line_no
             w_list['columns'].each do |c|
               next unless cols.size > c
               cols[c].split(/\s+/).each do |term|
                 (0...[term.size, 8].min).each do |chrs|
                   query = term[0...chrs]
                   next if already_did[query]
-                  puts term[0...chrs]
+                  puts "#{line_no}: #{term[0...chrs]}"
                   `php search.php #{@genome} #{term[0...chrs]}`
                   already_did[query] = true
                 end
               end
             end
+            line_no += 1
           end
         end
       rescue OpenURI::HTTPError

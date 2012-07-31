@@ -494,8 +494,10 @@
         });
       });
       
-      // Show the quickstart screen if the user has never been here before
-      if ($.cookie('db')===null) { $foot.find('a[href="'+o.dialogs[0]+'"]').click(); }
+      // Show the quickstart screen if the user has never been here before and the viewport is big enough to show it
+      if ($.cookie('db')===null && $(window).width() > 600 && $(window).height() > 420) { 
+        $foot.find('a[href="'+o.dialogs[0]+'"]').click();
+      }
     },
         
     _initTrackPicker: function() {
