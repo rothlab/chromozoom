@@ -83,9 +83,9 @@ task :tch, [:genome] => :config do |t, args|
 end
 
 desc "Warms up the search cache for a genome"
-task :search_tch, [:genome] => :config do |t, args|
+task :search_tch, [:genome, :start_at] => :config do |t, args|
   fail "You must specify the genome as an argument, e.g., \"rake search_tch[hg18]\"" unless args.genome || c.genome
-  c.prefill_search_tch
+  c.prefill_search_tch(args.start_at)
 end
 
 desc "Deletes the JSON file that holds a genome's configuration for the ChromoZoom web interface"
