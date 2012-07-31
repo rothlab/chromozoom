@@ -571,7 +571,7 @@ class UCSCClient
           line_no = 0
           while (l = f.gets) do
             cols = l.split("\t")
-            next if start_at and start_at > line_no
+            next if start_at and start_at.to_i > line_no
             w_list['columns'].each do |c|
               next unless cols.size > c
               cols[c].split(/\s+/).each do |term|
