@@ -75,7 +75,23 @@ We currently support the [BED](http://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
 Note that bigBed, bigWig and VCFTabix are "big" formats, and *require* that a file (or several files) are uploaded to a webserver you control.  BED, bedGraph, and WIG are "small" formats and can be read straight from your disk or pasted into the browser.
 
-Each format begins with a *track line* that starts with the string `track` and specifies features and options for that track.  This line either contains a `bigDataURL` pointing to an online file for the "big" formats, or is followed by lines of tab-delimited data for the "small" formats.
+Each format begins with a *track line* that starts with the string `track` and specifies features and options for that track.  This line either contains a `bigDataURL` pointing to an online file for the "big" formats, or is followed by lines of tab-delimited data for the "small" formats.  It should look something like this:
+
+        track type="bed" name="Reads Group A" useScore=1
+
+Here are some real-world examples of the "small" formats that are known to work with ChromoZoom, downloaded from the [Saccharomyces Genome Database][sgd].  Descriptions and authors of each dataset, including PMID, are recorded as comments within the files.
+
+* BED format: [Lardenois et al. (2011)][bed-ex-1] ([view in ChromoZoom][bed-ex-1-cz])
+* bedGraph format: [Buhler et al. (2007)][bedgraph-ex-1] ([view in ChromoZoom][bedgraph-ex-1-cz])
+* WIG format: [Buhler et al. (2007)][wig-ex-1] ([view in ChromoZoom][wig-ex-1-cz])
+
+[sgd]: http://downloads.yeastgenome.org/published_datasets/
+[bed-ex-1]: examples/Lardenois_2011_noncoding_RNAs_V64.bed
+[bed-ex-1-cz]: http://chromozoom.org/?db=sacCer3&customTracks=http://chromozoom.org/docs/examples/Lardenois_2011_noncoding_RNAs_V64.bed
+[bedgraph-ex-1]: examples/Buhler_2007_rad50S_denoised_ratios_V64.bedgraph
+[bedgraph-ex-1-cz]: http://chromozoom.org/?db=sacCer3&customTracks=http://chromozoom.org/docs/examples/Buhler_2007_rad50S_denoised_ratios_V64.bedgraph
+[wig-ex-1]: examples/Buhler_2007_dmc1delta_denoised_ratios_V64.wig
+[wig-ex-1-cz]: http://chromozoom.org/?db=sacCer3&customTracks=http://chromozoom.org/docs/examples/Buhler_2007_dmc1delta_denoised_ratios_V64.wig
 
 [^1]: This is possible because of the magic of the [HTML5 File API](http://www.w3.org/TR/FileAPI/) and [Canvas](https://developer.mozilla.org/en/HTML/Canvas).
 

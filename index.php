@@ -68,14 +68,13 @@
             </div>
             <div class="form-line"><div class="spinner"></div><strong>add url: </strong><label></label></div>
             <div class="help-line">
-              Valid formats are:
               <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format1">BED</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bedgraph.html">bedGraph</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/wiggle.html">WIG</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigBed.html">bigBed</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigWig.html">bigWig</a>,
-              and <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/vcf.html">VCFTabix</a>,
-              using the same specifications as the UCSC browser.<br/>
+              and <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/vcf.html">VCFTabix</a><br/>
+              are currently supported, using UCSC's specifications.<br/>
               For more details, please see the <a target="_blank" href="docs/#custom-tracks">User Guide.</a>
             </div>
           </div>
