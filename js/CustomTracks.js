@@ -71,10 +71,13 @@
       if (track) { pushTrack(); }
       return customTracks;
     },
+    
     error: function(e) {
       // Can be overridden by a parent library to handle errors more gracefully.
       console.log(e);
     },
+    
+    // NOTE: To temporarily disable Web Worker usage, have this return null
     worker: function() {
       var self = this,
         callbacks = [];
@@ -98,6 +101,7 @@
       }
       return self._worker;
     },
+    
     async: function(self, fn, args, asyncExtraArgs, wrapper) {
       args = _.toArray(args);
       wrapper = wrapper || _.identity;
@@ -111,6 +115,7 @@
       Array.prototype.unshift.apply(firstargs, asyncExtraArgs);
       w.call(fn, firstargs, function(ret) { callback(wrapper(ret)); });
     },
+    
     parseAsync: function() {
       this.async(this, 'parse', arguments, [], function(tracks) {
         // These have been serialized, so they must be hydrated into real CustomTrack objects.
@@ -378,6 +383,68 @@
         });
       }
     },
+    
+    // =========================================================================
+    // = bedGraph format: http://genome.ucsc.edu/goldenPath/help/bedgraph.html =
+    // =========================================================================
+  
+    bedgraph: {
+      defaults: {
+        altColor: '',
+        priority: 100,
+        autoScale: 'on',
+        alwaysZero: 'off',
+        gridDefault: 'off',
+        maxHeightPixels: '128:128:15',
+        graphType: 'bar',
+        viewLimits: '',
+        yLineMark: 0.0,
+        yLineOnOff: 'off',
+        windowingFunction: 'maximum',
+        smoothingWindow: 'off'
+      },
+    
+      init: function() { return this.type('wiggle_0').init.call(this); },
+      
+      initOpts: function() { return this.type('wiggle_0').initOpts.call(this); },
+    
+      parse: function(lines) {
+        var self = this,
+          genomeSize = this.browserOpts.genomeSize,
+          data = {all: []},
+          mode, modeOpts, chrPos, m;
+        self.range = this.isOn(this.opts.alwaysZero) ? [0, 0] : [Infinity, -Infinity];
+      
+        _.each(lines, function(line, lineno) {
+          var cols = ['chrom', 'chromStart', 'chromEnd', 'dataValue'],
+            datum = {},
+            chrPos, start, end, val;
+          _.each(line.split(/\s+/), function(v, i) { datum[cols[i]] = v; });
+          chrPos = self.browserOpts.chrPos[datum.chrom];
+          if (_.isUndefined(chrPos)) {
+            self.warn("Invalid chromosome at line " + (lineno + 1 + self.opts.lineNum));
+          }
+          start = parseInt10(datum.chromStart);
+          end = parseInt10(datum.chromEnd);
+          val = parseFloat(datum.dataValue);
+          data.all.push({start: chrPos + start, end: chrPos + end, val: val});
+        });
+
+        return self.type('wiggle_0').finishParse.call(self, data);
+      },
+      
+      initDrawSpec: function() { return this.type('wiggle_0').initDrawSpec.apply(this, arguments); },
+      
+      drawBars: function() { return this.type('wiggle_0').drawBars.apply(this, arguments); },
+    
+      prerender: function(start, end, density, precalc, callback) {
+        return this.type('wiggle_0').prerender.call(this, start, end, density, precalc, callback);
+      },
+    
+      render: function(canvas, start, end, density, callback) {
+        this.type('wiggle_0').render.call(this, canvas, start, end, density, callback);
+      }
+    },
   
     // ==================================================================
     // = WIG format: http://genome.ucsc.edu/goldenPath/help/wiggle.html =
@@ -472,6 +539,12 @@
             }
           }
         });
+        
+        return self.type().finishParse.call(self, data);
+      },
+      
+      finishParse: function(data) {
+        var self = this;
         if (data.all.length > 0) {
           self.range[0] = _.min(data.all, function(d) { return d.val; }).val;
           self.range[1] = _.max(data.all, function(d) { return d.val; }).val;
@@ -486,7 +559,7 @@
         });
       
         // Pre-optimize data for high bppps by downsampling
-        _.each(this.browserOpts.bppps, function(bppp) {
+        _.each(self.browserOpts.bppps, function(bppp) {
           if (self.browserOpts.genomeSize / bppp > 1000000) { return; }
           var pixLen = Math.ceil(self.browserOpts.genomeSize / bppp),
             downsampledData = (data[bppp] = (global.Float32Array ? new Float32Array(pixLen) : new Array(pixLen))),
@@ -505,7 +578,8 @@
         self.stretchHeight = true;
         self.drawRange = this.isOn(this.opts.autoScale) || this.opts.viewLimits.length < 2 ? this.range : this.opts.viewLimits;
         _.each({max: 0, min: 2, start: 1}, function(v, k) { self.heights[k] = self.opts.maxHeightPixels[v]; });
-        return true;
+        
+        return true; // success!
       },
       
       initDrawSpec: function(precalc) {
