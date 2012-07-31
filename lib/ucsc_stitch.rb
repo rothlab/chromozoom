@@ -483,7 +483,7 @@ class UCSCClient
     begin
       stream = URI.parse(@ucsc_config['data_urls']['cyto_band'] % @genome).open
       gz = Zlib::GzipReader.new(stream)
-      config['chr_bands'] = gz.read.split("\n").map{|l| l.split("\t") }
+      config['chr_bands'] = gz.read.split("\n").map{|l| r = l.split("\t"); r[1] = r[1].to_i; r[2] = r[2].to_i }
       puts "Retrieved #{config['chr_bands'].size} chromosome bands"
     rescue OpenURI::HTTPError
       puts "Couldn't retrieve chromosome bands for #{@genome}; proceeding anyway"
