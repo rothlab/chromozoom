@@ -71,9 +71,9 @@ We have provided the default tracks displayed by UCSC for the human genome, and 
 
 ChromoZoom is rather unique among online genome browsers in that you can display custom data from a file *on your local disk* without uploading it to a server[^1].  Using a local file is currently supported by Firefox, Chrome, and Opera; Safari 5 unfortunately does not have the correct API, but it is likely to be added in Safari 6.  Custom data stored on a webserver can also be used by providing the URL to the file.
 
-We currently support the [BED](http://genome.ucsc.edu/FAQ/FAQformat.html#format1), [WIG](http://genome.ucsc.edu/goldenPath/help/wiggle.html), [VCFTabix](http://genome.ucsc.edu/goldenPath/help/vcf.html), [bigBed](http://genome.ucsc.edu/goldenPath/help/bigBed.html) and [bigWig](http://genome.ucsc.edu/goldenPath/help/bigWig.html) formats, as they are specified by the UCSC genome browser. 
+We currently support the [BED](http://genome.ucsc.edu/FAQ/FAQformat.html#format1), [bedGraph](http://genome.ucsc.edu/goldenPath/help/bedgraph.html), [WIG](http://genome.ucsc.edu/goldenPath/help/wiggle.html), [VCFTabix](http://genome.ucsc.edu/goldenPath/help/vcf.html), [bigBed](http://genome.ucsc.edu/goldenPath/help/bigBed.html) and [bigWig](http://genome.ucsc.edu/goldenPath/help/bigWig.html) formats, as they are specified by the UCSC genome browser. 
 
-Note that bigBed, bigWig and VCFTabix are "big" formats, and *require* that a file (or several files) are uploaded to a webserver you control.  BED and WIG are "small" formats and can be read straight from your disk or pasted into the browser.
+Note that bigBed, bigWig and VCFTabix are "big" formats, and *require* that a file (or several files) are uploaded to a webserver you control.  BED, bedGraph, and WIG are "small" formats and can be read straight from your disk or pasted into the browser.
 
 Each format begins with a *track line* that starts with the string `track` and specifies features and options for that track.  This line either contains a `bigDataURL` pointing to an online file for the "big" formats, or is followed by lines of tab-delimited data for the "small" formats.
 
@@ -84,7 +84,7 @@ Each format begins with a *track line* that starts with the string `track` and s
 - If you are plotting sequence variations, e.g. SNPs and indels, use VCFTabix.
 
 - If you have *continuous*, *quantitative* data, e.g., floating-point values spread over base-pair positions:
-  - For a relatively small amount (<100k points) of data, use WIG.
+  - For a relatively small amount (<100k points) of data, use WIG or bedGraph.
   - For a relatively large amount (>100k points) of data, use bigWig.
 
 - If you have *range-based* features, e.g., selected regions of interest:
