@@ -571,6 +571,7 @@ class UCSCClient
           line_no = 0
           while (l = f.gets) do
             cols = l.split("\t")
+            line_no += 1
             next if start_at and start_at.to_i > line_no
             w_list['columns'].each do |c|
               next unless cols.size > c
@@ -584,7 +585,6 @@ class UCSCClient
                 end
               end
             end
-            line_no += 1
           end
         end
       rescue OpenURI::HTTPError
