@@ -94,7 +94,9 @@ SortedList.prototype.insert = function() {
   if (arguments.length > 100) {
     // .bsearch + .splice is too expensive to repeat for so many elements.
     // Let's just append them all to this.arr and resort.
-    Array.prototype.push.apply(this.arr, arguments);
+    for (var i = 0; i < arguments.length; i += 4096) {
+      Array.prototype.push.apply(this.arr, Array.prototype.slice(arguments, i, i + 4096));
+    }
     this.arr.sort(this.compare);
   } else {
     Array.prototype.forEach.call(arguments, function(val) {
