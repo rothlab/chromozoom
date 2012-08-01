@@ -10,7 +10,9 @@ if (!global.console || !global.console.log) {
 
 var CustomTrackWorker = {
   _tracks: [],
+  _throwErrors: false,
   parse: function(text, browserOpts) {
+    throw {message: "boom"};
     var self = this,
       tracks = CustomTracks.parse(text, browserOpts);
     return _.map(tracks, function(t) {
@@ -27,6 +29,9 @@ var CustomTrackWorker = {
       id = _.first(args),
       track = this._tracks[id];
     track.prerender.apply(track, _.rest(args));
+  },
+  throwErrors: function(toggle) {
+    this._throwErrors = toggle;
   }
 };
 
@@ -34,9 +39,13 @@ global.addEventListener('message', function(e) {
   var data = e.data,
     callback = function(r) { global.postMessage({id: data.id, ret: JSON.stringify(r || null)}); },
     ret;
-  
-  try { ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback)); } 
-  catch (err) { global.postMessage({id: data.id, error: JSON.stringify({message: err.message})}); }
+
+  if (CustomTrackWorker._throwErrors) {
+    ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback));
+  } else {
+    try { ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback)); } 
+    catch (err) { global.postMessage({id: data.id, error: JSON.stringify({message: err.message})}); }
+  }
   
   if (!_.isUndefined(ret)) { callback(ret); }
 });

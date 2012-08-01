@@ -45,7 +45,7 @@ function SortedList() {
       this[k] = SortedList[k][options[k]];
     }
   }, this);
-  if (arr) this.insert.apply(this, arr);
+  if (arr) this.massInsert(arr);
 };
 
 SortedList.prototype.bsearch = function(val) {
@@ -90,14 +90,19 @@ SortedList.prototype.tail = function() {
   return (this.arr.length == 0) ? null : this.arr[this.arr.length -1];
 };
 
+SortedList.prototype.massInsert = function(items) {
+  // This loop avoids call stack overflow because of too many arguments
+  for (var i = 0; i < items.length; i += 4096) {
+    Array.prototype.push.apply(this.arr, Array.prototype.slice.call(items, i, i + 4096));
+  }
+  this.arr.sort(this.compare);
+}
+
 SortedList.prototype.insert = function() {
   if (arguments.length > 100) {
     // .bsearch + .splice is too expensive to repeat for so many elements.
     // Let's just append them all to this.arr and resort.
-    for (var i = 0; i < arguments.length; i += 4096) {
-      Array.prototype.push.apply(this.arr, Array.prototype.slice.call(arguments, i, i + 4096));
-    }
-    this.arr.sort(this.compare);
+    this.massInsert(arguments);
   } else {
     Array.prototype.forEach.call(arguments, function(val) {
       var pos = this.bsearch(val);

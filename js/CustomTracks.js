@@ -98,6 +98,10 @@
           var id = callbacks.push(callback) - 1;
           this.postMessage({op: op, id: id, args: args});
         };
+        // To have the worker throw errors instead of passing them nicely back, call this with toggle=true
+        self._worker.throwErrors = function(toggle) {
+          this.postMessage({op: 'throwErrors', args: [toggle]});
+        };
       }
       return self._worker;
     },
