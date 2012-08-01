@@ -326,8 +326,12 @@
       _.each(o.chrOrder, function(v){ o.chrLabels.push({p: p, n: v}); self.chrPos[v] = p; p += o.chrLengths[v]; });
       _.each(o.chrBands, function(v){ v[5] = v[1]; v[1] += self.chrPos[v[0]]; v[2] += self.chrPos[v[0]]; });
       self.availTracks = {};
+      self.defaultTracks = [];
       _.each(o.availTracks, function(v) { self.availTracks[v.n] = v; });
-      _.each(o.tracks, function(v){ $.extend(v, self.availTracks[v.n]); });
+      _.each(o.tracks, function(t){ 
+        $.extend(t, self.availTracks[t.n]);
+        self.defaultTracks.push({n: t.n, h: t.h});
+      });
       
       // Setup remaining internal variables
       self.$lines = $elem.children('.browser-line');
@@ -508,6 +512,7 @@
         $trackPicker = $(o.trackPicker[1]),
         $ul = $('<ul/>').appendTo($trackPicker),
         $div = $('<div class="button-line"/>').appendTo($trackPicker),
+        $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div);
       _.each(self.availTracks, function(t, n) {
         var $l = $('<label class="clickable"/>').appendTo($('<li class="choice"/>').appendTo($ul)),
@@ -524,6 +529,7 @@
         $c.bind('change', _.bind(self._fixTracks, self));
       });
       if (o.tracks.length === 1) { $ul.find('input[name='+o.tracks[0].n+']').attr('disabled', true); }
+      $reset.click(function(e) { self._resetToDefaultTracks(); });
       return self._createPicker($toggleBtn, $trackPicker, $b).hide();
     },
     
@@ -546,7 +552,7 @@
           genomeSize: o.genomeSize,
           ajaxDir: o.ajaxDir
         },
-        $urlInput, $urlGet, $div, $b;
+        $urlInput, $urlGet, $div, $b, $reset;
       
       self._customTrackUrls = {
         requested: [],
@@ -650,8 +656,10 @@
       // Redefine the CustomTracks error handler so the user can see parse errors for their custom track(s).
       CustomTracks.error = customTrackError;
       
-      $div = $('<div class="button-line"/>').appendTo($picker),
+      $div = $('<div class="button-line"/>').appendTo($picker);
+      $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div);
       $b = $('<input type="button" name="done" value="done"/>').appendTo($div);
+      $reset.click(function(e) { self._resetCustomTracks(); });
 
       return self._createPicker($toggleBtn, $picker, $b);
     },
@@ -1115,6 +1123,12 @@
       return trackSpec;
     },
     
+    // Resets to the default set of tracks
+    _resetToDefaultTracks: function() {
+      this._fixTracks(false, this.defaultTracks);
+      this._saveParamsDebounced();
+    },
+    
     // After a custom track file is parsed, this function is called to add them to the custom track picker and each
     // browser line; they are also inserted in self.availTracks just like "normal" tracks
     _addCustomTracks: function(fname, customTracks) {
@@ -1174,6 +1188,13 @@
         // TODO: other browser directives at http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#lines
         if (_.keys(browserDirectives).length) { self._initFromParams(browserDirectives); }
       }}); 
+    },
+    
+    // Removes all custom tracks.
+    _resetCustomTracks: function() {
+      $(this.options.trackPicker[3]).children('ul').children().remove();
+      this._customTrackUrls.loaded = [];
+      this._fixTracks();
     },
     
     // Determine for a given track and height what density is optimal for display
