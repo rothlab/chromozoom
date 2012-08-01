@@ -12,7 +12,6 @@ var CustomTrackWorker = {
   _tracks: [],
   _throwErrors: false,
   parse: function(text, browserOpts) {
-    throw {message: "boom"};
     var self = this,
       tracks = CustomTracks.parse(text, browserOpts);
     return _.map(tracks, function(t) {
