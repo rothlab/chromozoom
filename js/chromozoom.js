@@ -797,7 +797,7 @@
     _initMobileFeatures: function() {
       var self = this,
         o = self.options,
-        $elems = self.element.add(o.navBar);
+        $elems = self.element.add(o.navBar).add(o.footerBar);
       if (!$.support.touch) { return; }
       $elems.addClass('mobile');
       

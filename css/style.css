@@ -1101,12 +1101,17 @@ body.row-resizing * {
 
 .mobile #genome .title { right: 45px; }
 
+.mobile-medium #logo, .mobile-narrow #logo { display: none; }
+
 .mobile-medium #zoom-label, .mobile-medium #zoom-out, .mobile-medium #zoom-cont, .mobile-medium #zoom-in, .mobile-medium #custom-tracks { display: none; }
 
 .mobile-narrow #zoom-label, .mobile-narrow #zoom-out, .mobile-narrow #zoom-cont, .mobile-narrow #zoom-in, .mobile-narrow #custom-tracks { display: none; }
 
 .mobile-narrow #loc { width: 130px; }
-.mobile-narrow #genome { width: 100px; }
 .mobile-narrow #genome .title { font-size: 0.8em; line-height: 2.2em; }
 
 .mobile-narrow #loc-picker, .mobile-medium #loc-picker { position: fixed; left: 0; top: 30px; width: 100%; }
+
+.mobile-narrow #footerlinks { font-size: 0.4em; }
+.mobile-medium #footerlinks { font-size: 0.6em; }
+.mobile-narrow #footerlinks p, .mobile-medium #footerlinks p { text-align: left; padding: 0 130px 0 0; line-height: 1em; }
