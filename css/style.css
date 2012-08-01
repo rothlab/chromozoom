@@ -304,6 +304,7 @@ body {
 }
 .control-seg { float: left; height: 100%; position: relative; margin-bottom: 1em; background: #eee; }
 .control-seg.last { min-width: 225px; }
+.narrow .control-seg.last { min-width: 120px; }
 
 #browser {
   position: absolute;
