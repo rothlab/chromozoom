@@ -2115,14 +2115,14 @@
         chrStart, chrEnd, chrRetic;
       if (elem == o.browser.genobrowser('lines').get(0)) {
         chrStart = o.browser.genobrowser('chrAt', pos) || o.chrLabels[0];
-        this.$indices.children('.start').text(chrStart.n + ':' + Math.round(pos - chrStart.p));
+        this.$indices.children('.start').text(chrStart.n + ':' + Math.floor(pos - chrStart.p));
       } else { this.$indices.children('.start').empty(); }
       if (elem == o.browser.genobrowser('lines').last().get(0)) {
         chrEnd = o.browser.genobrowser('chrAt', pos + bpWidth) || o.chrLabels[o.chrLabels.length - 1];
-        this.$indices.children('.end').text(chrEnd.n + ':' + Math.round(pos + bpWidth - chrEnd.p));
+        this.$indices.children('.end').text(chrEnd.n + ':' + Math.ceil(pos + bpWidth - chrEnd.p));
       } else { this.$indices.children('.end').empty(); }
       chrRetic = o.browser.genobrowser('chrAt', reticPos) || o.chrLabels[0];
-      this.$retic.children('.n').text(chrRetic.n + ':' + Math.round(reticPos - chrRetic.p));
+      this.$retic.children('.n').text(chrRetic.n + ':' + Math.floor(reticPos - chrRetic.p));
     },
     
     setReticle: function(nextZooms, centeredOn) {
