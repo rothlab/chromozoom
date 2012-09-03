@@ -268,7 +268,7 @@
       tileWidth: 1000,
       genome: 'hg18',
       genomeSize: 3080419480,
-      sideBarWidth: 90,
+      sideBarWidth: 100,
       tracks: [
         {n:'ruler', h:50, s:['dense']}
       ],
@@ -1826,18 +1826,24 @@
     // Called automatically when widget is instantiated
     _init: function() {
       var $elem = this.element, 
-        o = this.options;
+        o = this.options,
+        html;
       this.pos = parseInt(o.origin, 10) || 0;
       this.$side = $('<div class="side-cont"/>').appendTo($elem);
       this.$firstLabel = $('<div class="first-label"/>').appendTo($elem);
       this.$trackCont = $('<div class="track-cont"/>').appendTo($elem);
       this.$cont = $('<div class="drag-cont"/>').appendTo(this.$trackCont);
       this.$retic = $('<div class="retic hidden"/>').appendTo($elem);
+      this.$indices = $('<div class="indices"/>').appendTo($elem);
+      this.centeredOn = null; // for the reticle
       
-      var reticHtml = '<div class="c nw"/><div class="c ne"/><div class="c sw"/>'
+      html = '<div class="c nw"/><div class="c ne"/><div class="c sw"/>'
         + '<div class="c se"/><div class="v n"/><div class="v s"/><div class="inner-retic">'
         + '<div class="c nw"/><div class="c ne"/><div class="c sw"/><div class="c se"/></div>';
-      $(reticHtml).appendTo(this.$retic);
+      $(html).appendTo(this.$retic);
+      html = '<div class="start"></div><div class="end"></div>';
+      $(html).appendTo(this.$indices);
+      
       this._initContDraggable();
       this._initSideSortable();
       this.$trackCont.bind('dblclick', {self: this}, this._recvDoubleClick);
@@ -1896,6 +1902,7 @@
         self.pos = o.origin - left * zoom;
         updateLineTop(top);
         self.fixFirstLabel();
+        self.fixIndices();
         o.browser.genobrowser('recvDrag', $elem, self.pos);
       };
       
@@ -2033,6 +2040,7 @@
       this.$cont.css('left', left);
       this.fixTrackTiles(forceRepos);
       this.fixFirstLabel();
+      this.fixIndices();
     },
     
     fixTrackTiles: function(forceRepos) {
@@ -2097,14 +2105,36 @@
       });
     },
     
+    fixIndices: function() {
+      var o = this.options,
+        pos = this.pos,
+        bpWidth = o.browser.genobrowser('bpWidth'),
+        zoom = o.browser.genobrowser('zoom'),
+        elem = this.element.get(0),
+        reticPos = this.centeredOn === null ? this.pos + 0.5 * (bpWidth - o.sideBarWidth * zoom) : this.centeredOn,
+        chrStart, chrEnd, chrRetic;
+      if (elem == o.browser.genobrowser('lines').get(0)) {
+        chrStart = o.browser.genobrowser('chrAt', pos) || o.chrLabels[0];
+        this.$indices.children('.start').text(chrStart.n + ':' + Math.round(pos - chrStart.p));
+      } else { this.$indices.children('.start').empty(); }
+      if (elem == o.browser.genobrowser('lines').last().get(0)) {
+        chrEnd = o.browser.genobrowser('chrAt', pos + bpWidth) || o.chrLabels[o.chrLabels.length - 1];
+        this.$indices.children('.end').text(chrEnd.n + ':' + Math.round(pos + bpWidth - chrEnd.p));
+      } else { this.$indices.children('.end').empty(); }
+      chrRetic = o.browser.genobrowser('chrAt', reticPos) || o.chrLabels[0];
+      this.$retic.children('.n').text(chrRetic.n + ':' + Math.round(reticPos - chrRetic.p));
+    },
+    
     setReticle: function(nextZooms, centeredOn) {
       var o = this.options,
         zoom = o.browser.genobrowser('zoom'),
         lineWidth = o.browser.genobrowser('lineWidth'),
+        bpWidth = lineWidth * zoom,
         width1 = nextZooms[0] / zoom * lineWidth,
         $innerRetic = this.$retic.children('.inner-retic'),
         opacity = nextZooms[1] ? Math.min(2 - 2 * width1 / lineWidth, 1) : 1,
-        noCenteredOn = _.isUndefined(centeredOn) || centeredOn === null;
+        noCenteredOn = _.isUndefined(centeredOn) || centeredOn === null,
+        left = noCenteredOn ? '50%' : (centeredOn - this.pos) / zoom + o.sideBarWidth;
       this.$retic.css('width', width1).css('margin-left', -width1 * 0.5);
       this.$retic.children('.c').css('opacity', opacity);
       if (nextZooms[1]) {
@@ -2114,7 +2144,8 @@
       } else {
         $innerRetic.hide();
       }
-      this.$retic.css('left', noCenteredOn ? '50%' : (centeredOn - this.pos) / zoom + o.sideBarWidth);
+      this.$retic.css('left', left);
+      this.centeredOn = noCenteredOn ? null : centeredOn;
     },
     
     _recvDoubleClick: function(e) {

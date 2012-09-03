@@ -259,6 +259,7 @@ body {
 }
 
 #fps {
+  display: none;
   font-size: 0.5em;
   color: #777;
   position: absolute;
@@ -340,7 +341,7 @@ body {
   right: 0;
   top: 0;
   margin: 0;
-  padding: 0 0 0 99px;
+  padding: 0 0 0 100px;
 }
 
 .browser-line.last-resized {
@@ -451,13 +452,18 @@ body {
   height: 10px;
   top: 0px;
   left: 50%;
+  font-size: 0.5em;
+  color: #0f0;
+  padding-left: 2px;
   border-left: 1px dotted #0f0;
+  margin-left: -1px;
 }
 .browser-line .retic .s {
   height: 10px;
   bottom: 0px;
   left: 50%;
   border-left: 1px dotted #0f0;
+  margin-left: -1px;
 }
 .browser-line .inner-retic {
   position: absolute;
@@ -466,6 +472,29 @@ body {
   top: 0px;
   bottom: 0px;
   margin-left: -20px;
+}
+
+.browser-line .indices {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -10px;
+  bottom: -10px;
+  z-index: 0;
+}
+.browser-line .indices div {
+  position: absolute;
+  font-size: 0.5em;
+  color: #FFF;
+  opacity: 0.5;
+}
+.browser-line .indices .start { 
+  top: 0;
+  left: 100px;
+}
+.browser-line .indices .end {
+  top: 0;
+  right: 0;
 }
 
 .browser-track { 
