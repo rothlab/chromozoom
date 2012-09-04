@@ -2995,7 +2995,7 @@
       var o = this.options,
         $l = $.mk('div').text(label.n.replace(/^chr/,'')).addClass('label label-'+label.p);
       if (label.n.indexOf('chr') === 0) { $l.prepend('<span class="chr">chr</span'); }
-      if (!o.chrBands) { $l.prepend('<span class="start-line"></span>'); }
+      $l.prepend('<span class="start-line"></span>');
       return $l.appendTo(this.element);
     },
     
