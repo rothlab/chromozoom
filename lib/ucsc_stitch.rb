@@ -579,8 +579,8 @@ class UCSCClient
                 (0...[term.size, 8].min).each do |chrs|
                   query = term[0..chrs]
                   next if already_did[query]
-                  puts "#{line_no}: #{term[0...chrs]}"
-                  `php search.php #{@genome} #{term[0...chrs]}`
+                  puts "#{line_no}: #{query}"
+                  `php search.php #{@genome} #{query}`
                   already_did[query] = true
                 end
               end
