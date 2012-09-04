@@ -633,7 +633,7 @@ body.row-resizing * {
 .first-label { padding-bottom: 4px; }
 .browser-track .label .chr  { display: none; }
 .browser-track .label.occluded .chr  { display: inline; }
-.browser-track.no-ideograms .label .start-line { 
+.browser-track .label .start-line { 
   position: absolute;
   height: 1000px;
   border-left: 2px solid red;
