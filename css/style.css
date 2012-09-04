@@ -635,10 +635,10 @@ body.row-resizing * {
 .browser-track .label.occluded .chr  { display: inline; }
 .browser-track.no-ideograms .label .start-line { 
   position: absolute;
-  height: 25px;
+  height: 1000px;
   border-left: 2px solid red;
-  left: -2px;
-  bottom: -5px;
+  left: -1px;
+  top: 0;
 }
 
 
