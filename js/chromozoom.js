@@ -327,7 +327,7 @@
       _.each(o.chrBands, function(v){ v[5] = v[1]; v[1] += self.chrPos[v[0]]; v[2] += self.chrPos[v[0]]; });
       self.availTracks = {};
       self.defaultTracks = [];
-      _.each(o.availTracks, function(v) { self.availTracks[v.n] = v; });
+      _.each(o.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
       _.each(o.tracks, function(t){ 
         $.extend(t, self.availTracks[t.n]);
         self.defaultTracks.push({n: t.n, h: t.h});
@@ -2242,7 +2242,7 @@
           o.browser.genobrowser('recvTrackResize', o.line, o.track.n, self.$side.outerHeight()); 
         }
       };
-      if (self.ruler) { opts.maxHeight = o.track.h - paddingBordersY; }
+      if (self.ruler) { opts.maxHeight = o.track.oh - paddingBordersY; }
       if (self.custom && o.track.custom.heights.max) { opts.maxHeight = o.track.custom.heights.max - paddingBordersY; }
       self.$side.resizable(opts);
     },
