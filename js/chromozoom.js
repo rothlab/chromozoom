@@ -2217,8 +2217,10 @@
               }).get());
             $(this).resizable('option', 'maxHeight', Math.max(maxHeight * 1.2, ui.originalSize.height, 18));
           }
-          self.snaps = fixedHeights && _.map(fixedHeights, function(v, k) { return k=='dense' ? v : v + 1; });
-          if (self.snaps) { self.snaps.always = fixedHeights && !!(fixedHeights.pack || fixedHeights.full); }
+          if (!self.ruler) {
+            self.snaps = fixedHeights && _.map(fixedHeights, function(v, k) { return k=='dense' ? v : v + 1; });
+            if (self.snaps) { self.snaps.always = fixedHeights && !!(fixedHeights.pack || fixedHeights.full); }
+          }
           o.browser.find('.browser-line').removeClass('last-resized');
           o.line.addClass('last-resized');
           $linesBelow = o.line.nextAll().each(function() { $(this).data('origTop', $(this).position().top); });
