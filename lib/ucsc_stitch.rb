@@ -577,7 +577,7 @@ class UCSCClient
               next unless cols.size > c
               cols[c].split(/\s+/).each do |term|
                 (0...[term.size, 8].min).each do |chrs|
-                  query = term[0...chrs]
+                  query = term[0..chrs]
                   next if already_did[query]
                   puts "#{line_no}: #{term[0...chrs]}"
                   `php search.php #{@genome} #{term[0...chrs]}`
