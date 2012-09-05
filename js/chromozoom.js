@@ -298,6 +298,7 @@
       reticOpacity: 0.8,
       verticalDragDeadZone: 12,
       maxNtRequest: 20000,
+      bounceMargin: 0.2,
       dialogs: ['#quickstart', '#about', '#old-msie'],
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
       trackDescURL: 'http://genome.ucsc.edu/cgi-bin/hgTrackUi',
@@ -729,9 +730,11 @@
         if ($(o.lineMode).find('input:checked').val() == 'single') {
           delete self.centeredOn;
           self._animateZoom(dir == -1, 1000); return false;
+        } else {
+          self._keyedOffset += dir * self.lineWidth();
+          self._pos(self.pos + dir * self.bpWidth());
+          self.bounceCheck();
         }
-        self._keyedOffset += dir * self.lineWidth();
-        self._pos(self.pos + dir * self.bpWidth());
       });
       $(document).bind('keydown', 'left a right d', function(e) {
         var dir = e.which == 37 || e.which == 65 ? 1 : -1, // left=>37, a=>65
@@ -743,7 +746,7 @@
       });
       $(document).bind('keyup', 'left a right d', function(e) {
         var dir = e.which == 37 || e.which == 65 ? 1 : -1;
-        if (motionOpts.dir == dir) { clearInterval(motionInterval); motionOpts.dir = 0; }
+        if (motionOpts.dir == dir) { clearInterval(motionInterval); self.bounceCheck(); motionOpts.dir = 0; }
       });
       $(document).bind('keydown', shiftEverything, function(e) {
         delete self.centeredOn;
@@ -1455,13 +1458,59 @@
     
     // If "to" is boolean, true will raise the slider one step and false will lower it one step.
     _animateZoom: function(to, duration) {
-      var $slider = $(this.options.zoomSlider),
+      var self = this,
+        $slider = $(self.options.zoomSlider),
         from = $slider.slider('value');
       if (_.isBoolean(to)) { to = Math[to ? 'ceil' : 'floor'](from + (to ? 0.001 : -0.001)); }
       $slider.css('text-indent', 0).animate({textIndent: 1}, {
         queue: false,
         step: function(i) { $slider.slider('value', (to - from) * i + from); },
+        complete: function() { self.bounceCheck(); },
         duration: duration || 150
+      });
+    },
+    
+    // Bounce off edges if we are toward the margins of the genome
+    bounceCheck: function() {
+      var self = this,
+        o = self.options,
+        $elem = self.element,
+        bpWidth = this.bpWidth(),
+        pos = self.pos,
+        numLines = self.lines().length,
+        margins = [(-1.0 + o.bounceMargin) * bpWidth, o.genomeSize - (numLines - 1.0 + o.bounceMargin) * bpWidth],
+        outsideGenomeRange = pos < margins[0] || pos > margins[1];
+      
+      if (outsideGenomeRange && !self._bouncing) {
+        $elem.find('.drag-cont').stop(); // Stop any current inertial scrolling
+        self.bounceTo(_.min(margins, function(marg) { return Math.abs(marg - pos); }));
+      }
+    },
+    
+    // Animates a "bounce" from the current browser position to targetPos
+    bounceTo: function(targetPos, callback) {
+      var self = this,
+        $elem = self.element,
+        zoom = self.zoom(),
+        pos = self.pos,
+        naturalFreq = 0.02,
+        vInit = $elem.data('velocity') || 0,
+        deltaXInit = (targetPos - pos) / zoom;
+        bounceStart = (new Date).getTime();
+        
+      $elem.css('text-indent', 1);
+      self._bouncing = true;
+      $elem.animate({textIndent: 0}, {
+        queue: false,
+        duration: 500, // TODO: some better way of approximating this based on dampened spring motion.
+        step: function() {
+          var newTime = (new Date).getTime(),
+            deltaT = newTime - bounceStart,
+            // see http://en.wikipedia.org/wiki/Damping#Critical_damping_.28.CE.B6_.3D_1.29
+            newDeltaX = (deltaXInit + (vInit + naturalFreq * deltaXInit) * deltaT) * Math.exp(-naturalFreq * deltaT);
+          self._pos(pos + (deltaXInit - newDeltaX) * zoom);
+        },
+        complete: function() { self._bouncing = false; _.isFunction(callback) && callback(); }
       });
     },
     
@@ -1608,6 +1657,7 @@
     // After a short delay, a zoom action can be "snapped" to the nearest optimal level
     // NOTE: This is _.debounce'd in init()
     _finishZoomDebounced: function(direction) {
+      this.bounceCheck();
       if (this.options.snapZoomAfter && !this.options.snapZoom) { this._animateZoom(direction); }
       if (this.options.snapZoom) { self._wheelDelta = 0; }
     },
@@ -1966,15 +2016,23 @@
                   keyedOffset = o.browser.genobrowser('keyedOffset'),
                   deltaL = (vInit*deltaT) - (0.5*decel*deltaT*deltaT) + initKeyedOffset - keyedOffset;
                   left = xInit + deltaL;
+                // store the velocity on the browser element so it can catch the throw if a bounce is needed
+                o.browser.data('velocity', vInit - decel * deltaT);
                 // for those looong inertial scrolls, keep the tiles coming
                 if (Math.abs(deltaL - lastRefresh) > 1000) { lastRefresh = deltaL; self.fixTrackTiles(); }
                 self.$cont.css('left', left);
                 updatePos(left);
+                o.browser.genobrowser('bounceCheck');
               },
-              complete: function() { self.fixTrackTiles(); }
+              complete: function() { 
+                self.fixTrackTiles(); 
+                o.browser.data('velocity', 0);
+                o.browser.genobrowser('bounceCheck');
+              }
             });
           } else {
             self.fixTrackTiles();
+            o.browser.genobrowser('bounceCheck');
           }
         }
       });
