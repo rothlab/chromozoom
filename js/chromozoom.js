@@ -2202,7 +2202,7 @@
         firstFixedHeight = _.uniq(_.pluck(o.track.fh, _.flatten(o.track.s)[0])),
         paddingBordersY = self.$side.outerHeight() - self.$side.height(),
         minHeight = (self.custom ? o.track.custom.heights.min : Math.min(_.min(o.track.fh[bF]), 32)) - paddingBordersY,
-        $linesBelow;
+        $linesBelow, $h;
       var opts = {
         handles: 's', 
         minHeight: minHeight,
@@ -2223,6 +2223,7 @@
           }
           o.browser.find('.browser-line').removeClass('last-resized');
           o.line.addClass('last-resized');
+          $(this).addClass('resizing-side');
           $linesBelow = o.line.nextAll().each(function() { $(this).data('origTop', $(this).position().top); });
         },
         resize: function(e, ui) {
@@ -2239,12 +2240,15 @@
         },
         stop: function(e, ui) {
           $('body').removeClass('row-resizing');
+          $(this).removeClass('resizing-side');
           o.browser.genobrowser('recvTrackResize', o.line, o.track.n, self.$side.outerHeight()); 
         }
       };
       if (self.ruler) { opts.maxHeight = o.track.oh - paddingBordersY; }
       if (self.custom && o.track.custom.heights.max) { opts.maxHeight = o.track.custom.heights.max - paddingBordersY; }
       self.$side.resizable(opts);
+      $h = self.$side.find('.ui-resizable-handle');
+      $h.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
     },
     
     side: function() { return this.$side; },

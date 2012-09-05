@@ -351,7 +351,7 @@ body {
 .browser-line .side-cont {
   position: absolute;
   left: 0;
-  width: 99px;
+  width: 100px;
   background: #eee;
   z-index: 2;
 }
@@ -397,6 +397,11 @@ body {
 .browser-line .side-cont .side .ui-resizable-s {
   cursor: row-resize;
 }
+.row-resizing .side .ui-resizable-s.hover { background: none; }
+.side .ui-resizable-s.hover, .row-resizing .browser-line .side-cont .resizing-side .ui-resizable-s {
+  background: rgb(255, 156, 0);
+  opacity: 0.5;
+}
 
 .browser-line .track-cont {
   position: relative;
@@ -409,7 +414,7 @@ body {
   overflow: visible;
 }
 
-.browser-line .first-label { left: 99px; }
+.browser-line .first-label { left: 100px; }
 .browser-line .first-label.occluded { display: none; }
 .browser-line .first-label.no-ruler { display: none; }
 
