@@ -326,7 +326,7 @@
       o.chrLabels = [];
       _.each(o.chrOrder, function(v){ o.chrLabels.push({p: p, n: v}); self.chrPos[v] = p; p += o.chrLengths[v]; });
       _.each(o.chrBands, function(v){ v[5] = v[1]; v[1] += self.chrPos[v[0]]; v[2] += self.chrPos[v[0]]; });
-      o.chrBands = _.sortBy(o.chrBands, function(v) { return _.indexOf(o.chrOrder, v[0]) * o.genomeSize + v[1]; });
+      o.chrBands = o.chrBands && _.sortBy(o.chrBands, function(v) { return _.indexOf(o.chrOrder, v[0]) * o.genomeSize + v[1]; });
       self.availTracks = {};
       self.defaultTracks = [];
       _.each(o.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
