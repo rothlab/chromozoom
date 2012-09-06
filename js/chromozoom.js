@@ -326,6 +326,7 @@
       o.chrLabels = [];
       _.each(o.chrOrder, function(v){ o.chrLabels.push({p: p, n: v}); self.chrPos[v] = p; p += o.chrLengths[v]; });
       _.each(o.chrBands, function(v){ v[5] = v[1]; v[1] += self.chrPos[v[0]]; v[2] += self.chrPos[v[0]]; });
+      o.chrBands = _.sortBy(o.chrBands, function(v) { return _.indexOf(o.chrOrder, v[0]) * o.genomeSize + v[1]; });
       self.availTracks = {};
       self.defaultTracks = [];
       _.each(o.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
@@ -946,11 +947,12 @@
     // Fix the number of lines displayed vertically, shifting and unshifting lines to fill the vertical space
     // You can specify the line index to holdSteady (keep in roughly the same place), and animOpts for the animation
     _fixNumLines: function(holdSteady, animOpts) {
-      var $elem = this.element, 
-        o = this.options,
+      var self = this,
+        $elem = self.element, 
+        o = self.options,
         availHeight = $elem.innerHeight(),
-        lineHeight = this._lineHeight(),
-        numLines = this.$lines.length,
+        lineHeight = self._lineHeight(),
+        numLines = self.$lines.length,
         forceOneLine = $(o.lineMode).find(':checked').val() == 'single',
         newNumLines = forceOneLine ? 1 : Math.max(floorHack(availHeight / lineHeight), 1),
         extraSpace = availHeight - (newNumLines * lineHeight),
@@ -962,7 +964,7 @@
         if (!_.isUndefined(holdSteady.shift)) {
           unShiftLines = -holdSteady.shift;
         } else {
-          currTop = this.$lines.eq(holdSteady).position().top;
+          currTop = self.$lines.eq(holdSteady).position().top;
           // Special case the resizing of the central line: it must stay the central line
           if (holdSteady == this.centralLine) { destIndex = Math.ceil(newNumLines / 2) - 1; }
           else {
@@ -974,13 +976,13 @@
         }
       }
       pushLines = newNumLines - numLines - unShiftLines;
-      unShiftLines > 0 ? this._addLines(-unShiftLines) : this._removeLines(unShiftLines, animOpts);
-      pushLines > 0 ? this._addLines(pushLines) : this._removeLines(-pushLines, animOpts);
-      this.centralLine = Math.ceil(newNumLines / 2) - 1;
-      this._pos(this.pos - unShiftLines * this.bpWidth());
+      unShiftLines > 0 ? self._addLines(-unShiftLines) : self._removeLines(unShiftLines, animOpts);
+      pushLines > 0 ? self._addLines(pushLines) : self._removeLines(-pushLines, animOpts);
+      self.centralLine = Math.ceil(newNumLines / 2) - 1;
+      self._pos(self.pos - unShiftLines * self.bpWidth());
       // Only fire a completion callback once for the whole browser
-      if (animOpts && animOpts.complete) { animOpts.complete = _.after(this.$lines.length, animOpts.complete); }
-      this.$lines.each(function(i) {
+      if (animOpts && animOpts.complete) { animOpts.complete = _.after(self.$lines.length, animOpts.complete); }
+      self.$lines.each(function(i) {
         var newTop = i * extraLineHeight + extraTopMargin;
         $(this).data('naturalTop', newTop);
         if (holdSteady && holdSteady.exceptFor == this) { return; }
@@ -990,7 +992,7 @@
           easing: 'easeInOutQuart'
         }, animOpts));
       });
-      this._updateReticle(null, animOpts);
+      self._updateReticle(null, animOpts);
     },
     
     // A shortcut that pushes the lines in the display up or down
@@ -1482,7 +1484,7 @@
         outsideGenomeRange = pos < margins[0] || pos > margins[1];
       
       if (outsideGenomeRange && !self._bouncing) {
-        $elem.find('.drag-cont').stop(); // Stop any current inertial scrolling
+        $elem.find('.drag-cont').stop(true); // Stop any current inertial scrolling
         self.bounceTo(_.min(margins, function(marg) { return Math.abs(marg - pos); }));
       }
     },
@@ -1493,7 +1495,7 @@
         $elem = self.element,
         zoom = self.zoom(),
         pos = self.pos,
-        naturalFreq = 0.02,
+        naturalFreq = 0.03,
         vInit = $elem.data('velocity') || 0,
         deltaXInit = (targetPos - pos) / zoom;
         bounceStart = (new Date).getTime();
