@@ -1,6 +1,7 @@
 bin/
 vendor/
 .bundle/
+docs/examples/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 *.tch
 *.json
 *.yaml
