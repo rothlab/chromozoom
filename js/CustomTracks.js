@@ -629,7 +629,8 @@
         
         ctx.fillStyle = color;
         _.each(drawSpec.bars, function(d, x) {
-          if (d > zeroLine) { ctx.fillRect(x, height - d, 1, zeroLine > 0 ? (d - zeroLine) : d); }
+          if (d === null) { return; }
+          else if (d > zeroLine) { ctx.fillRect(x, height - d, 1, zeroLine > 0 ? (d - zeroLine) : d); }
           else {
             ctx.fillStyle = altColor;
             ctx.fillRect(x, height - zeroLine, 1, zeroLine - d);
@@ -930,8 +931,9 @@
         function success(data) {
           var drawSpec = self.type('wiggle_0').initDrawSpec.call(self, precalc),
             lines = data.split(/\s+/g);
-          _.each(lines, function(line) { 
-            if (line != 'n/a' && line.length) { drawSpec.bars.push((parseFloat(line) - self.drawRange[0]) / drawSpec.vScale); }
+          _.each(lines, function(line) {
+            if (line == 'n/a') { drawSpec.bars.push(null); }
+            else if (line.length) { drawSpec.bars.push((parseFloat(line) - self.drawRange[0]) / drawSpec.vScale); }
           });
           callback(drawSpec);
         }
