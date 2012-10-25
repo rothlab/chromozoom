@@ -79,14 +79,14 @@ We currently support the [BED](http://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
 Each format *must* begin with a **track line** that starts with the string `track` and specifies features and options for that track.  This line either is followed by lines of tab-delimited data for the "small" formats, or contains a `bigDataUrl` pointing to an online file for the "big" formats.  Here is a possible track line for a "small" format BED file, followed by tab-delimited data:
 
-        track type="bed" name="Reads Group A"
-        chr2 211000 215000 cloneA1
-        chr2 214000 216000 cloneA2
-        ...
+    track type="bed" name="Reads Group A"
+    chr2 211000 215000 cloneA1
+    chr2 214000 216000 cloneA2
+    ...
         
-An track line for a "big" format bigBed file might read like this:
+A track line for a "big" format like bigBed might read like this:
 
-        track type="bigBed" name="Track B" bigDataUrl=http://example.com/data.bb
+    track type="bigBed" name="Track B" bigDataUrl=http://example.com/data.bb
 
 ### Examples
 
@@ -110,18 +110,21 @@ Here are some real-world examples of the "small" formats that are known to work 
 
 #### bigWig
 
-Using a "big" format requires at least two components: the data file itself, which is binary and must be uploaded to a webserver, and the track definition file, which is plain text and contains the track line.  vcfTabix also requires an index file that is uploaded to a webserver in the same location as the binary data file.  While requiring additional setup, the advantage of a "big" format is that much more data can be displayed per track.
+Using a "big" format requires at least two components: the data file itself, which is binary and must be uploaded to a webserver, and the track definition file, which is plain text and contains the track line.  While requiring some extra setup, the advantage of a "big" format is that much more data can be displayed per track.  UCSC has published [an article][big-article] on the motivation for these formats and provides guidelines and tooling for creating [bigBed][bigBed] and [bigWig][bigWig] data files.
 
-Here is a real-world example of a 434 MB bigWig track that works with ChromoZoom, available from [the ENCODE project at UCSC][encode]. Our [default tracks for hg19](../?db=hg19) include an ENCODE regulation track that displays Layered H3K27Ac data (histone acetylation on H3 at residue K27), but perhaps you would like to also visualize H3K4me3 data instead (methylation at H3 residue K4).  UCSC supplies [bigWig files for 7 cell lines][encode-dls] produced by the Bernstein lab at the [Broad Institute][broad].  Let's use the URL for the first one listed, a [bigWig file for GM12878][encode-gm12878] (lymphoblastoid cells).  The track definition line could be constructed to point directly to this file, like so:
+Here is a real-world example of a bigWig track that works with ChromoZoom, available from [the ENCODE project at UCSC][encode]. Our [default tracks for hg19](../?db=hg19) include an ENCODE regulation track that displays Layered H3K27Ac data (histone acetylation on H3 at residue K27), but perhaps you would like to visualize H3K4me3 data instead (methylation at H3 residue K4).  UCSC supplies [bigWig files for H3K4me3 on 7 cell lines][encode-dls] produced by the Bernstein lab at the [Broad Institute][broad].  Let's use the URL for the first one listed, a [434 MB bigWig file for GM12878][encode-gm12878] (lymphoblastoid cells).  The track definition line could be constructed to point directly to this file, like so:
 
-        track name="H3k4me3 Gm12878" type=bigWig  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
+    track name="H3k4me3 Gm12878" type=bigWig  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 
-However, we can customize the track for better display by adding better Y-axis scaling and coloring it red as in [the convention used by UCSC][ucsc-encode-track]. We've also moved the file to our own server.
+However, we can customize the track for better display by adding better Y-axis scaling.  We've also rehosted the file on our own server for the purposes of this example, in case it is moved by UCSC.
 
-        track name="H3k4me3 Gm12878" type=bigWig autoScale=no viewLimits=0:50 color=255,128,128 maxHeightPixels=50:50:10 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
+    track name="H3k4me3 Gm12878" type=bigWig autoScale=no viewLimits=0:50 maxHeightPixels=50:50:10 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 
-Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-encode]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file ([view this in ChromoZoom][view-multi]).
+Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-encode]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which we've now colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
 
+[bigbed]: http://genome.ucsc.edu/goldenPath/help/bigBed.html
+[bigwig]: http://genome.ucsc.edu/goldenPath/help/bigWig.html
+[big-article]: http://bioinformatics.oxfordjournals.org/content/26/17/2204.long
 [encode]: http://www.encodeproject.org/ENCODE/downloads.html
 [encode-dls]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/
 [encode-gm12878]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
