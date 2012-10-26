@@ -120,7 +120,7 @@ However, we can customize the track for better display by adding better Y-axis s
 
     track name="H3k4me3 Gm12878" type=bigWig autoScale=no viewLimits=0:50 maxHeightPixels=50:50:10 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 
-Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-encode]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which we've now colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
+Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-encode]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which can be even be colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
 
 [bigbed]: http://genome.ucsc.edu/goldenPath/help/bigBed.html
 [bigwig]: http://genome.ucsc.edu/goldenPath/help/bigWig.html
