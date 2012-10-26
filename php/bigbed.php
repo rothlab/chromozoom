@@ -47,7 +47,7 @@ function ranges_to_args(&$ranges) {
 header('Content-type: text/plain');
 ranges_to_args($ranges);
 foreach ($ranges as $range) {
-  $CMD_SUFFIX = $SUMMARY ? '' : ' /dev/stdout';
+  $CMD_SUFFIX = $SUMMARY ? ' 2>&1' : ' /dev/stdout';
   $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range)) . $CMD_SUFFIX);
   if ($SUMMARY && preg_match('/^no data in region/', $out)) {
     echo str_repeat("n/a\t", $range[3]);
