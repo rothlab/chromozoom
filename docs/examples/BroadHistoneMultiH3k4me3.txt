@@ -1,3 +1,6 @@
 track name="H3k4me3 Gm12878" type=bigWig autoScale=no viewLimits=0:50 color=255,128,128 maxHeightPixels=50:50:10 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 track name="H3k4me3 H1hesc" type=bigWig autoScale=no viewLimits=0:50 color=255,212,128 maxHeightPixels=50:50:10 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeBroadHistoneH1hescH3k4me3StdSig.bigWig
 track name="H3k4me3 Hsmm" type=bigWig autoScale=no viewLimits=0:50 color=120,235,204 maxHeightPixels=50:50:10 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeBroadHistoneHsmmH3k4me3StdSig.bigWig
+
+# note: these files are not included in the repository for space reasons, but they can be downloaded from:
+# http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/
