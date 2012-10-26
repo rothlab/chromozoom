@@ -18,7 +18,7 @@ width:75%;
 }
 
 a{ color: #0645ad; text-decoration:none; }
-a:visited{ color: #0b0080; }
+a:visited{ color: #200080; }
 a:hover{ color: #06e; text-decoration: underline; }
 a:active{ color:#faa700; }
 a:focus{ outline: thin dotted; }
