@@ -122,7 +122,7 @@ However, we can customize the track for better display by adding better Y-axis s
 
 Saving the above line into [a text file](examples/BroadHistoneGm12878H3k4me3.txt) and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-bigwig]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which can be even be colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
 
-Using bigBed files is essentially the same process. The ENCODE project has also generated human microarray data describing RNA expression in various tissues.  For example, UCSC provides [bigBed files for Affymetrix performed on many cell lines][encode-bigbed-dls] by [the Crawford Lab at Duke University][duke].  We can use the URL for the first bigBed file containing RNA expression for 8988t (a pancreatic cell line) to create the following track definition line:
+Using bigBed files is an essentially equivalent process. The ENCODE project has also generated human microarray data describing RNA expression in various tissues.  For example, UCSC provides [bigBed files for Affymetrix performed on many cell lines][encode-bigbed-dls] by [the Crawford Lab at Duke University][duke].  We can use the URL for the first bigBed file containing RNA expression for 8988t (a pancreatic cell line) to create the following track definition line:
 
     track name="8988t Duke Affy Exon" type=bigBed  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeDukeAffyExon/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
     
@@ -144,7 +144,7 @@ Saving the above line into [a text file](examples/wgEncodeDukeAffy.txt) and uplo
 [view-bigwig]:  http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/BroadHistoneGm12878H3k4me3.txt
 [view-multi]: http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/BroadHistoneMultiH3k4me3.txt
 [duke]: http://www.genome.duke.edu/labs/crawford/
-[view-bigbed]: http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/BroadHistoneGm12878H3k4me3.txt
+[view-bigbed]: http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/wgEncodeDukeAffy.txt
 
 ### Which format do I use?
 
