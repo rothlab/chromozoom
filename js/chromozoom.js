@@ -1197,11 +1197,12 @@
     
     // Removes all custom tracks.
     _resetCustomTracks: function() {
-      var $lis = $(this.options.trackPicker[3]).children('ul').children();
+      var self = this,
+        $lis = $(self.options.trackPicker[3]).children('ul').children();
       $lis.find(':checkbox').each(function() { delete self.availTracks[$(this).attr('name')]; });
       $lis.remove();
-      this._customTrackUrls.loaded = [];
-      this._fixTracks();
+      self._customTrackUrls.loaded = [];
+      self._fixTracks();
     },
     
     // Determine for a given track and height what density is optimal for display
