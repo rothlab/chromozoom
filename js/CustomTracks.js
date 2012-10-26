@@ -345,7 +345,7 @@
         if (!areas) { return; }
         areas.push([
           data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, //x1, x2, y1, y2
-          data.d.name, // name
+          data.d.name || '', // name
           urlTemplate.replace('$$', data.d.name), // href
           data.pInt.o, // continuation from previous tile?
           null,
