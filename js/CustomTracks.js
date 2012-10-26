@@ -820,7 +820,7 @@
             lines = data.split(/\s+/g);
             _.each(lines, function(line, x) { if (line != 'n/a' && line.length) { drawSpec.push({x: x, v: parseFloat(line)}); } });
           } else {
-            lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length > 2; });
+            lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
             intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
             calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, density=='pack');
             drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval);
