@@ -108,11 +108,11 @@ Here are some real-world examples of the "small" formats that are known to work 
 
 [^1]: This is possible because of the magic of the [HTML5 File API](http://www.w3.org/TR/FileAPI/) and [Canvas](https://developer.mozilla.org/en/HTML/Canvas).
 
-#### bigWig
+#### bigWig, bigBed
 
 Using a "big" format requires at least two components: the data file itself, which is binary and must be uploaded to a webserver, and the track definition file, which is plain text and contains the track line.  While requiring some extra setup, the advantage of a "big" format is that much more data can be displayed per track.  UCSC has published [an article][big-article] on the motivation for these formats and provides guidelines and tooling for creating [bigBed][bigBed] and [bigWig][bigWig] data files.
 
-Here is a real-world example of a bigWig track that works with ChromoZoom, available from [the ENCODE project at UCSC][encode]. Our [default tracks for hg19](../?db=hg19) include an ENCODE regulation track that displays Layered H3K27Ac data (histone acetylation on H3 at residue K27), but perhaps you would like to visualize H3K4me3 data instead (methylation at H3 residue K4).  UCSC supplies [bigWig files for H3K4me3 on 7 cell lines][encode-dls] produced by the Bernstein lab at the [Broad Institute][broad].  Let's use the URL for the first one listed, a [434 MB bigWig file for GM12878][encode-gm12878] (lymphoblastoid cells).  The track definition line could be constructed to point directly to this file, like so:
+Here is a real-world example of a bigWig track that works with ChromoZoom, available from [the ENCODE project at UCSC][encode]. Our [default tracks for hg19](../?db=hg19) include an ENCODE regulation track that displays Layered H3K27Ac data (histone acetylation on H3 at residue K27), but perhaps you would like to visualize H3K4me3 data instead (methylation at H3 residue K4).  UCSC supplies [bigWig files for H3K4me3 on 7 cell lines][encode-bigwig-dls] produced by the Bernstein lab at the [Broad Institute][broad].  Let's use the URL for the first one listed, a [434 MB bigWig file for GM12878][encode-gm12878] (lymphoblastoid cells).  The track definition line could be constructed to point directly to this file, like so:
 
     track name="H3k4me3 Gm12878" type=bigWig  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 
@@ -120,18 +120,27 @@ However, we can customize the track for better display by adding better Y-axis s
 
     track name="H3k4me3 Gm12878" type=bigWig autoScale=no viewLimits=0:50 maxHeightPixels=50:50:10 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 
-Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-encode]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which can be even be colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
+Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-bigwig]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which can be even be colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
+
+Using bigBed files is essentially the same process. The ENCODE project has also generated human microarray data describing RNA expression in various tissues.  For example, UCSC provides [bigBed files for Affymetrix performed on many cell lines][encode-bigbed-dls] by [the Crawford Lab at Duke University][duke].  We can use the URL for the first bigBed file containing RNA expression for 8988t (a pancreatic cell line) to create the following track definition line:
+
+    track name="8988t Duke Affy Exon" type=bigBed  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeDukeAffyExon/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
+
+Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add this bigBed track to hg19 ([view this in ChromoZoom][view-bigbed]).
 
 [bigbed]: http://genome.ucsc.edu/goldenPath/help/bigBed.html
 [bigwig]: http://genome.ucsc.edu/goldenPath/help/bigWig.html
 [big-article]: http://bioinformatics.oxfordjournals.org/content/26/17/2204.long
 [encode]: http://www.encodeproject.org/ENCODE/downloads.html
-[encode-dls]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/
+[encode-bigwig-dls]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/
+[encode-bigbed-dls]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeDukeAffyExon/
 [encode-gm12878]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 [ucsc-encode-track]: http://genome.ucsc.edu/cgi-bin/hgTrackUi?db=hg19&c=chr22&g=wgEncodeRegMarkH3k4me3
 [broad]: http://www.broadinstitute.org/
-[view-encode]: http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/BroadHistoneGm12878H3k4me3.txt
+[view-bigwig]:  http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/BroadHistoneGm12878H3k4me3.txt
 [view-multi]: http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/BroadHistoneMultiH3k4me3.txt
+[duke]: http://www.genome.duke.edu/labs/crawford/
+[view-bigbed]: http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/BroadHistoneGm12878H3k4me3.txt
 
 ### Which format do I use?
 
