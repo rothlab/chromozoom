@@ -1197,7 +1197,9 @@
     
     // Removes all custom tracks.
     _resetCustomTracks: function() {
-      $(this.options.trackPicker[3]).children('ul').children().remove();
+      var $lis = $(this.options.trackPicker[3]).children('ul').children();
+      $lis.find(':checkbox').each(function() { delete self.availTracks[$(this).attr('name')]; });
+      $lis.remove();
       this._customTrackUrls.loaded = [];
       this._fixTracks();
     },
