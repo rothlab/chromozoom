@@ -116,17 +116,21 @@ Here is a real-world example of a bigWig track that works with ChromoZoom, avail
 
     track name="H3k4me3 Gm12878" type=bigWig  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 
-However, we can customize the track for better display by adding better Y-axis scaling.  We've also rehosted the file on our own server for the purposes of this example, in case it is moved by UCSC.
+However, we can customize the track for better display by adding better Y-axis scaling, and it would possibly be more reliable to download and rehost the file on your own server, as we've done here.
 
     track name="H3k4me3 Gm12878" type=bigWig autoScale=no viewLimits=0:50 maxHeightPixels=50:50:10 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
 
-Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-bigwig]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which can be even be colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
+Saving the above line into [a text file](examples/BroadHistoneGm12878H3k4me3.txt) and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-bigwig]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which can be even be colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
 
 Using bigBed files is essentially the same process. The ENCODE project has also generated human microarray data describing RNA expression in various tissues.  For example, UCSC provides [bigBed files for Affymetrix performed on many cell lines][encode-bigbed-dls] by [the Crawford Lab at Duke University][duke].  We can use the URL for the first bigBed file containing RNA expression for 8988t (a pancreatic cell line) to create the following track definition line:
 
     track name="8988t Duke Affy Exon" type=bigBed  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeDukeAffyExon/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
+    
+although it would be more polite to move it to your own server, as we've done here:
 
-Saving the above line into a text file and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add this bigBed track to hg19 ([view this in ChromoZoom][view-bigbed]).
+    track name="8988t Duke Affy Exon" type=bigBed  bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
+
+Saving the above line into [a text file](examples/wgEncodeDukeAffy.txt) and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add this bigBed track to hg19 ([view this in ChromoZoom][view-bigbed]).
 
 [bigbed]: http://genome.ucsc.edu/goldenPath/help/bigBed.html
 [bigwig]: http://genome.ucsc.edu/goldenPath/help/bigWig.html
