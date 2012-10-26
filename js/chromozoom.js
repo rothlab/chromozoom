@@ -2751,7 +2751,7 @@
       _.each(data, function(v, i) {
         var index = jqXHR._areaIndex,
           keys = [o.track.n, jqXHR._bppp, jqXHR._density],
-          indexBy = {hrefHash: shortHash(v[5]), name: v[4].toLowerCase()};
+          indexBy = {hrefHash: shortHash(v[5] || ''), name: (v[4] || '').toLowerCase()};
         v.hrefHash = indexBy.hrefHash;
         _.each(keys, function(k) {
           if (!index[k]) { index[k] = {}; }
