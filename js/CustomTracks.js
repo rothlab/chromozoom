@@ -475,7 +475,9 @@
       init: function() { return this.type('wiggle_0').init.call(this); },
       
       initOpts: function() { return this.type('wiggle_0').initOpts.call(this); },
-    
+      
+      applyOpts: function() { return this.type('wiggle_0').applyOpts.apply(this, arguments); },
+      
       parse: function(lines) {
         var self = this,
           genomeSize = this.browserOpts.genomeSize,
@@ -557,7 +559,7 @@
         o.yLineMark = parseFloat(o.yLineMark);
         o.autoScale = this.isOn(o.autoScale);
         if (this._binFunctions && !this._binFunctions[o.windowingFunction]) { 
-          throw new Error("invalid windowingFunction at line " + self.opts.lineNum); 
+          throw new Error("invalid windowingFunction at line " + o.lineNum); 
         }
         if (_.isNaN(o.yLineMark)) { o.yLineMark = 0.0; }
       },
