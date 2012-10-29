@@ -126,9 +126,9 @@ Using bigBed files is an essentially equivalent process. The ENCODE project has 
 
     track name="8988t Duke Affy Exon" type=bigBed  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeDukeAffyExon/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
     
-although it would be more polite to move it to your own server, as we've done here:
+To visualize the actual scores for each exon, we need to add an option to use these scores to change the shading of the marks; also, we've moved to file to our own server for the purposes of the example.
 
-    track name="8988t Duke Affy Exon" type=bigBed  bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
+    track name="8988t Duke Affy Exon" type=bigBed useScores=1 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
 
 Saving the above line into [a text file](examples/wgEncodeDukeAffy.txt) and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add this bigBed track to hg19 ([view this in ChromoZoom][view-bigbed]).
 
