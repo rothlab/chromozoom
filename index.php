@@ -300,7 +300,7 @@
                 <input type="checkbox" class="chk enabler" name="maxHeightPixelsOn" value="1" />
                 <input type="text" name="maxHeightPixelsMin" class="sm" value="11" />
                 <div class="range-slider max-height-pixels"></div>
-                <input type="text" name="maxHeightPixelsMax" class="sm" value="300" />
+                <input type="text" name="maxHeightPixelsMax" class="sm" value="200" />
               </div>
             </div>
           </div>
