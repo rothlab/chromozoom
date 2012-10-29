@@ -299,7 +299,7 @@
       verticalDragDeadZone: 12,
       maxNtRequest: 20000,
       bounceMargin: 0.2,
-      dialogs: ['#quickstart', '#about', '#old-msie'],
+      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie'],
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
       trackDescURL: 'http://genome.ucsc.edu/cgi-bin/hgTrackUi',
       bpppFormat: function(bppp) { return bppp.toExponential(2).replace(/(\+|-)(\d)$/, '$10$2'); },
@@ -451,7 +451,7 @@
         $picker.slideToggle(100); 
       });
       if ($done) { $done.click(closePicker); }
-      return $picker;
+      return $picker.bind('close.genobrowser', closePicker);
     },
     
     _initFooter: function() {
@@ -488,15 +488,17 @@
       
       // Setup the dialogs that appear upon clicking footerbar links
       _.each(o.dialogs, function(id) {
-        $foot.find('a[href='+id+']').click(function() { 
-          var $dialog = $(id).closest('.ui-dialog');
+        var $dialog = $(id).closest('.ui-dialog');
+        function openDialog() { 
           $('.ui-dialog').hide();
           $dialog.addClass('visible').show();
           $dialog.find('a[href^="http://"]').attr('target', '_blank');
           $dialog.css('top', Math.max(($elem.parent().innerHeight() - $dialog.outerHeight()) * 0.5, 30));
-        });
-        $(id).closest('.ui-dialog').find('.ui-dialog-buttonpane button').button().click(function() {
-          $(this).closest('.ui-dialog').fadeOut();
+        };
+        $dialog.bind('open.genobrowser', openDialog);
+        $foot.find('a[href='+id+']').click(openDialog);
+        $dialog.find('.ui-dialog-buttonpane button').button().click(function() {
+          $dialog.fadeOut();
         });
       });
       
@@ -886,6 +888,56 @@
       });
     },
     
+    _initCustomTrackDialog: function() {
+      var self = this,
+        o = self.options,
+        $dialog = $(o.dialogs[0]).closest('.ui-dialog');
+      $dialog.bind('open.genobrowser', function() { self.$customTracks.trigger('close.genobrowser'); });
+      $dialog.find('.range-slider').each(function() {
+        var $min = $(this).prev('input'),
+          $max = $(this).next('input'),
+          min = parseFloat($min.val()),
+          max = parseFloat($max.val()),
+          $slider = $(this);
+        $slider.slider({
+          range: true,
+          min: min,
+          max: max,
+          values: [min, max],
+          slide: function(event, ui) {
+            $min.val(ui.values[0]);
+            $max.val(ui.values[1]);
+          }
+        });
+        $min.change(function() { $slider.slider('value', $(this).val()); });
+        $max.change(function() { $slider.slider('values', [$slider.slider('values')[0], $(this).val()]); });
+      });
+      $dialog.find('.color').each(function() {
+        var $input = $(this),
+          $p = $('<div class="color-picker ui-widget-content ui-corner-bottom shadow"></div>').insertAfter($input);
+        $p.farbtastic(this);
+        $input.focus(function() { $p.show(200); });
+        $input.blur(function() { $p.hide(200); });
+        $p.hide();
+        $('<input type="button" value="done">').appendTo($p).click(function() { $input.blur(); });
+      });
+      $dialog.find('.enabler').each(function() {
+        var $input = $(this);
+        $input.change(function() {
+          var value = $input.is(':checked');
+          $input.siblings('[type=text]').attr('disabled', !value).toggleClass('disabled', !value);
+          $input.siblings('.range-slider').slider(value ? 'enable' : 'disable');
+        });
+      });
+      $dialog.find('[name=save]').click(function() {
+        var trk = $dialog.data('track');
+        trk.custom.saveOpts($dialog);
+        self.$lines.find('.browser-track-'+trk.n+' .tile-custom canvas').trigger('erase').trigger('render');
+        $dialog.data('track', false);
+      });
+      $dialog.addClass('initialized');
+    },
+    
     _initFromParams: function(params, suppressRepeat) {
       var self = this,
         o = self.options,
@@ -1146,14 +1198,17 @@
       _.each(customTracks, function(t, i) {
         var n = classFriendly('_'+fname+'_'+(t.opts.name || i)),
           newTrack = !self.availTracks[n],
-          $l, $c, $d;
+          $li, $l, $c, $d, $o;
         if (newTrack) {
-          $l = $('<label class="clickable"/>').appendTo($('<li class="choice"/>').appendTo($ul)),
-          $c = $('<input type="checkbox" checked="checked"/>').attr('name', n).prependTo($l),
+          $li = $('<li class="choice"/>').appendTo($ul);
+          $l = $('<label class="clickable"/>').appendTo($li);
+          $c = $('<input type="checkbox" checked="checked"/>').attr('name', n).prependTo($l);
           $d = $('<div class="desc"></div>').appendTo($l);
+          $o = $('<a class="opts"><img src="css/gear.png" alt="gear" /></a>').appendTo($li),
           $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
           $l.attr('title', n);
           $c.bind('change', _.bind(self._fixTracks, self));
+          $o.button().click(_.bind(self._editCustomTrack, self, n));
           $('<h3 class="name"/><p class="long-desc"/>').appendTo($d);
           if (browserDirectives.tracks) {
             // If track settings are to be applied, ensure any new custom tracks are added to them
@@ -1193,6 +1248,19 @@
         // TODO: other browser directives at http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#lines
         if (_.keys(browserDirectives).length) { self._initFromParams(browserDirectives); }
       }}); 
+    },
+    
+    // Opens a dialog to edit the options for a custom track.
+    _editCustomTrack: function(n) {
+      var self = this,
+        o = self.options,
+        $dialog = $(o.dialogs[0]).closest('.ui-dialog')
+        trk = self.availTracks[n];
+        
+      if (!$dialog.hasClass('initialized')) { self._initCustomTrackDialog(); }
+      trk.custom.loadOpts($dialog);
+      $dialog.data('track', trk);
+      $dialog.trigger('open');
     },
     
     // Removes all custom tracks.
@@ -2271,7 +2339,8 @@
         minHeight: minHeight,
         start: function(e, ui) {
           var bppp = self.bppps().top,
-            fixedHeights = o.track.fh[self._bpppFormat(bppp)];
+            fixedHeights = o.track.fh[self._bpppFormat(bppp)],
+            customHeights = o.track.custom && o.track.custom.heights;
           $('body').addClass('row-resizing');
           if (!self.ruler && !self.custom) {
             var $imgs = $('.browser-track-'+o.track.n+'>.bppp-'+classFriendly(bppp)+' img.tdata'),
@@ -2279,6 +2348,10 @@
                 return this.naturalHeight || this.height; 
               }).get());
             $(this).resizable('option', 'maxHeight', Math.max(maxHeight * 1.2, ui.originalSize.height, 18));
+          }
+          if (self.custom) {
+            if (customHeights.max) { $(this).resizable('option', 'maxHeight', customHeights.max - paddingBordersY); }
+            if (customHeights.min) { $(this).resizable('option', 'minHeight', customHeights.min - paddingBordersY); }
           }
           if (!self.ruler) {
             self.snaps = fixedHeights && _.map(fixedHeights, function(v, k) { return k=='dense' ? v : v + 1; });
@@ -2308,7 +2381,6 @@
         }
       };
       if (self.ruler) { opts.maxHeight = o.track.oh - paddingBordersY; }
-      if (self.custom && o.track.custom.heights.max) { opts.maxHeight = o.track.custom.heights.max - paddingBordersY; }
       self.$side.resizable(opts);
       $h = self.$side.find('.ui-resizable-handle');
       $h.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
@@ -3101,6 +3173,7 @@
         $canvas.removeClass('unrendered').addClass('no-areas');
         e.data.self.fixClickAreas();
         _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
+        $canvas.data('rendering', false);
       });
     },
     
@@ -3115,6 +3188,7 @@
             + 'id="canvas-'+self._tileId(tileId, bppp)+'-'+density+'"></canvas>',
           $c = $(canvasHTML).appendTo($t);
         $c.bind('render', {start: tileId, end: end, density: density, self: self, custom: o.track.custom}, self._customTileRender);
+        $c.bind('erase', function() { o.track.custom.erase($c.get(0)); $c.addClass('unrendered'); });
         if (density==bestDensity) { $c.addClass('dens-best').trigger('render'); }
       });
     }

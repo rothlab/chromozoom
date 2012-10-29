@@ -122,7 +122,7 @@ However, we can customize the track for better display by adding better Y-axis s
 
 Saving the above line into [a text file](examples/BroadHistoneGm12878H3k4me3.txt) and uploading it to ChromoZoom or pasting it into the Custom Tracks menu will add a visualization of ENCODE GM12878 H3k4me3 data adjacent to other tracks on hg19 ([view this in ChromoZoom][view-bigwig]).  You can specify multiple "big" data files by simply adding [more track lines](examples/BroadHistoneMultiH3k4me3.txt) to this file, which can be even be colored according to [the schema used by UCSC's ENCODE track][ucsc-encode-track] ([view this in ChromoZoom][view-multi]).
 
-Using bigBed files is an essentially equivalent process. The ENCODE project has also generated human microarray data describing RNA expression in various tissues.  For example, UCSC provides [bigBed files for Affymetrix performed on many cell lines][encode-bigbed-dls] by [the Crawford Lab at Duke University][duke].  We can use the URL for the first bigBed file containing RNA expression for 8988t (a pancreatic cell line) to create the following track definition line:
+Using bigBed files is an essentially equivalent process. The ENCODE project has also generated human microarray data describing RNA expression in various tissues.  For example, UCSC provides [bigBed files for Affymetrix performed on many cell lines][encode-bigbed-dls] by [the Crawford Lab at Duke University][duke].  We can use the URL for [the first bigBed file][encode-8988t] containing RNA expression for 8988t (a pancreatic cell line) to create the following track definition line:
 
     track name="8988t Duke Affy Exon" type=bigBed  bigDataUrl=http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeDukeAffyExon/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
     
@@ -139,6 +139,7 @@ Saving the above line into [a text file](examples/wgEncodeDukeAffy.txt) and uplo
 [encode-bigwig-dls]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/
 [encode-bigbed-dls]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeDukeAffyExon/
 [encode-gm12878]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeRegMarkH3k4me3/wgEncodeBroadHistoneGm12878H3k4me3StdSig.bigWig
+[encode-8988t]: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeDukeAffyExon/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
 [ucsc-encode-track]: http://genome.ucsc.edu/cgi-bin/hgTrackUi?db=hg19&c=chr22&g=wgEncodeRegMarkH3k4me3
 [broad]: http://www.broadinstitute.org/
 [view-bigwig]:  http://chromozoom.org/?db=hg19&customTracks=http://chromozoom.org/docs/examples/BroadHistoneGm12878H3k4me3.txt
@@ -198,6 +199,9 @@ To generate the link programmatically, the base URL is [http://chromozoom.org/](
             |_hg18-2-bed_Reads-Group-B:40
           &customTracks=http://chromozoom.org/docs/examples/hg18-1.bed
           &customTracks=http://chromozoom.org/docs/examples/hg18-2.bed
+    
+  As you may have guessed, you cannot link to views of custom tracks loaded from your local hard disk or 
+  pasted from your clipboard--only tracks loaded from a publicly accessible URL.
 
 [example-link-2]: http://chromozoom.org/?db=hg18&position=chr2:210000-225000&tracks=ruler:50|knownGene:150|_hg18-1-bed_Reads-Group-A:40|_hg18-2-bed_Reads-Group-B:40&customTracks=http://chromozoom.org/docs/examples/hg18-1.bed&customTracks=http://chromozoom.org/docs/examples/hg18-2.bed
 [bed-1]: http://chromozoom.org/docs/examples/hg18-1.bed

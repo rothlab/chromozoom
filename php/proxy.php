@@ -9,6 +9,15 @@
  **/
 function forbidden() { header('HTTP/1.1 403 Forbidden'); exit; }
 
+// Echoes a barebones track definition line that points to a big format file
+// (e.g., if the user actually selected a URL for a bigWig file).
+function bigformat_track_def($url, $type) {
+  $name = str_replace('"', '', basename($url));
+  $url = str_replace('"', '%22', $url);
+  echo "track name=\"$name\" type=\"$type\" bigDataUrl=\"$url\"\n";
+  exit;
+}
+
 // Determines if the $buffer looks like the beginning of a valid custom track file for the UCSC browser.
 function is_track($buffer) {
   $body_first = ltrim(preg_replace('/^#.*$/m', '', $buffer));       // discard inital whitespace and comment lines
@@ -18,6 +27,18 @@ function is_track($buffer) {
 }
  
 if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { forbidden(); }
+
+// First check if this is actually a bigBed, bigWig, or vcfTabix file
+// If the corresponding tool returns a exit code of 0, we guess that it is, and proxy back
+// a barebones track definition line with a bigDataUrl equal to this URL.
+$FORMAT_BINS = array(
+  "bigbed" => escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigBedInfo'),
+  "bigwig" => escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigWigInfo')
+);
+foreach ($FORMAT_BINS as $type=>$FORMAT_BIN) {
+  exec("$FORMAT_BIN " . escapeshellarg($_GET['url']), $output, $exit_code);
+  if ($exit_code === 0) { bigformat_track_def($_GET['url'], $type); }
+}
 
 // Not nearly as efficient, but in a PHP environment without curl, it's better than nothing.
 if (!function_exists('curl_init')) {

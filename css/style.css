@@ -90,6 +90,8 @@ body {
   font-size: 90%;
   margin: 0;
   padding: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 .picker .choice a.hover .name { text-decoration: underline; }
 .choice .long-desc {
@@ -122,6 +124,20 @@ body {
   position: absolute;
   width: 350px;
   z-index: 1000;
+}
+#custom-picker .choice {
+  padding-right: 33px;
+  position: relative;
+}
+#custom-picker .opts {
+  position: absolute;
+  right: 0;
+  top: 6px;
+}
+#custom-picker .opts img { 
+  vertical-align: top;
+  padding: 3px 0 3px 0;
+  border: none;
 }
 #custom-picker .help-line {
   padding: 0.3em 0.8em 0.7em;
@@ -774,6 +790,7 @@ body.row-resizing * {
 .browser-track-ruler .tile-big-ntdata .ntdata { top: 12px; }
 .browser-track-ruler .tile-overlay-ntdata .ntdata { top: 25px; border-top: 1px solid black; border-bottom: 1px solid black; }
 
+.mono, .ui-widget .mono { font-family: 'Menlo','Bitstream Vera Sans Mono','Consolas','Lucida Console',monospace; }
 .nts {
   position: absolute;
   top: 12px;
@@ -919,7 +936,7 @@ body.row-resizing * {
   left: 50%;
 }
 
-#dialogs .ui-dialog-buttonpane { text-align: center; }
+#dialogs .ui-dialog-buttonpane { text-align: center; clear: both; }
 #dialogs .ui-dialog-buttonpane button { font-size: 1.0em; margin-bottom: 0; }
 
 #intro-dialog-cont {
@@ -989,6 +1006,63 @@ body.row-resizing * {
 }
 
 #feedback { margin-bottom: 0; }
+
+#custom-dialog-cont {
+  margin-left: -250px;
+  width: 500px;
+  overflow: visible;
+}
+#custom-dialog { overflow: visible; }
+#custom-dialog .custom-name { overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.2em; }
+#custom-dialog h3 { margin-top: 0; color: #777; font-weight: normal; }
+#custom-dialog .form-line {
+  margin: 0 0.5em;
+  clear: both;
+}
+#custom-dialog .form-line label {
+  font-weight: bold;
+  float: left;
+  text-align: right;
+  margin: 0.2em 2% 0 0;
+  width: 30%;
+}
+#custom-dialog .form-line .inputs {
+  float: left;
+  margin: 0 0 0.5em 0;
+  width: 67%;
+}
+#custom-dialog .form-line input.full-length {
+  width: 99%;
+}
+#custom-dialog .form-line input.sm { width: 3em; }
+#custom-dialog .form-line input.chk { font-size: 150%; cursor: pointer; }
+#custom-dialog .form-line input.color { width: 8em; }
+#custom-dialog .form-line .disabled { opacity: 0.5; }
+#custom-dialog .input-note {
+  font-size: 0.8em;
+  color: #999;
+}
+#custom-dialog .form-line .range-slider { 
+  display: inline-block;
+  width: 120px;
+  margin: 0 15px;
+}
+#custom-dialog .color-picker {
+  position: absolute;
+  z-index: 100;
+}
+#custom-dialog .color-picker input {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+}
+#custom-dialog-cont .ui-dialog-buttonpane .left {
+  float: left;
+}
+#custom-dialog-cont .ui-dialog-buttonpane .right {
+  float: right;
+}
+.ui-state-red, .ui-widget-content .ui-state-red { border: 1px solid #b5aaaa; background-color: #e60000; color: #550000; }
 
 /* ============== */
 /* = tipTip CSS = */
@@ -1124,6 +1198,42 @@ body.row-resizing * {
   text-align: right;
   font-weight: bold;
   padding-right: 3px;
+}
+
+/* =============================================================== */
+/* = Farbtastic Color Picker CSS, (c) 2008 Steven Wittens, GPLv2 = */
+/* =============================================================== */
+.farbtastic {
+  position: relative;
+}
+.farbtastic * {
+  position: absolute;
+  cursor: crosshair;
+}
+.farbtastic, .farbtastic .wheel {
+  width: 195px;
+  height: 195px;
+}
+.farbtastic .color, .farbtastic .overlay {
+  top: 47px;
+  left: 47px;
+  width: 101px;
+  height: 101px;
+}
+.farbtastic .wheel {
+  background: url(wheel.png) no-repeat;
+  width: 195px;
+  height: 195px;
+}
+.farbtastic .overlay {
+  background: url(mask.png) no-repeat;
+}
+.farbtastic .marker {
+  width: 17px;
+  height: 17px;
+  margin: -8px 0 0 -8px;
+  overflow: hidden; 
+  background: url(marker.png) no-repeat;
 }
 
 /* ======================= */

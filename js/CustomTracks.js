@@ -78,7 +78,7 @@
     },
     
     // NOTE: To temporarily disable Web Worker usage, have this return null
-    worker: function() {
+    worker: function() { 
       var self = this,
         callbacks = [];
       if (!self._worker && global.Worker) { 
@@ -183,6 +183,7 @@
     color: '0,0,0'
   }
 
+  // Constructs a mapping function that converts bp intervals into pixel intervals, with optional calculations for text too
   CustomTrack.pixIntervalCalculator = function(start, width, bppp, withText, nameFunc, startkey, endkey) {
     if (!_.isFunction(nameFunc)) { nameFunc = function(d) { return d.name || ''; } }
     if (_.isUndefined(startkey)) { startkey = 'start'; }
@@ -213,6 +214,8 @@
       A few quick notes on setting up a format.
     
       + .parse(), .prerender(), and .render() MUST be defined.
+      
+      + .loadOpts() and .saveOpts() MAY be defined to handle dynamic updating of options via the Custom Track options dialog.
     
       + Defaults for track options can be put in .defaults.
     
@@ -245,14 +248,29 @@
   
     bed: {
       defaults: {
-        itemRgb: 'on',
-        colorByStrand: '0,0,0 0,0,0',
-        useScore: 1,
+        itemRgb: 'off',
+        colorByStrand: '',
+        useScore: 0,
         group: 'user',
         priority: 'user',
         offset: 0,
         url: '',
-        htmlUrl: ''
+        htmlUrl: '',
+        drawLimit: {squish: 500, pack: 100}
+      },
+      
+      init: function() {
+        this.type().initOpts.call(this);
+      },
+      
+      initOpts: function() {
+        var self = this,
+          altColors = self.opts.colorByStrand.split(/\s+/),
+          validColorByStrand = altColors.length > 1 && _.all(altColors, self.validateColor);
+        self.opts.useScore = self.isOn(self.opts.useScore);
+        self.opts.itemRgb = self.isOn(self.opts.itemRgb);
+        if (!validColorByStrand) { self.opts.colorByStrand = ''; self.opts.altColor = null; }
+        else { self.opts.altColor = altColors[1]; }
       },
     
       parseLine: function(line, lineno) {
@@ -333,7 +351,9 @@
         
         if (density == 'dense') {
           _.each(intervals, function(v) {
-            drawSpec.push(calcPixInterval(v.data));
+            var pInt = calcPixInterval(v.data);
+            pInt.v = v.data.score;
+            drawSpec.push(pInt);
           });
         } else {
           drawSpec = this.type().stackedLayout.call(this, intervals, width, calcPixInterval, lineNum);
@@ -354,37 +374,81 @@
         ]);
       },
       
+      // Scales a score from 0-1000 into an alpha value between 0.2 and 1.0
+      calcAlpha: function(value) { return Math.max(value, 166)/1000; },
+      
       drawFeature: function(ctx, data, i, lineHeight) {
+        var self = this,
+          color = self.opts.color;
+        // TODO: add more drawing routines for exons, strand directionality, etc.
+        if (self.opts.altColor && data.d.strand == '-') { color = self.opts.altColor; }
+        if (self.opts.itemRgb && data.d.itemRgb && this.validateColor(data.d.itemRgb)) { color = data.d.itemRgb; }
+        if (self.opts.useScore) { ctx.fillStyle = "rgba("+color+","+self.type('bed').calcAlpha(data.d.score)+")"; }
+        else if (self.opts.itemRgb || self.opts.altColor) { ctx.fillStyle = "rgb(" + color + ")"; }
         ctx.fillRect(data.pInt.x, i * lineHeight + 1, data.pInt.w, lineHeight - 1);
+      },
+      
+      drawSpec: function(canvas, drawSpec, density) {
+        var self = this,
+          ctx = canvas.getContext && canvas.getContext('2d'),
+          urlTemplate = 'javascript:void("'+self.opts.name+':$$")',
+          drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
+          lineHeight = density == 'pack' ? 15 : 6,
+          color = self.opts.color,
+          areas = null;
+                
+        if (!ctx) { throw "Canvas not supported"; }
+        if (density == 'pack') { areas = self.areas[canvas.id] = []; }
+        
+        if (density == 'dense') {
+          canvas.height = 15;
+          ctx.fillStyle = "rgb("+color+")";
+          _.each(drawSpec, function(pInt) {
+            if (self.opts.useScore) { ctx.fillStyle = "rgba("+color+","+self.type('bed').calcAlpha(pInt.v)+")"; }
+            ctx.fillRect(pInt.x, 1, pInt.w, 13);
+          });
+        } else {
+          if (drawLimit && drawSpec.length > drawLimit) { 
+            canvas.height = 0; return;
+          }
+          canvas.height = drawSpec.length * lineHeight;
+          ctx.fillStyle = "rgb("+color+")";
+          _.each(drawSpec, function(l, i) {
+            _.each(l, function(data) {
+              self.type('bed').drawFeature.call(self, ctx, data, i, lineHeight);
+              self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
+            });
+          });
+        }
       },
     
       render: function(canvas, start, end, density, callback) {
-        var self = this,
-          ctx = canvas.getContext && canvas.getContext('2d'),
-          color = self.opts.color, 
-          urlTemplate = (self.opts.url ? self.opts.url : 'javascript:void("'+self.opts.name+':$$")'),
-          lineHeight = density == 'pack' ? 15 : 6,
-          areas = null;
-        if (!ctx) { throw "Canvas not supported"; }
-        if (density == 'pack') { areas = self.areas[canvas.id] = []; }
+        var self = this;
         self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
-          ctx.fillStyle = "rgb("+color+")";  
-          if (density == 'dense') {
-            canvas.height = 15;
-            _.each(drawSpec, function(pInt) {
-              ctx.fillRect(pInt.x, 1, pInt.w, 13);
-            });
-          } else {
-            canvas.height = drawSpec.length * lineHeight;
-            _.each(drawSpec, function(l, i) {
-              _.each(l, function(data) {
-                self.type().drawFeature.call(self, ctx, data, i, lineHeight);
-                self.type().addArea.call(self, areas, data, i, lineHeight, urlTemplate);
-              });
-            });
-          }
+          self.type().drawSpec.call(self, canvas, drawSpec, density);
           _.isFunction(callback) && callback();
         });
+      },
+    
+      loadOpts: function($dialog) {
+        var o = this.opts,
+          colorByStrandOn = /\d+,\d+,\d+\s+\d+,\d+,\d+/.test(o.colorByStrand),
+          colorByStrand = colorByStrandOn ? o.colorByStrand.split(/\s+/)[1] : '0,0,0';
+        $dialog.find('[name=colorByStrandOn]').attr('checked', !!colorByStrandOn);
+        $dialog.find('[name=colorByStrand]').val(colorByStrand).change();
+        $dialog.find('[name=useScore]').attr('checked', this.isOn(o.useScore));    
+        $dialog.find('[name=url]').val(o.url);
+      },
+      
+      saveOpts: function($dialog) {
+        var o = this.opts,
+          colorByStrandOn = $dialog.find('[name=colorByStrandOn]').is(':checked'),
+          colorByStrand = $dialog.find('[name=colorByStrand]').val(),
+          validColorByStrand = this.validateColor(colorByStrand);
+        o.colorByStrand = colorByStrandOn && validColorByStrand ? o.color + ' ' + colorByStrand : '';
+        o.useScore = $dialog.find('[name=useScore]').is(':checked') ? 1 : 0;
+        o.url = $dialog.find('[name=url]').val();
+        this.type('bed').initOpts.call(this);
       }
     },
     
@@ -417,7 +481,7 @@
           genomeSize = this.browserOpts.genomeSize,
           data = {all: []},
           mode, modeOpts, chrPos, m;
-        self.range = this.isOn(this.opts.alwaysZero) ? [0, 0] : [Infinity, -Infinity];
+        self.range = self.isOn(this.opts.alwaysZero) ? [0, 0] : [Infinity, -Infinity];
       
         _.each(lines, function(line, lineno) {
           var cols = ['chrom', 'chromStart', 'chromEnd', 'dataValue'],
@@ -447,7 +511,12 @@
     
       render: function(canvas, start, end, density, callback) {
         this.type('wiggle_0').render.call(this, canvas, start, end, density, callback);
-      }
+      },
+      
+      loadOpts: function() { return this.type('wiggle_0').loadOpts.apply(this, arguments); },
+      
+      saveOpts: function() { return this.type('wiggle_0').saveOpts.apply(this, arguments); }
+      
     },
   
     // ==================================================================
@@ -471,28 +540,39 @@
       },
     
       init: function() {
-        var binFunctions = {
+        this._binFunctions = {
           minimum: function(bin) { return bin.length ? Math.min.apply(Math, bin) : 0; },
           mean: function(bin) { return _.reduce(bin, function(a,b) { return a + b; }, 0) / bin.length; },
           maximum: function(bin) { return bin.length ? Math.max.apply(Math, bin) : 0; }
         }
-        this._binFunction = binFunctions[this.opts.windowingFunction.toLowerCase()];
-        if (!this._binFunction) { throw new Error("invalid windowingFunction at line " + self.opts.lineNum); }
         this.type().initOpts.call(this);
       },
       
       initOpts: function() {
-        this.opts.viewLimits = _.map(this.opts.viewLimits.split(':'), parseInt10);
-        this.opts.maxHeightPixels = _.map(this.opts.maxHeightPixels.split(':'), parseInt10);
-        this.opts.yLineMark = parseFloat(this.opts.yLineMark);
-        if (_.isNaN(this.opts.yLineMark)) { this.opts.yLineMark = 0.0; }
-        
-        if (!this.opts.altColor) {
-          var hsl = this.rgbToHsl.apply(this, this.opts.color.split(/,\s*/g));
+        var o = this.opts;
+        if (!this.validateColor(o.altColor)) { o.altColor = ''; }
+        o.viewLimits = _.map(o.viewLimits.split(':'), parseFloat);
+        o.maxHeightPixels = _.map(o.maxHeightPixels.split(':'), parseInt10);
+        o.yLineOnOff = this.isOn(o.yLineOnOff);
+        o.yLineMark = parseFloat(o.yLineMark);
+        o.autoScale = this.isOn(o.autoScale);
+        if (this._binFunctions && !this._binFunctions[o.windowingFunction]) { 
+          throw new Error("invalid windowingFunction at line " + self.opts.lineNum); 
+        }
+        if (_.isNaN(o.yLineMark)) { o.yLineMark = 0.0; }
+      },
+      
+      applyOpts: function() {
+        var self = this,
+          o = self.opts;
+        self.drawRange = o.autoScale || o.viewLimits.length < 2 ? self.range : o.viewLimits;
+        _.each({max: 0, min: 2, start: 1}, function(v, k) { self.heights[k] = o.maxHeightPixels[v]; });
+        if (!o.altColor) {
+          var hsl = this.rgbToHsl.apply(this, o.color.split(/,\s*/g));
           hsl[0] = hsl[0] + 0.02 % 1;
           hsl[1] = hsl[1] * 0.7;
           hsl[2] = 1 - (1 - hsl[2]) * 0.7;
-          this.opts.altColor = _.map(this.hslToRgb.apply(this, hsl), parseInt10).join(',');
+          self.altColor = _.map(this.hslToRgb.apply(this, hsl), parseInt10).join(',');
         }
       },
     
@@ -501,7 +581,7 @@
           genomeSize = this.browserOpts.genomeSize,
           data = {all: []},
           mode, modeOpts, chrPos, m;
-        self.range = this.isOn(this.opts.alwaysZero) ? [0, 0] : [Infinity, -Infinity];
+        self.range = self.isOn(this.opts.alwaysZero) ? [0, 0] : [Infinity, -Infinity];
       
         _.each(lines, function(line, lineno) {
           var val, start;
@@ -548,7 +628,8 @@
       },
       
       finishParse: function(data) {
-        var self = this;
+        var self = this,
+          binFunction = self._binFunctions[self.opts.windowingFunction];
         if (data.all.length > 0) {
           self.range[0] = _.min(data.all, function(d) { return d.val; }).val;
           self.range[1] = _.max(data.all, function(d) { return d.val; }).val;
@@ -575,14 +656,13 @@
             while ((next = data.all.get(j + 1)) && next.start < (i + 1) * bppp && next.end > i * bppp) { 
               bin.push(next.val); ++j; curr = next; 
             }
-            downsampledData[i] = self._binFunction(bin);
+            downsampledData[i] = binFunction(bin);
           }
+          data._binFunction = self.opts.windowingFunction;
         });
         self.data = data;
         self.stretchHeight = true;
-        self.drawRange = this.isOn(this.opts.autoScale) || this.opts.viewLimits.length < 2 ? this.range : this.opts.viewLimits;
-        _.each({max: 0, min: 2, start: 1}, function(v, k) { self.heights[k] = self.opts.maxHeightPixels[v]; });
-        
+        self.type('wiggle_0').applyOpts.apply(self);
         return true; // success!
       },
       
@@ -601,8 +681,9 @@
         var self = this,
           bppp = (end - start) / precalc.width,
           drawSpec = self.type().initDrawSpec.call(self, precalc),
+          binFunction = self._binFunctions[self.opts.windowingFunction],
           downsampledData;
-        if (downsampledData = self.data[bppp]) {
+        if (downsampledData = self.data[bppp] && self.data._binFunction == self.opts.windowingFunction) {
           // We've already pre-optimized for this bppp
           drawSpec.bars = _.map(_.range((start - 1) / bppp, (end - 1) / bppp), function(xFromOrigin, x) {
             return ((downsampledData[xFromOrigin] || 0) - self.drawRange[0]) / drawSpec.vScale;
@@ -616,7 +697,7 @@
             while ((next = self.data.all.get(j + 1)) && next.start < (i + 1) * bppp + start && next.end >= i * bppp + start) { 
               bin.push(next.val); ++j; curr = next; 
             }
-            drawSpec.bars.push((self._binFunction(bin) - self.drawRange[0]) / drawSpec.vScale);
+            drawSpec.bars.push((binFunction(bin) - self.drawRange[0]) / drawSpec.vScale);
           }
         }
         return _.isFunction(callback) ? callback(drawSpec) : drawSpec;
@@ -625,7 +706,7 @@
       drawBars: function(ctx, drawSpec, height, width) {
         var zeroLine = drawSpec.zeroLine,
           color = "rgb("+this.opts.color+")",
-          altColor = "rgb("+this.opts.altColor+")";
+          altColor = "rgb("+(this.opts.altColor || this.altColor)+")";
         
         ctx.fillStyle = color;
         _.each(drawSpec.bars, function(d, x) {
@@ -653,7 +734,45 @@
           self.type().drawBars.call(self, ctx, drawSpec, height, width);
           _.isFunction(callback) && callback();
         });
+      },
+      
+      loadOpts: function($dialog) {
+        var o = this.opts,
+          $viewLimits = $dialog.find('.view-limits'),
+          $maxHeightPixels = $dialog.find('.max-height-pixels');
+        $dialog.find('[name=altColorOn]').attr('checked', this.isOn(o.yLineOnOff)).change();
+        $dialog.find('[name=altColor]').val(o.altColor).change();
+        $dialog.find('[name=autoScale]').attr('checked', !this.isOn(o.autoScale)).change();
+        $viewLimits.slider("option", "min", this.range[0]);
+        $viewLimits.slider("option", "max", this.range[1]);
+        $dialog.find('[name=viewLimitsMin]').val(this.drawRange[0]).change();
+        $dialog.find('[name=viewLimitsMax]').val(this.drawRange[1]).change();
+        $dialog.find('[name=yLineOnOff]').attr('checked', this.isOn(o.yLineOnOff)).change();
+        $dialog.find('[name=yLineMark]').val(o.yLineMark).change();
+        $dialog.find('[name=graphType]').val(o.graphType).change();
+        $dialog.find('[name=windowingFunction]').val(o.windowingFunction).change();
+        $dialog.find('[name=maxHeightPixelsOn]').attr('checked', o.maxHeightPixels.length >= 3);
+        $dialog.find('[name=maxHeightPixelsMin]').val(o.maxHeightPixels[2]).change();
+        $dialog.find('[name=maxHeightPixelsMax]').val(o.maxHeightPixels[0]).change();
+      },
+      
+      saveOpts: function($dialog) {
+        var o = this.opts,
+          altColorOn = $dialog.find('[name=altColorOn]').is(':checked'),
+          maxHeightPixelsOn = $dialog.find('[name=maxHeightPixelsOn]').is(':checked'),
+          maxHeightPixelsMax = $dialog.find('[name=maxHeightPixelsMax]').val();
+        o.altColor = altColorOn ? $dialog.find('[name=altColor]').val() : '';
+        o.autoScale = !$dialog.find('[name=autoScale]').is(':checked');
+        o.viewLimits = $dialog.find('[name=viewLimitsMin]').val() + ':' + $dialog.find('[name=viewLimitsMax]').val();
+        o.yLineOnOff = $dialog.find('[name=yLineOnOff]').is(':checked');
+        o.yLineMark = $dialog.find('[name=yLineMark]').val();
+        o.graphType = $dialog.find('[name=graphType]').val();
+        o.windowingFunction = $dialog.find('[name=windowingFunction]').val();
+        o.maxHeightPixels = maxHeightPixelsOn ? 
+          [maxHeightPixelsMax, maxHeightPixelsMax, $dialog.find('[name=maxHeightPixelsMin]').val()].join(':') : '';
+        this.type('wiggle_0').initOpts.call(this);
       }
+      
     },
   
     // ====================================================================
@@ -780,6 +899,14 @@
         priority: 100,
         maxWindowToDraw: 0,
         chromosomes: '',
+        itemRgb: 'off',
+        colorByStrand: '',
+        useScore: 0,
+        group: 'user',
+        priority: 'user',
+        offset: 0,
+        url: '',
+        htmlUrl: '',
         drawLimit: {squish: 500, pack: 100}
       },
     
@@ -788,7 +915,7 @@
           throw new Error("Required parameter bigDataUrl not found for bigBed track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
         }
       },
-    
+      
       parse: function(lines) {
         var self = this;
         self.heights = {max: null, min: 15, start: 15};
@@ -818,7 +945,9 @@
             lines, intervals, calcPixInterval;
           if (density == 'dense') {
             lines = data.split(/\s+/g);
-            _.each(lines, function(line, x) { if (line != 'n/a' && line.length) { drawSpec.push({x: x, v: parseFloat(line)}); } });
+            _.each(lines, function(line, x) { 
+              if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); } 
+            });
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
             intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
@@ -835,40 +964,16 @@
       },
     
       render: function(canvas, start, end, density, callback) {
-        var self = this,
-          ctx = canvas.getContext && canvas.getContext('2d'),
-          urlTemplate = 'javascript:void("'+this.opts.name+':$$")',
-          drawLimit = this.opts.drawLimit[density],
-          lineHeight = density == 'pack' ? 15 : 6,
-          color = this.opts.color,
-          areas = null;
-          
-        if (!ctx) { throw "Canvas not supported"; }
-        if (density == 'pack') { areas = this.areas[canvas.id] = []; }
-        ctx.fillStyle = "rgb("+color+")";
-        
-        this.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
-          if (density == 'dense') {
-            canvas.height = 15;
-            _.each(drawSpec, function(stripe) {
-              ctx.fillRect(stripe.x, 1, 1, 13);
-            });
-          } else {
-            if (drawLimit && drawSpec.length > drawLimit) { 
-              canvas.height = 0;
-              return (_.isFunction(callback) && callback());
-            }
-            canvas.height = drawSpec.length * lineHeight;
-            _.each(drawSpec, function(l, i) {
-              _.each(l, function(data) {
-                self.type('bed').drawFeature.call(self, ctx, data, i, lineHeight);
-                self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
-              });
-            });
-          }
+        var self = this;
+        self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
+          self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
           _.isFunction(callback) && callback();
         });
-      }
+      },
+      
+      loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
+      
+      saveOpts: function() { return this.type('bed').saveOpts.apply(this, arguments); }
     },
     
     // =====================================================================
@@ -892,20 +997,18 @@
       },
     
       init: function() {
-        var validWindowingFunctions = ['minimum', 'maximum', 'mean', 'min', 'max', 'std', 'coverage'];
+        this._binFunctions = {'minimum':1, 'maximum':1, 'mean':1, 'min':1, 'max':1, 'std':1, 'coverage':1};
         if (!this.opts.bigDataUrl) {
           throw new Error("Required parameter bigDataUrl not found for bigWig track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
         }
-        if (!_.include(validWindowingFunctions, this.opts.windowingFunction)) {
-          throw new Error("Invalid windowingFunction for bigWig track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
-        }
         this.type('wiggle_0').initOpts.call(this);
       },
+      
+      applyOpts: function() { return this.type('wiggle_0').applyOpts.apply(this, arguments); },
     
       parse: function(lines) {
         var self = this;
         self.stretchHeight = true;
-        _.each({max: 0, min: 2, start: 1}, function(v, k) { self.heights[k] = self.opts.maxHeightPixels[v]; });
         self.range = self.isOn(self.opts.alwaysZero) ? [0, 0] : [Infinity, -Infinity];
         $.ajax(self.ajaxDir() + 'bigwig.php', {
           data: {info: 1, url: this.opts.bigDataUrl},
@@ -919,7 +1022,7 @@
             });
           }
         });
-        self.drawRange = self.isOn(this.opts.autoScale) || self.opts.viewLimits.length < 2 ? self.range : self.opts.viewLimits;
+        self.type('wiggle_0').applyOpts.apply(self);
         return true;
       },
     
@@ -954,11 +1057,16 @@
           self.type('wiggle_0').drawBars.call(self, ctx, drawSpec, height, width);
           _.isFunction(callback) && callback();
         });
-      }
+      },
+
+      loadOpts: function() { return this.type('wiggle_0').loadOpts.apply(this, arguments); },
+
+      saveOpts: function() { return this.type('wiggle_0').saveOpts.apply(this, arguments); }
     }
   
   };
 
+  // These functions branch to different methods depending on the .type() of the track
   _.each(['init', 'parse', 'render', 'prerender'], function(fn) {
     CustomTrack.prototype[fn] = function() {
       var args = _.toArray(arguments),
@@ -967,6 +1075,41 @@
       return type[fn].apply(this, args);
     }
   });
+  
+  CustomTrack.prototype.loadOpts = function($dialog) {
+    var type = this.type(),
+      o = this.opts;
+    $dialog.find('.custom-opts-form').hide();
+    $dialog.find('.custom-opts-form.'+this._type).show();
+    $dialog.find('.custom-name').text(o.name);
+    $dialog.find('.custom-desc').text(o.description);
+    $dialog.find('.custom-format').text(this._type);
+    $dialog.find('[name=color]').val(o.color).change();
+    if (type.loadOpts) { type.loadOpts.call(this, $dialog); }
+    $dialog.find('.enabler').change();
+  };
+  
+  CustomTrack.prototype.saveOpts = function($dialog) {
+    var type = this.type(),
+      o = this.opts;
+    o.color = $dialog.find('[name=color]').val();
+    if (!this.validateColor(o.color)) { o.color = '0,0,0'; }
+    if (type.saveOpts) { type.saveOpts.call(this, $dialog); }
+    this.applyOpts();
+    CustomTracks.worker() && this.applyOptsAsync(); // Apply the changes to the worker too!
+  };
+  
+  CustomTrack.prototype.applyOpts = function(opts) {
+    var type = this.type();
+    if (opts) { this.opts = opts; }
+    if (type.applyOpts) { type.applyOpts.call(this); }
+  };
+
+  CustomTrack.prototype.erase = function(canvas) {
+    var self = this,
+      ctx = canvas.getContext && canvas.getContext('2d');
+    if (ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  }
 
   CustomTrack.prototype.type = function(type) {
     if (_.isUndefined(type)) { type = this._type; }
@@ -983,7 +1126,7 @@
   };
 
   CustomTrack.prototype.isOn = function(val) {
-    return /^(on|yes|true|t|y)$/i.test(val.toString());
+    return /^(on|yes|true|t|y|1)$/i.test(val.toString());
   };
 
   CustomTrack.prototype.chrList = function() {
@@ -1018,6 +1161,10 @@
 
   CustomTrack.prototype.prerenderAsync = function() {
     CustomTracks.async(this, 'prerender', arguments, [this.id]);
+  };
+  
+  CustomTrack.prototype.applyOptsAsync = function() {
+    CustomTracks.async(this, 'applyOpts', [this.opts, function(){}], [this.id]);
   };
 
   CustomTrack.prototype.ajaxDir = function() {
@@ -1069,6 +1216,13 @@
     }
 
     return [r * 255, g * 255, b * 255];
+  }
+  
+  CustomTrack.prototype.validateColor = function(color) {
+    var m = color.match(/(\d+),(\d+),(\d+)/);
+    if (!m) { return false; }
+    m.shift();
+    return _.all(_.map(m, parseInt10), function(v) { return v >=0 && v <= 255; });
   }
 
   global.CustomTracks = CustomTracks;

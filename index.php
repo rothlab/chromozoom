@@ -35,6 +35,7 @@
   <script src="js/SortedList.js"></script>
   <script src="js/IntervalTree.js"></script>
   <script src="js/CustomTracks.js"></script>
+  <script src="js/farbtastic.js"></script>
   <script src="js/chromozoom.js"></script>
   <link rel="stylesheet" type="text/css" href="css/syngrey/jquery-ui-1.8.6.custom.css" />
   <link rel="stylesheet" type="text/css" href="css/style.css" />
@@ -218,6 +219,96 @@
         </div>
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
           <button type="button" class="ui-state-default ui-corner-all loading">Close</button>
+        </div>
+      </div>
+      
+      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="custom-dialog-cont">
+        <div id="custom-dialog" class="ui-dialog-content ui-widget-content">
+          <h2 class="custom-name"></h2>
+          <h3><span class="custom-format"></span> format; <span class="custom-desc"></span> </h3>
+          <div class="form-line">
+            <label>color:</label>
+            <div class="inputs"><input type="text" name="color" value="0,0,0" class="color mono" /></div>
+          </div>
+          <div class="custom-opts-form bed bigbed">
+            <div class="form-line">
+              <label>alt color:</label>
+              <div class="inputs">
+                <input type="checkbox" class="chk enabler" name="colorByStrandOn" value="1" />
+                <input type="text" name="colorByStrand" value="0,0,0" class="color mono" />
+                <div class="input-note">This color is used for features on the – (minus) strand</div>
+              </div>
+            </div>
+            <div class="form-line">
+              <label>shade by score:</label>
+              <div class="inputs"><input type="checkbox" class="chk" name="useScore" value="1" /></div>
+            </div>
+            <div class="form-line">
+              <label>color by column 9:</label>
+              <div class="inputs"><input type="checkbox" class="chk" name="itemRgb" value="1" /></div>
+            </div>
+            <div class="form-line">
+              <label>item url format:</label>
+              <div class="inputs">
+                <input type="text" name="url" value="" class="full-length" />
+                <div class="input-note">Instances of $$ will be replaced with the feature name</div>
+              </div>
+            </div>
+          </div>
+          <div class="custom-opts-form wiggle_0 bigwig bedgraph">
+            <div class="form-line">
+              <label>alt color:</label>
+              <div class="inputs">
+                <input type="checkbox" class="chk enabler" name="altColorOn" value="1" />
+                <input type="text" name="altColor" value="128,128,128" class="color mono" />
+                <div class="input-note">This color is used for values below 0</div>
+              </div>
+            </div>
+            <div class="form-line">
+              <label>Y axis range:</label>
+              <div class="inputs">
+                <input type="checkbox" class="chk enabler" name="autoScale" value="1" />
+                <input type="text" name="viewLimitsMin" class="sm" value="0" />
+                <div class="range-slider view-limits"></div>
+                <input type="text" name="viewLimitsMax" class="sm" value="100" />
+              </div>
+            </div>
+            <div class="form-line">
+              <label>Y axis line:</label>
+              <div class="inputs">
+                <input type="checkbox" class="chk enabler" name="yLineOnOff" value="1" />
+                <input type="text" name="yLineMark" class="sm" />
+              </div>
+            </div>
+            <div class="form-line">
+              <label>graph type:</label>
+              <div class="inputs">
+                <select name="graphType"><option>bar</option><option>points</option></select>
+              </div>
+            </div>
+            <div class="form-line">
+              <label>windowing func:</label>
+              <div class="inputs">
+                <select name="windowingFunction">
+                  <option>maximum</option><option>mean</option><option>minimum</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-line">
+              <label>restrict height:</label>
+              <div class="inputs">
+                <input type="checkbox" class="chk enabler" name="maxHeightPixelsOn" value="1" />
+                <input type="text" name="maxHeightPixelsMin" class="sm" value="11" />
+                <div class="range-slider max-height-pixels"></div>
+                <input type="text" name="maxHeightPixelsMax" class="sm" value="300" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
+          <!--<button type="button" class="ui-state-red delete ui-corner-all left ui-priority-secondary">Delete this track</button>-->
+          <button type="button" class="ui-state-default ui-corner-all right" name="save">Save</button>
+          <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
         </div>
       </div>
       

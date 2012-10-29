@@ -29,6 +29,12 @@ var CustomTrackWorker = {
       track = this._tracks[id];
     track.prerender.apply(track, _.rest(args));
   },
+  applyOpts: function() {
+    args = _.toArray(arguments),
+      id = _.first(args),
+      track = this._tracks[id];
+    track.applyOpts.apply(track, _.rest(args));
+  },
   throwErrors: function(toggle) {
     this._throwErrors = toggle;
   }

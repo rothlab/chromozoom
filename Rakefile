@@ -10,6 +10,7 @@ directory "bin"
 REQUIRED_LINKS = {
   "bigBedSummary" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "bigBedToBed" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
+  "bigBedInfo" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "bigWigSummary" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "bigWigInfo" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "tabix" => "http://samtools.sourceforge.net/tabix.shtml"
