@@ -1,1 +1,1 @@
-track name="8988t Duke Affy Exon" type=bigBed useScores=1 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
+track name="8988t Duke Affy Exon" type=bigBed useScore=1 bigDataUrl=http://chromozoom.org/docs/examples/wgEncodeDukeAffyExon8988tSimpleSignalRep1V2.bigBed
