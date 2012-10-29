@@ -747,9 +747,10 @@
       loadOpts: function($dialog) {
         var o = this.opts,
           $viewLimits = $dialog.find('.view-limits'),
-          $maxHeightPixels = $dialog.find('.max-height-pixels');
-        $dialog.find('[name=altColorOn]').attr('checked', this.isOn(o.yLineOnOff)).change();
-        $dialog.find('[name=altColor]').val(o.altColor).change();
+          $maxHeightPixels = $dialog.find('.max-height-pixels'),
+          altColorOn = this.validateColor(o.altColor);
+        $dialog.find('[name=altColorOn]').attr('checked', altColorOn).change();
+        $dialog.find('[name=altColor]').val(altColorOn ? o.altColor :'128,128,128').change();
         $dialog.find('[name=autoScale]').attr('checked', !this.isOn(o.autoScale)).change();
         $viewLimits.slider("option", "min", this.range[0]);
         $viewLimits.slider("option", "max", this.range[1]);

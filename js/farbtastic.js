@@ -72,7 +72,7 @@ jQuery._farbtastic = function (container, callback) {
     }
     else if (typeof callback == 'object' || typeof callback == 'string') {
       fb.callback = $(callback);
-      fb.callback.bind('keyup', fb.updateValue);
+      fb.callback.bind('keyup change blur', fb.updateValue);
       if (fb.callback.get(0).value) {
         fb.setColor(fb.callback.get(0).value);
       }
@@ -246,7 +246,7 @@ jQuery._farbtastic = function (container, callback) {
 
       // Change linked value
       $(fb.callback).each(function() {
-        if (this.value && this.value != fb.color) {
+        if (this.value != fb.color) {
           this.value = fb.color;
         }
       });

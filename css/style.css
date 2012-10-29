@@ -1034,7 +1034,7 @@ body.row-resizing * {
 #custom-dialog .form-line input.full-length {
   width: 99%;
 }
-#custom-dialog .form-line input.sm { width: 3em; }
+#custom-dialog .form-line input.sm { width: 4em; }
 #custom-dialog .form-line input.chk { font-size: 150%; cursor: pointer; }
 #custom-dialog .form-line input.color { width: 8em; }
 #custom-dialog .form-line .disabled { opacity: 0.5; }
