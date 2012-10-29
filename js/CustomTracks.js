@@ -685,7 +685,7 @@
           drawSpec = self.type().initDrawSpec.call(self, precalc),
           binFunction = self._binFunctions[self.opts.windowingFunction],
           downsampledData;
-        if (downsampledData = self.data[bppp] && self.data._binFunction == self.opts.windowingFunction) {
+        if (self.data._binFunction == self.opts.windowingFunction && (downsampledData = self.data[bppp])) {
           // We've already pre-optimized for this bppp
           drawSpec.bars = _.map(_.range((start - 1) / bppp, (end - 1) / bppp), function(xFromOrigin, x) {
             return ((downsampledData[xFromOrigin] || 0) - self.drawRange[0]) / drawSpec.vScale;
