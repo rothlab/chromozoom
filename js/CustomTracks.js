@@ -637,7 +637,7 @@
       
       finishParse: function(data) {
         var self = this,
-          binFunction = self._binFunctions[self.opts.windowingFunction];
+          binFunction = self.type()._binFunctions[self.opts.windowingFunction];
         if (data.all.length > 0) {
           self.range[0] = _.min(data.all, function(d) { return d.val; }).val;
           self.range[1] = _.max(data.all, function(d) { return d.val; }).val;
@@ -689,7 +689,7 @@
         var self = this,
           bppp = (end - start) / precalc.width,
           drawSpec = self.type().initDrawSpec.call(self, precalc),
-          binFunction = self._binFunctions[self.opts.windowingFunction],
+          binFunction = self.type()._binFunctions[self.opts.windowingFunction],
           downsampledData;
         if (self.data._binFunction == self.opts.windowingFunction && (downsampledData = self.data[bppp])) {
           // We've already pre-optimized for this bppp
