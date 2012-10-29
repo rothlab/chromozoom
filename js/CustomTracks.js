@@ -208,6 +208,12 @@
     };
   };
 
+  CustomTrack.wigBinFunctions = {
+    minimum: function(bin) { return bin.length ? Math.min.apply(Math, bin) : 0; },
+    mean: function(bin) { return _.reduce(bin, function(a,b) { return a + b; }, 0) / bin.length; },
+    maximum: function(bin) { return bin.length ? Math.max.apply(Math, bin) : 0; }
+  };
+
   CustomTrack.types = {
   
     /*
@@ -474,6 +480,8 @@
     
       init: function() { return this.type('wiggle_0').init.call(this); },
       
+      _binFunctions: CustomTrack.wigBinFunctions,
+      
       initOpts: function() { return this.type('wiggle_0').initOpts.call(this); },
       
       applyOpts: function() { return this.type('wiggle_0').applyOpts.apply(this, arguments); },
@@ -542,23 +550,21 @@
       },
     
       init: function() {
-        this._binFunctions = {
-          minimum: function(bin) { return bin.length ? Math.min.apply(Math, bin) : 0; },
-          mean: function(bin) { return _.reduce(bin, function(a,b) { return a + b; }, 0) / bin.length; },
-          maximum: function(bin) { return bin.length ? Math.max.apply(Math, bin) : 0; }
-        }
         this.type().initOpts.call(this);
       },
       
+      _binFunctions: CustomTrack.wigBinFunctions,
+      
       initOpts: function() {
-        var o = this.opts;
+        var o = this.opts,
+          _binFunctions = this.type()._binFunctions;
         if (!this.validateColor(o.altColor)) { o.altColor = ''; }
         o.viewLimits = _.map(o.viewLimits.split(':'), parseFloat);
         o.maxHeightPixels = _.map(o.maxHeightPixels.split(':'), parseInt10);
         o.yLineOnOff = this.isOn(o.yLineOnOff);
         o.yLineMark = parseFloat(o.yLineMark);
         o.autoScale = this.isOn(o.autoScale);
-        if (this._binFunctions && !this._binFunctions[o.windowingFunction]) { 
+        if (_binFunctions && !_binFunctions[o.windowingFunction]) {
           throw new Error("invalid windowingFunction at line " + o.lineNum); 
         }
         if (_.isNaN(o.yLineMark)) { o.yLineMark = 0.0; }
@@ -999,12 +1005,13 @@
       },
     
       init: function() {
-        this._binFunctions = {'minimum':1, 'maximum':1, 'mean':1, 'min':1, 'max':1, 'std':1, 'coverage':1};
         if (!this.opts.bigDataUrl) {
           throw new Error("Required parameter bigDataUrl not found for bigWig track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
         }
         this.type('wiggle_0').initOpts.call(this);
       },
+      
+      _binFunctions: {'minimum':1, 'maximum':1, 'mean':1, 'min':1, 'max':1, 'std':1, 'coverage':1},
       
       applyOpts: function() { return this.type('wiggle_0').applyOpts.apply(this, arguments); },
     
