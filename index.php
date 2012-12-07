@@ -181,7 +181,7 @@
         <div id="about-dialog" class="ui-dialog-content ui-widget-content">
           <h2 id="about">About ChromoZoom</h2>
           <p>
-            ChromoZoom was written by Theodore Pak with the advice and support of Dr. Frederick "Fritz" Roth in 2012.
+            ChromoZoom was written by Theodore Pak with the advice and support of Dr. Frederick "Fritz" Roth in 2012.  To cite ChromoZoom, please see our article in <a href="http://bioinformatics.oxfordjournals.org/content/early/2012/12/06/bioinformatics.bts695.short">Bioinformatics</a>.
           </p>
           <p>
             Takafumi Yamaguchi, Joseph Mellor, and all the members of the <a href="http://llama.mshri.on.ca">Roth Laboratory</a> provided valuable design input and sample custom data.

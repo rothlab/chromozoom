@@ -211,6 +211,12 @@ To generate the link programmatically, the base URL is [http://chromozoom.org/](
 
 You can [fork this project on Github](http://github.com/rothlab/chromozoom).
 
+### Citing ChromoZoom
+
+Please see our Application Note in [Bioinformatics][cite-link], doi: 10.1093/bioinformatics/bts695. It is currently provided as Advance Access--full citation information will be available there soon.
+
+[cite-link]: http://bioinformatics.oxfordjournals.org/content/early/2012/12/06/bioinformatics.bts695.short
+
 ### License
 
 ChromoZoom is free for academic, nonprofit, and personal use.  The source code is licensed under the [GNU Affero General Public License v3](http://www.gnu.org/licenses/agpl-3.0.html).  In a nutshell, this license means that you are free to copy, redistribute, and modify the source code, but you are expected to provide the source for any code derived from ChromoZoom to anybody that receives the modified code or uses it over a computer network (e.g. as a web application).  ChromoZoom is not free for commercial use.  For commercial licensing, please contact the [Roth laboratory](http://llama.mshri.on.ca).
