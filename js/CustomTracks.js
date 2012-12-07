@@ -397,7 +397,7 @@
       drawSpec: function(canvas, drawSpec, density) {
         var self = this,
           ctx = canvas.getContext && canvas.getContext('2d'),
-          urlTemplate = 'javascript:void("'+self.opts.name+':$$")',
+          urlTemplate = self.opts.url ? self.opts.url : 'javascript:void("'+self.opts.name+':$$")',
           drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
           lineHeight = density == 'pack' ? 15 : 6,
           color = self.opts.color,
@@ -712,17 +712,21 @@
       },
       
       drawBars: function(ctx, drawSpec, height, width) {
-        var zeroLine = drawSpec.zeroLine,
+        var zeroLine = drawSpec.zeroLine, // pixel position of the data value 0
           color = "rgb("+this.opts.color+")",
-          altColor = "rgb("+(this.opts.altColor || this.altColor)+")";
+          altColor = "rgb("+(this.opts.altColor || this.altColor)+")",
+          pointGraph = this.opts.graphType==='points';
         
         ctx.fillStyle = color;
         _.each(drawSpec.bars, function(d, x) {
           if (d === null) { return; }
-          else if (d > zeroLine) { ctx.fillRect(x, height - d, 1, zeroLine > 0 ? (d - zeroLine) : d); }
-          else {
+          else if (d > zeroLine) { 
+            if (pointGraph) { ctx.fillRect(x, height - d, 1, 1); }
+            else { ctx.fillRect(x, height - d, 1, zeroLine > 0 ? (d - zeroLine) : d); }
+          } else {
             ctx.fillStyle = altColor;
-            ctx.fillRect(x, height - zeroLine, 1, zeroLine - d);
+            if (pointGraph) { ctx.fillRect(x, zeroLine - d - 1, 1, 1); } 
+            else { ctx.fillRect(x, height - zeroLine, 1, zeroLine - d); }
             ctx.fillStyle = color;
           }
         });
@@ -856,7 +860,7 @@
     
       render: function(canvas, start, end, density, callback) {
         var ctx = canvas.getContext && canvas.getContext('2d'),
-          urlTemplate = 'javascript:void("'+this.opts.name+':$$")',
+          urlTemplate = this.opts.url ? this.opts.url : 'javascript:void("'+this.opts.name+':$$")',
           lineHeight = density == 'pack' ? 27 : 6,
           colors = {a:'255,0,0', t:'255,0,255', c:'0,0,255', g:'0,255,0'},
           areas = null;
