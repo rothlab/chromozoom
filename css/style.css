@@ -75,6 +75,18 @@ body {
   list-style-type: none;
   font-size: 0.8em;
 }
+/* The following is a valiant attempt to keep auto-hiding scrollbars in Webkit for OSX >10.7 in check */
+/* http://stackoverflow.com/questions/7855590/how-can-i-prevent-scroll-bars-from-being-hidden-for-trackpad-users-in-webkit */
+.picker ul::-webkit-scrollbar {
+    -webkit-appearance: none;
+    width: 11px;
+    height: 11px;
+}
+.picker ul::-webkit-scrollbar-thumb {
+    border-radius: 8px;
+    border: 2px solid white; /* should match background, can't be transparent */
+    background-color: rgba(0, 0, 0, .5);
+}
 .picker ul, .picker ul * { cursor: pointer; }
 .picker .choice { clear: both; }
 .picker .choice a.clickable { text-decoration: none; }
