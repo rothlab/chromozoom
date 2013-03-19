@@ -1232,7 +1232,6 @@
         nextDirectivesIncludeOneNewTrack = self._nextDirectives && self._nextDirectives.tracks &&
           !!_.find(self._nextDirectives.tracks.split('|'), function(v) { return _.contains(newTracks, v.split(':')[0]); });
       
-      console.log(newTracks, nextDirectivesIncludeOneNewTrack);
       _.each(customTracks, function(t, i) {
         var n = customTrackNames[i],
           newTrack = !self.availTracks[n],
