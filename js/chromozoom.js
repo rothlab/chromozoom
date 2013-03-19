@@ -57,6 +57,9 @@
       : $(document.createElement(elem = NS)); 
   }
 
+  // Sum elements of an array
+  _.sum = function(arr) { return _.reduce(arr, function(memo, next) { return memo + next; }, 0); }
+  
   // Escape something so it can be inserted into a regular expression
   RegExp.quote = function(str) { return str.replace(/([.?*+^$[\]\\(){}-])/g, "\\$1"); };
 
@@ -364,10 +367,13 @@
       
       // Bind event handlers for the window and main widgets
       $(window).resize(function(e, callback) { 
-        if (this == e.target) { 
+        if (this == e.target) {
           self._width = $elem.width();
           self._fixNumLines(null, {duration: 0, complete: callback});
-          $(o.navBar).toggleClass('narrow', self._width < 950).find('.picker ul').css('max-height', $elem.height() - 20);
+          $(o.navBar).toggleClass('narrow', self._width < 950).find('.picker ul').each(function() {
+            var formLineHeights = _.map($(this).nextAll(), function(el) { return $(el).outerHeight(); });
+            $(this).css('max-height', $elem.height() - _.sum(formLineHeights));
+          });
         }
       });
       $(document).bind('DOMMouseScroll mousewheel', _.bind(self._recvZoom, self));
