@@ -1226,9 +1226,15 @@
         $ul = $(o.trackPicker[3]).children('ul').eq(0),
         d = o.trackDesc,
         browserDirectives = _.extend({}, customTracks.browser, self._nextDirectives || {}),
-        warnings = [];
+        warnings = [],
+        customTrackNames = _.map(customTracks, function(t, i) { return classFriendly('_'+fname+'_'+(t.opts.name || i)); }),
+        newTracks = _.filter(customTrackNames, function(n) { return !self.availTracks[n] }),
+        nextDirectivesIncludeOneNewTrack = self._nextDirectives && self._nextDirectives.tracks &&
+          !!_.find(self._nextDirectives.tracks.split('|'), function(v) { return _.contains(newTracks, v.split(':')[0]); });
+      
+      console.log(newTracks, nextDirectivesIncludeOneNewTrack);
       _.each(customTracks, function(t, i) {
-        var n = classFriendly('_'+fname+'_'+(t.opts.name || i)),
+        var n = customTrackNames[i],
           newTrack = !self.availTracks[n],
           $li, $l, $c, $d, $o;
         if (newTrack) {
@@ -1242,9 +1248,11 @@
           $c.bind('change', _.bind(self._fixTracks, self));
           $o.button().click(_.bind(self._editCustomTrack, self, n));
           $('<h3 class="name"/><p class="long-desc"/>').appendTo($d);
-          if (browserDirectives.tracks) {
-            // If track settings are to be applied, ensure any new custom tracks are added to them
-            // This prevents new tracks from being added and then immediately hidden (confusing)
+          // If track settings are to be applied, ensure any new custom tracks are added to them
+          // This prevents new tracks from being added and then immediately hidden (confusing)
+          // -- One exception! If self._nextDirectives contain at least one track name
+          //    among the new tracks to be added, do not do this, we then assume they are overriding.
+          if (browserDirectives.tracks && !nextDirectivesIncludeOneNewTrack) {
             if (!_.find(browserDirectives.tracks.split('|'), function(v) { return v.split(':')[0] == n; })) {
               browserDirectives.tracks += '|' + n;
             }
