@@ -452,7 +452,6 @@
         formLineHeights = _.map($ul.nextAll(), function(el) { 
           return Math.max($(el).outerHeight(), $(el).find('textarea').outerHeight()); 
         });
-        console.log($elem.outerHeight(), _.sum(formLineHeights));
         $ul.css('max-height', $elem.outerHeight() - _.sum(formLineHeights));
         if (!visible) { $(this).hide(); }
       });
