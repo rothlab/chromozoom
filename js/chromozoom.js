@@ -1236,7 +1236,7 @@
           $l = $('<label class="clickable"/>').appendTo($li);
           $c = $('<input type="checkbox" checked="checked"/>').attr('name', n).prependTo($l);
           $d = $('<div class="desc"></div>').appendTo($l);
-          $o = $('<a class="opts"><img src="css/gear.png" alt="gear" /></a>').appendTo($li),
+          $o = $('<button class="opts"><img src="css/gear.png" alt="gear" /></button>').appendTo($li),
           $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
           $l.attr('title', n);
           $c.bind('change', _.bind(self._fixTracks, self));
