@@ -370,10 +370,7 @@
         if (this == e.target) {
           self._width = $elem.width();
           self._fixNumLines(null, {duration: 0, complete: callback});
-          $(o.navBar).toggleClass('narrow', self._width < 950).find('.picker ul').each(function() {
-            var formLineHeights = _.map($(this).nextAll(), function(el) { return $(el).outerHeight(); });
-            $(this).css('max-height', $elem.height() - _.sum(formLineHeights));
-          });
+          $(o.navBar).toggleClass('narrow', self._width < 950).find('.picker').trigger('remaxheight');
         }
       });
       $(document).bind('DOMMouseScroll mousewheel', _.bind(self._recvZoom, self));
@@ -444,7 +441,21 @@
     
     // Utility function to a bind a button to toggling visibility of a slide-out menu, called a "picker"
     _createPicker: function($btn, $picker, $done) {
-      var closePicker = function() { $picker.slideUp(100); }
+      var self = this,
+        $elem = $(self.element),
+        closePicker = function() { $picker.slideUp(100); };
+      $picker.bind('remaxheight.genobrowser', function() {
+        var $ul = $(this).children('ul'),
+          visible = $(this).is(':visible'),
+          formLineHeights;
+        if (!visible) { $(this).show(); } // can't make measurements while hidden
+        formLineHeights = _.map($ul.nextAll(), function(el) { 
+          return Math.max($(el).outerHeight(), $(el).find('textarea').outerHeight()); 
+        });
+        console.log($elem.outerHeight(), _.sum(formLineHeights));
+        $ul.css('max-height', $elem.outerHeight() - _.sum(formLineHeights));
+        if (!visible) { $(this).hide(); }
+      });
       $btn.click(function() {
         if (!$picker.is(':visible')) {
           $('body').bind('mousedown.picker', function(e) { 
@@ -453,8 +464,9 @@
             $('body').unbind('mousedown.picker');
           });
           if ($btn.is('a.ui-button')) { $btn.addClass('ui-state-active'); }
+          $picker.trigger('remaxheight');
         }
-        $picker.slideToggle(100); 
+        $picker.slideToggle(100);
       });
       if ($done) { $done.click(closePicker); }
       return $picker.bind('close.genobrowser', closePicker);
