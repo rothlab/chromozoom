@@ -306,7 +306,12 @@
           </div>
         </div>
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
-          <!--<button type="button" class="ui-state-red delete ui-corner-all left ui-priority-secondary">Delete this track</button>-->
+          <button type="button" class="ui-state-red delete ui-corner-all left ui-priority-secondary dont-close show" name="delete">Remove this track</button>
+          <div class="delete-confirm hidden left">
+            <label>Are you sure?
+              <button type="button" class="ui-state-red delete ui-corner-all ui-priority-secondary" name="really_delete">Yes, remove it</button>
+            </label>
+          </div>
           <button type="button" class="ui-state-default ui-corner-all right" name="save">Save</button>
           <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
         </div>

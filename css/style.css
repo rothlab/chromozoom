@@ -938,6 +938,8 @@ body.row-resizing * {
 
 #dialogs .ui-dialog-buttonpane { text-align: center; clear: both; }
 #dialogs .ui-dialog-buttonpane button { font-size: 1.0em; margin-bottom: 0; }
+#dialogs .ui-dialog-buttonpane label { font-weight: bold; }
+#dialogs .ui-dialog-buttonpane label button { margin-left: 0.6em; }
 
 #intro-dialog-cont {
   width: 600px;
@@ -1062,7 +1064,12 @@ body.row-resizing * {
 #custom-dialog-cont .ui-dialog-buttonpane .right {
   float: right;
 }
-.ui-state-red, .ui-widget-content .ui-state-red { border: 1px solid #b5aaaa; background-color: #e60000; color: #550000; }
+.ui-state-red, .ui-widget-content .ui-state-red { 
+  border: 1px solid #c09999; 
+  background-color: #e60000; 
+  color: #550000;
+  font-weight: bold;
+}
 
 /* ============== */
 /* = tipTip CSS = */

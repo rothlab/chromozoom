@@ -514,7 +514,7 @@
         };
         $dialog.bind('open.genobrowser', openDialog);
         $foot.find('a[href='+id+']').click(openDialog);
-        $dialog.find('.ui-dialog-buttonpane button').button().click(function() {
+        $dialog.find('.ui-dialog-buttonpane button').button().not('.dont-close').click(function() {
           $dialog.fadeOut();
         });
       });
@@ -659,7 +659,7 @@
               $spinner.hide();
               $url.val('');
               self._customTrackUrls.loaded = _.union(self._customTrackUrls.loaded, [url]);
-              self._addCustomTracks(basename(url), tracks);
+              self._addCustomTracks(basename(url), tracks, url);
               $overlay.add($overlayMessage).fadeOut();
             });
           },
@@ -909,6 +909,12 @@
       var self = this,
         o = self.options,
         $dialog = $(o.dialogs[0]).closest('.ui-dialog');
+      
+      $dialog.find('.hidden').hide();
+      $dialog.find('.show').show();
+      
+      if ($dialog.hasClass('initialized')) { return; } // The following only needs to be initialized once
+      
       $dialog.bind('open.genobrowser', function() { self.$customTracks.trigger('close.genobrowser'); });
       $dialog.find('.range-slider').each(function() {
         var $min = $(this).prev('input'),
@@ -950,6 +956,15 @@
         var trk = $dialog.data('track');
         trk.custom.saveOpts($dialog);
         self.$lines.find('.browser-track-'+trk.n+' .tile-custom canvas').trigger('erase').trigger('render');
+        $dialog.data('track', false);
+      });
+      $dialog.find('[name=delete]').click(function() {
+        $(this).hide();
+        $dialog.find('.delete-confirm').fadeIn();
+      });
+      $dialog.find('[name=really_delete]').click(function() {
+        var tname = $dialog.data('track').n;
+        self._removeCustomTrack(tname);
         $dialog.data('track', false);
       });
       $dialog.addClass('initialized');
@@ -1205,7 +1220,7 @@
     
     // After a custom track file is parsed, this function is called to add them to the custom track picker and each
     // browser line; they are also inserted in self.availTracks just like "normal" tracks
-    _addCustomTracks: function(fname, customTracks) {
+    _addCustomTracks: function(fname, customTracks, url) {
       var self = this,
         o = self.options,
         $ul = $(o.trackPicker[3]).children('ul').eq(0),
@@ -1235,6 +1250,7 @@
             }
           }
         } else { $d = $ul.find('[name='+n+']').parent().children('.desc'); }
+        if (url) { t.url = url; }
         // TODO: if the track is not new, inform that its data was replaced with the new track information
         self.availTracks[n] = {
           fh: {},
@@ -1271,13 +1287,27 @@
     _editCustomTrack: function(n) {
       var self = this,
         o = self.options,
-        $dialog = $(o.dialogs[0]).closest('.ui-dialog')
+        $dialog = $(o.dialogs[0]).closest('.ui-dialog'),
         trk = self.availTracks[n];
         
-      if (!$dialog.hasClass('initialized')) { self._initCustomTrackDialog(); }
+      self._initCustomTrackDialog();
       trk.custom.loadOpts($dialog);
       $dialog.data('track', trk);
       $dialog.trigger('open');
+    },
+    
+    // Removes a custom tracks.
+    _removeCustomTrack: function(tname) {
+      var self = this,
+        $li = $(self.options.trackPicker[3]).find('input[name="'+tname+'"]').closest('li'),
+        url = self.availTracks[tname].custom.url;
+      delete self.availTracks[tname];
+      $li.remove();
+      // Remove url from list of loaded URLs if there are no other tracks that were loaded from it
+      if (url && !_.find(self.availTracks, function(trk) { return trk.custom && trk.custom.url == url; })) {
+        self._customTrackUrls.loaded = _.difference(self._customTrackUrls.loaded, [url]);
+      }
+      self._fixTracks();
     },
     
     // Removes all custom tracks.
