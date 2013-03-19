@@ -47,7 +47,10 @@ header('Content-type: text/plain');
 if ($SUMMARY) {
   ranges_to_args($ranges);
   foreach ($ranges as $range) {
-    passthru("$BIGWIG_BIN $WINFUNC " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range)));
+    $cmd = "$BIGWIG_BIN $WINFUNC " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range));
+    exec($cmd, $output, $retval);
+    if ($retval) { echo implode("\t", array_fill(0, $range[3], "n/a")) . "\n"; }
+    else { echo implode("\n", $output); }
   }
 } else {
   passthru("$BIGWIG_BIN " . escapeshellarg($_GET['url']));
