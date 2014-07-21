@@ -643,12 +643,12 @@ class UCSCClient
       chr = chr.sub(/^chr/, '')
       if is_roman
         chr.roman_to_i rescue chr[0] + 1e7
-      elsif chr =~ /(\d+(\.\d+)?)$/
+      elsif chr =~ /(\d+(\.\d+)?)/
         $1.to_f
       else
         # all we got is some opaque letter like chrX
         # get its charcode and add it to a large number to put it at the end
-        chr[0] + 1e7
+        chr[0].ord + 1e7
       end
     end
   end

@@ -1,5 +1,8 @@
 require 'uri'
 
+# prefer the syck YAML engine, although it is not available on rubies >= 2.0
+begin YAML::ENGINE.yamler = 'syck'; rescue ArgumentError; end
+
 class Numeric
   # Turns a number of seconds into a human-readable duration
   def duration
@@ -73,20 +76,22 @@ class Hash
   # Replacing the to_yaml function so it'll serialize hashes sorted (by their keys)
   # with any keys found in @yaml_key_order pinned to the top and sorted by their order in that array.
   # Original function is in /usr/lib/ruby/1.8/yaml/rubytypes.rb
-  def to_yaml( opts = {} )
-    @yaml_key_order ||= []
-    YAML::quick_emit( object_id, opts ) do |out|
-      out.map( taguri, to_yaml_style ) do |map|
-        sorted = sort do |a,b|
-          a_index = @yaml_key_order.index a[0]
-          b_index = @yaml_key_order.index b[0]
-          if a_index && b_index then a_index<=>b_index
-          elsif a_index && !b_index then -1
-          elsif b_index && !a_index then 1
-          else a[0]<=>b[0] ; end
-        end
-        sorted.each do |k, v|
-          map.add( k, v )
+  if YAML::ENGINE.yamler =='syck' then
+    def to_yaml( opts = {} )
+      @yaml_key_order ||= []
+      YAML::quick_emit( object_id, opts ) do |out|
+        out.map( taguri, to_yaml_style ) do |map|
+          sorted = sort do |a,b|
+            a_index = @yaml_key_order.index a[0]
+            b_index = @yaml_key_order.index b[0]
+            if a_index && b_index then a_index<=>b_index
+            elsif a_index && !b_index then -1
+            elsif b_index && !a_index then 1
+            else a[0]<=>b[0] ; end
+          end
+          sorted.each do |k, v|
+            map.add( k, v )
+          end
         end
       end
     end
