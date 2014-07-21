@@ -213,9 +213,11 @@ You can [fork this project on Github](http://github.com/rothlab/chromozoom).
 
 ### Citing ChromoZoom
 
-Please see our Application Note in [Bioinformatics][cite-link], doi: 10.1093/bioinformatics/bts695. It is currently provided as Advance Access--full citation information will be available there soon.
+Please see our Application Note in [Bioinformatics][cite-link].  The full citation is:
 
-[cite-link]: http://bioinformatics.oxfordjournals.org/content/early/2012/12/06/bioinformatics.bts695.short
+> Pak TR, Roth FP.  “ChromoZoom: a flexible, fluid, web-based genome browser.” Bioinformatics. 2013 Feb 1;29(3):384-6. doi: 10.1093/bioinformatics/bts695. Epub 2012 Dec 6.
+
+[cite-link]: http://bioinformatics.oxfordjournals.org/content/29/3/384
 
 ### License
 
