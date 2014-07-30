@@ -1,4 +1,4 @@
-importScripts('jquery.nodom.min.js', 'underscore.min.js', 'underscore.min.js', 'SortedList.js', 'IntervalTree.js', 'CustomTracks.js');
+importScripts('jquery.nodom.min.js', 'underscore.min.js', 'SortedList.js', 'IntervalTree.js', 'CustomTracks.js');
 var global = this;
 
 if (!global.console || !global.console.log) {
