@@ -180,7 +180,7 @@ function _rangeSearch(start, end, arr) {
   var resultHash = {};
 
   var wholeWraps = [];
-  _pointSearch.call(this, this.root, (start + end) >>> 1, wholeWraps, true);
+  _pointSearch.call(this, this.root, _bitShiftRight(start + end), wholeWraps, true);
 
   wholeWraps.forEach(function(result) {
     resultHash[result.id] = true;
