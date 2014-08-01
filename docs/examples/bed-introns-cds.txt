@@ -1,0 +1,9 @@
+##Example 3 from Custom Annotation Tracks User's Guide
+browser position chr22:1000-10000
+browser hide all
+track name="BED track" description="BED format custom track example" visibility=2 color=128,0,0 useScore=1
+chr22 1000 5000 itemA 960 + 1100 4700 0 2 1567,1488, 0,2512
+chr22 2000 7000 itemB 200 - 2200 6950 0 4 433,100,550,1500 0,500,2000,3500
+chr22 3000 5500 itemC 900 - 3200 5000 0 1 2500 0
+chr22 2500 7500 itemD 800 - 3000 6000 0 4 300,200,2000,100 0,500,1000,4900
+chr22 5000 6000 itemE 700 - 5500 5800 0 1 1000 0
