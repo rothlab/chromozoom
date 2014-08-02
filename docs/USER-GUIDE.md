@@ -110,6 +110,8 @@ Here are some real-world examples of the "small" formats that are known to work 
 
 #### Advanced BED features
 
+<center><img src="img/advanced-bed.png" alt="Pasting a URL to a big format custom track"/></center>
+
 Our interpretation of the [BED format](http://genome.ucsc.edu/FAQ/FAQformat.html#format1) now supports the depiction of introns, exons, and coding sequences (added Aug 2014).  This is accomplished via use of the `strand`, `thickStart`, `thickEnd`, `blockCount`, `blockSizes`, and `blockStarts` columns.  Therefore, it is possible to draw genes with the same visual language used in UCSC's gene tracks, i.e., arrows and thick/thin segments.  An [example BED file][bed-ex-2] using these features can be [viewed in ChromoZoom][bed-ex-2-cz].
 
 [bed-ex-2]: examples/bed-introns-cds.txt
