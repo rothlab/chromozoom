@@ -459,14 +459,17 @@
         
         if (self.opts.itemRgb && data.d.itemRgb && this.validateColor(data.d.itemRgb)) { color = data.d.itemRgb; }
         
-        if (self.opts.useScore) { ctx.fillStyle = ctx.strokeStyle = "rgb("+self.type('bed').calcGradient(color, data.d.score)+")"; }
-        else if (self.opts.itemRgb || self.opts.altColor) { ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")"; }
+        if (self.opts.useScore) { color = self.type('bed').calcGradient(color, data.d.score); }
+        
+        if (self.opts.itemRgb || self.opts.altColor || self.opts.useScore) { ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")"; }
         
         if (data.thickInt) {
           // The coding region is drawn as a thicker line within the gene
           if (data.blockInts) {
             // If there are exons and introns, draw the introns with a 1px line
+            prevBInt = null;
             ctx.fillRect(data.pInt.x, i * lineHeight + halfHeight, data.pInt.w, 1);
+            ctx.strokeStyle = color;
             _.each(data.blockInts, function(bInt) {
               ctx.fillRect(bInt.x, i * lineHeight + halfHeight - quarterHeight + 1, bInt.w, quarterHeight * 2 - 1);
               thickOverlap = CustomTrack.pixIntervalOverlap(bInt, data.thickInt);
@@ -475,6 +478,7 @@
               }
               // If there are introns, arrows are drawn on the introns, not the exons...
               if (data.d.strand && prevBInt) {
+                ctx.strokeStyle = "rgb(" + color + ")";
                 self.type('bed').drawArrows(ctx, i * lineHeight, halfHeight, prevBInt.x + prevBInt.w, bInt.x, data.d.strand);
               }
               prevBInt = bInt;
@@ -483,7 +487,6 @@
             if (data.blockInts.length == 1) {
               ctx.strokeStyle = "white";
               self.type('bed').drawArrows(ctx, i * lineHeight, halfHeight, data.thickInt.x, data.thickInt.x + data.thickInt.w, data.d.strand);
-              ctx.strokeStyle = color;
             }
           } else {
             // We have a coding region but no introns/exons
@@ -491,14 +494,12 @@
             ctx.fillRect(data.thickInt.x, i * lineHeight + 1, data.thickInt.w, lineHeight - lineGap);
             ctx.strokeStyle = "white";
             self.type('bed').drawArrows(ctx, i * lineHeight, halfHeight, data.thickInt.x, data.thickInt.x + data.thickInt.w, data.d.strand);
-            ctx.strokeStyle = color;
           }
         } else {
           // Nothing fancy.  It's a box.
           ctx.fillRect(data.pInt.x, i * lineHeight + 1, data.pInt.w, lineHeight - lineGap);
           ctx.strokeStyle = "white";
           self.type('bed').drawArrows(ctx, i * lineHeight, halfHeight, data.pInt.x, data.pInt.x + data.pInt.w, data.d.strand);
-          ctx.strokeStyle = color;
         }
       },
       

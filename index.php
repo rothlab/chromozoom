@@ -35,6 +35,7 @@
   <script src="js/SortedList.js"></script>
   <script src="js/IntervalTree.js"></script>
   <script src="js/CustomTracks.js"></script>
+  <script src="js/CustomGenomes.js"></script>
   <script src="js/farbtastic.js"></script>
   <script src="js/chromozoom.js"></script>
   <link rel="stylesheet" type="text/css" href="css/syngrey/jquery-ui-1.8.6.custom.css" />
@@ -172,7 +173,7 @@
           </p>
         </div>
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
-          <button type="button" class="ui-state-default ui-corner-all loading">Alright, I got this!</button>
+          <button type="button" class="ui-state-default ui-corner-all loading glowing">Alright, I got this!</button>
           <a class="tell-me-more" href="docs/" target="_blank">What else can I do?</a>
         </div>
       </div>
@@ -305,6 +306,7 @@
             </div>
           </div>
         </div>
+        
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
           <button type="button" class="ui-state-red delete ui-corner-all left ui-priority-secondary dont-close show" name="delete">Remove this track</button>
           <div class="delete-confirm hidden left">
@@ -313,6 +315,88 @@
             </label>
           </div>
           <button type="button" class="ui-state-default ui-corner-all right" name="save">Save</button>
+          <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
+        </div>
+      </div>
+      
+      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="chrom-sizes-dialog-cont">
+        <div id="chrom-sizes-dialog" class="ui-dialog-content ui-widget-content">
+          <div class="accordion">
+            <h3>Load a genome from UCSC</h3>
+            <div>
+              <div>
+                <input type="search" name="filterUcscGenome" value="" class="input-med" placeholder="Filter by keyword" />
+              </div>
+              <select name="ucscGenome" size="8" class="ucsc-genomes loading">
+                <option>loading...</option>
+              </select>
+              <div class="second-col">
+                <div class="limit">
+                  Load the
+                    <select name="limit">
+                      <option>50</option>
+                      <option selected="selected">100</option>
+                      <option>500</option>
+                    </select>
+                  largest contigs
+                </div>
+                <div class="ui-state-error ui-corner-all">
+                  <span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
+                  <span class="contig-load-error">
+                    <strong>Error:</strong> Could not load chrom sizes from UCSC, sorry!
+                  </span>
+                  <span class="skipped-warning">
+                    <strong>Warning:</strong>
+                    <span class="skipped-num"></span> contigs were too small to be loaded
+                  </span>
+                </div>
+              </div>
+            </div>
+            <h3>Or, enter chromosome names and sizes</h3>
+            <div>
+              <p>One chromosome per line, followed by whitespace, then the size in bp.</p>
+              <textarea class="placeholder" name="chromsizes" rows="7" cols="80">chr1 1000000
+chr2 350000
+chr3 2000000</textarea>
+              <label>genome name (optional):</label>
+              <input type="text" name="name" value="custom" class="full-length" />
+            </div>
+          </div>
+        </div>
+        
+        <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
+          <div class="left contigs-loading"><img src="css/loading-sm.gif" alt="loading"/> Loading from UCSC&hellip;</div>
+          <button type="button" class="ui-state-default ui-corner-all right" name="save">Set chromosomes</button>
+          <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
+        </div>
+      </div>
+
+      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="custom-genome-dialog-cont">
+        <div id="custom-genome-dialog" class="ui-dialog-content ui-widget-content">
+          <div class="form-line"><div class="spinner"></div><strong>add file: </strong><label></label></div>
+          <div class="help-line indented">
+            Files are read locally, not sent to the server.
+          </div>
+          <div class="form-line"><div class="spinner"></div><strong>paste: </strong>
+            <label>
+              <textarea class="paste" name="customPaste" rows="1" cols="30"></textarea>
+              <input type="button" name="customPasteAdd" value="add"/>
+            </label>
+          </div>
+          <div class="help-line indented">
+            Pasted data are not sent to the server.
+          </div>
+          <div class="form-line"><div class="spinner"></div><strong>add url: </strong><label></label></div>
+          <div class="help-line">
+            <a target="_blank" href="ftp://ftp.ebi.ac.uk/pub/databases/embl/doc/usrman.txt">EMBL</a>,
+            <a target="_blank" href="http://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html">GenBank</a>,
+            and <a target="_blank" href="http://en.wikipedia.org/wiki/FASTA_format">FASTA</a>
+            are currently supported.<br/>
+            For more details, please see the <a target="_blank" href="docs/#custom-genomes">User Guide.</a>
+          </div>
+        </div>
+        <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
+          <button type="button" class="ui-state-default ui-corner-all right" name="save">Load genome</button>
           <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
         </div>
       </div>

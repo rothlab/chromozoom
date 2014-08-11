@@ -77,12 +77,12 @@ body {
 }
 /* The following is a valiant attempt to keep auto-hiding scrollbars in Webkit for OSX >10.7 in check */
 /* http://stackoverflow.com/questions/7855590/how-can-i-prevent-scroll-bars-from-being-hidden-for-trackpad-users-in-webkit */
-.picker ul::-webkit-scrollbar {
+.picker ul::-webkit-scrollbar, select::-webkit-scrollbar {
     -webkit-appearance: none;
     width: 11px;
     height: 11px;
 }
-.picker ul::-webkit-scrollbar-thumb {
+.picker ul::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
     border-radius: 8px;
     border: 2px solid white; /* should match background, can't be transparent */
     background-color: rgba(0, 0, 0, .5);
@@ -284,6 +284,7 @@ body {
   width: 9px;
   margin-left: -6px;
   top: -0.55em;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
 #fps {
@@ -659,9 +660,12 @@ body.row-resizing * {
   font-size: 1.4em;
   top: 0;
   z-index: 200;
-  height: 20px;
+}
+.browser-track div.label .label-text, div.first-label {
+  height: 25px;
+  padding: 0 2px 0 3px;
   background: white;
-  padding: 0 2px 0 2px;
+  overflow: hidden;
 }
 .first-label { padding-bottom: 4px; }
 .browser-track .label .chr  { display: none; }
@@ -670,10 +674,13 @@ body.row-resizing * {
   position: absolute;
   height: 1000px;
   border-left: 2px solid red;
-  left: -1px;
+  left: 0px;
   top: 0;
 }
-
+.browser-track .label-end .start-line {
+  width: 1000px;
+  background: #ccc;
+}
 
 .browser-track .band {
   position: absolute;
@@ -748,6 +755,7 @@ body.row-resizing * {
   left: 0;
   width: 100%;
   opacity: 1;
+  background: white;
   -webkit-transition: opacity 0.5s ease-in-out;
   -moz-transition: opacity 0.5s ease-in-out;
   -o-transition: opacity 0.5s ease-in-out;
@@ -914,7 +922,7 @@ body.row-resizing * {
   position: absolute;
   right: 1px;
   bottom: 40px;
-  width: 180px;
+  width: 200px;
   z-index: 1000;
   padding-bottom: 0.5em;
 }
@@ -934,6 +942,7 @@ body.row-resizing * {
   -webkit-box-shadow: 0 1px 4px rgba(0,0,0,0.7);
   -moz-box-shadow: 0 1px 4px rgba(0,0,0,0.7);
 }
+.picker-dark .divider { margin: 5px 0; border-top: 1px solid #444; }
 .picker-dark .choice a { color: #ddd; }
 .picker-dark .choice .clickable.hover { background: #333; }
 
@@ -992,6 +1001,9 @@ body.row-resizing * {
   left: 50%;
   position: absolute;
   line-height: 1.8em;
+}
+
+.glowing {
   -webkit-animation-name: 'glow';
   -webkit-animation-duration: .7s;
   -webkit-animation-iteration-count: infinite;
@@ -1029,51 +1041,53 @@ body.row-resizing * {
 #custom-dialog { overflow: visible; }
 #custom-dialog .custom-name { overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.2em; }
 #custom-dialog h3 { margin-top: 0; color: #777; font-weight: normal; }
-#custom-dialog .form-line {
+.ui-dialog .form-line {
   margin: 0 0.5em;
   clear: both;
 }
-#custom-dialog .form-line label {
+.ui-dialog label {
   font-weight: bold;
+}
+.ui-dialog .form-line label {
   float: left;
   text-align: right;
   margin: 0.2em 2% 0 0;
   width: 30%;
 }
-#custom-dialog .form-line .inputs {
+.ui-dialog .form-line .inputs {
   float: left;
   margin: 0 0 0.5em 0;
   width: 67%;
 }
-#custom-dialog .form-line input.full-length {
+.ui-dialog .form-line input.full-length {
   width: 99%;
 }
-#custom-dialog .form-line input.sm { width: 4em; }
-#custom-dialog .form-line input.chk { font-size: 150%; cursor: pointer; }
-#custom-dialog .form-line input.color { width: 8em; }
-#custom-dialog .form-line .disabled { opacity: 0.5; }
-#custom-dialog .input-note {
+.ui-dialog .form-line input.sm { width: 4em; }
+.ui-dialog .form-line input.chk { font-size: 150%; cursor: pointer; }
+.ui-dialog .form-line input.color { width: 8em; }
+.ui-dialog .form-line .disabled { opacity: 0.5; }
+.ui-dialog .input-note {
   font-size: 0.8em;
   color: #999;
 }
-#custom-dialog .form-line .range-slider { 
+.ui-dialog .form-line .range-slider { 
   display: inline-block;
   width: 120px;
   margin: 0 15px;
 }
-#custom-dialog .color-picker {
+.ui-dialog .color-picker {
   position: absolute;
   z-index: 100;
 }
-#custom-dialog .color-picker input {
+.ui-dialog .color-picker input {
   position: absolute;
   right: 3px;
   bottom: 3px;
 }
-#custom-dialog-cont .ui-dialog-buttonpane .left {
+.ui-dialog .ui-dialog-buttonpane .left {
   float: left;
 }
-#custom-dialog-cont .ui-dialog-buttonpane .right {
+.ui-dialog .ui-dialog-buttonpane .right {
   float: right;
 }
 .ui-state-red, .ui-widget-content .ui-state-red { 
@@ -1081,6 +1095,61 @@ body.row-resizing * {
   background-color: #e60000; 
   color: #550000;
   font-weight: bold;
+}
+
+#chrom-sizes-dialog-cont {
+  margin-left: -250px;
+  width: 500px;
+  overflow: visible;
+}
+#chrom-sizes-dialog { overflow: visible; height: 245px; }
+#chrom-sizes-dialog textarea { width: 99%; height: 90px; }
+#chrom-sizes-dialog select option.hidden { display: none; }
+#chrom-sizes-dialog .placeholder { color: #ccc; }
+#chrom-sizes-dialog .accordion {
+  height: 200px;
+}
+#chrom-sizes-dialog .accordion p {
+  margin: 0 0 0.5em;
+}
+#chrom-sizes-dialog .accordion h3 {
+  padding: 7px 10px 5px 25px;
+}
+#chrom-sizes-dialog .ui-accordion-content {
+  border: none;
+  padding: 10px 5px;
+  margin-top: -1px;
+}
+#chrom-sizes-dialog .loading {
+  color: #777;
+  font-style: italic;
+  background: url(loading-sm.gif) no-repeat top 1px right 1px;
+}
+#chrom-sizes-dialog .ucsc-genomes, #chrom-sizes-dialog .input-med {
+  width: 300px;
+}
+#chrom-sizes-dialog .ucsc-genomes, #chrom-sizes-dialog .second-col {
+  float: left;
+}
+#chrom-sizes-dialog .second-col {
+  width: 150px;
+  margin-left: 10px;
+}
+#chrom-sizes-dialog .ui-state-error {
+  display: none;
+  padding: 3px;
+  margin-top: 10px;
+}
+#chrom-sizes-dialog-cont .contigs-loading {
+  display: none;
+  font-size: 1.2em;
+  font-style: italic;
+  color: #777;
+  margin: .7em .4em .4em .4em;
+}
+#chrom-sizes-dialog-cont .contigs-loading img {
+  padding: 3px 0 0 3px;
+  vertical-align: bottom;
 }
 
 /* ============== */

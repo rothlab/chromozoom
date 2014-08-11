@@ -103,7 +103,7 @@
       handleObj.handler = function( event ) {
         // Don't fire in text-accepting inputs that we didn't directly bind to
         if ( this !== event.target && (/textarea|select/i.test( event.target.nodeName ) ||
-           event.target.type === "text" || event.target.type === "url") ) {
+          event.target.type === "text" || event.target.type == "search" || event.target.type === "url") ) {
           return;
         }
 
@@ -302,7 +302,7 @@
       verticalDragDeadZone: 12,
       maxNtRequest: 20000,
       bounceMargin: 0.2,
-      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie'],
+      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie', '#chrom-sizes-dialog'],
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
       trackDescURL: 'http://genome.ucsc.edu/cgi-bin/hgTrackUi',
       bpppFormat: function(bppp) { return bppp.toExponential(2).replace(/(\+|-)(\d)$/, '$10$2'); },
@@ -320,35 +320,10 @@
     _init: function() {
       var self = this,
         $elem = self.element, 
-        o = self.options,
-        p = 0,
-        chrPos = {};
+        o = self.options;
       
-      // Setup internal variables related to chromosome bands, lengths, and available tracks
-      self.chrPos = {};
-      o.chrLabels = [];
-      _.each(o.chrOrder, function(v){ o.chrLabels.push({p: p, n: v}); self.chrPos[v] = p; p += o.chrLengths[v]; });
-      _.each(o.chrBands, function(v){ v[5] = v[1]; v[1] += self.chrPos[v[0]]; v[2] += self.chrPos[v[0]]; });
-      o.chrBands = o.chrBands && _.sortBy(o.chrBands, function(v) { return _.indexOf(o.chrOrder, v[0]) * o.genomeSize + v[1]; });
-      self.availTracks = {};
-      self.defaultTracks = [];
-      _.each(o.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
-      _.each(o.tracks, function(t){ 
-        $.extend(t, self.availTracks[t.n]);
-        self.defaultTracks.push({n: t.n, h: t.h});
-      });
-      
-      // Setup remaining internal variables
-      self.$lines = $elem.children('.browser-line');
-      self.pos = 1; // this is the bp position of the left side of the top line
-      self.bppp = o.initZoom;
-      self._densityOrder = {};
-      self._densityOrderFor = {};
-      self._areaIndex = {};
-      self._areaHover = null;
-      self._tileFixingEnabled = true;
-      self._showReticle = {mouseArea: false, dragging: false, hotKeys: false};
-      self._defaultLineMode = $(o.lineMode).find(':checked').val();
+      // Setup internal variables
+      self._initInstanceVars();
       
       // Initialize some of the navbar widgets
       self.$slider = self._initSlider();
@@ -394,6 +369,60 @@
       $(window).trigger('resize', function() { self._initFromParams(null, true); });
     },
     
+    // Called when a new options object is passed in
+    _setOptions: function(options) {
+      var self = this,
+        $elem = self.element;
+      self._resetCustomTracks();
+      self._removeLines(self.$lines.length, {duration: 0});
+      
+      console.log(options);
+      _.extend(self.options, options);
+      
+      self._initInstanceVars();
+      self.$slider = self._initSlider();
+      self.$trackPicker = self._initTrackPicker();
+      self._updateGenomes();
+      
+      $(window).trigger('resize');
+    },
+    
+    _initInstanceVars: function() {
+      var self = this,
+        $elem = self.element,
+        o = self.options,
+        p = 0;
+        
+      // Setup internal variables related to chromosome bands, lengths, and available tracks
+      self.chrPos = {};
+      o.chrLabels = [];
+      _.each(o.chrOrder, function(v, i){ 
+        o.chrLabels.push({p: p, n: v, w: o.chrLengths[v]}); self.chrPos[v] = p; p += o.chrLengths[v];
+      });
+      o.chrLabels.push({p: p, n: '', end: true}); // one more label for the end of the last chromosome
+      _.each(o.chrBands, function(v){ v[5] = v[1]; v[1] += self.chrPos[v[0]]; v[2] += self.chrPos[v[0]]; });
+      o.chrBands = o.chrBands && _.sortBy(o.chrBands, function(v) { return _.indexOf(o.chrOrder, v[0]) * o.genomeSize + v[1]; });
+      self.availTracks = {};
+      self.defaultTracks = [];
+      _.each(o.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
+      _.each(o.tracks, function(t){ 
+        $.extend(t, self.availTracks[t.n]);
+        self.defaultTracks.push({n: t.n, h: t.h});
+      });
+      
+      // Setup remaining internal variables
+      self.$lines = $elem.children('.browser-line');
+      self.pos = 1; // this is the bp position of the left side of the top line
+      self.bppp = o.initZoom;
+      self._densityOrder = {};
+      self._densityOrderFor = {};
+      self._areaIndex = {};
+      self._areaHover = null;
+      self._tileFixingEnabled = true;
+      self._showReticle = {mouseArea: false, dragging: false, hotKeys: false};
+      self._defaultLineMode = $(o.lineMode).find(':checked').val();
+    },
+    
     _initSlider: function() {
       var self = this,
         o = this.options;
@@ -402,8 +431,9 @@
       var $slider = $(o.zoomSlider),
         numBppps = o.bppps.length + o.overzoomBppps.length,
         sliderWidth = (numBppps - 1) * 10,
-        sliderBppps = (self.sliderBppps = o.bppps.concat(o.overzoomBppps));
-        prevVals = [];
+        sliderBppps = (self.sliderBppps = o.bppps.concat(o.overzoomBppps)),
+        prevVals = [],
+        $ticks;
       
       function start(e, ui) { delete self.centeredOn; };
       function slide(e, ui) {
@@ -424,8 +454,11 @@
         o.snapZoomAfter && _.defer(function() { self._animateZoom(direction); });
       };
       
-      var $ticks = $('<div class="ticks"/>').appendTo($slider.parent());
+      $slider.parent().children('.ticks').remove();
+      $ticks = $('<div class="ticks"/>').appendTo($slider.parent());
       $ticks.html(new Array(numBppps + 1).join('<div class="tick"/>'));
+      
+      if ($slider.hasClass('ui-slider')) { $slider.slider('destroy'); }
       $slider.parent().width(sliderWidth);
       return $slider.width(sliderWidth).slider({
         min: 0,
@@ -440,11 +473,12 @@
     },
     
     // Utility function to a bind a button to toggling visibility of a slide-out menu, called a "picker"
+    // Safe to call multiple times.
     _createPicker: function($btn, $picker, $done) {
       var self = this,
         $elem = $(self.element),
         closePicker = function() { $picker.slideUp(100); };
-      $picker.bind('remaxheight.genobrowser', function() {
+      $picker.unbind('remaxheight.genobrowser').bind('remaxheight.genobrowser', function() {
         var $ul = $(this).children('ul'),
           visible = $(this).is(':visible'),
           formLineHeights;
@@ -455,7 +489,7 @@
         $ul.css('max-height', $elem.outerHeight() - _.sum(formLineHeights));
         if (!visible) { $(this).hide(); }
       });
-      $btn.click(function() {
+      $btn.unbind('click.genobrowser').bind('click.genobrowser', function() {
         if (!$picker.is(':visible')) {
           $('body').bind('mousedown.picker', function(e) { 
             if ($(e.target).closest($picker.add($btn)).length) { return; }
@@ -467,8 +501,8 @@
         }
         $picker.slideToggle(100);
       });
-      if ($done) { $done.click(closePicker); }
-      return $picker.bind('close.genobrowser', closePicker);
+      if ($done) { $done.unbind('click.genobrowser').bind('click.genobrowser', closePicker); }
+      return $picker.unbind('close.genobrowser').bind('close.genobrowser', closePicker);
     },
     
     _initFooter: function() {
@@ -480,27 +514,22 @@
         $genomePicker = $(o.genomePicker[1]),
         $ul = $('<ul/>').appendTo($genomePicker),
         $title = $genome.find('.title'),
-        genomes = _.reject(_.keys(o.genomes), function(k) { return k == o.genome || (/^_/).test(k); }),
         $toggleBtn = $genome.children('input').eq(0),
-        speciesParenthetical = o.species.match(/\((.+)\)/);
+        speciesParenthetical = o.species.match(/\((.+)\)/),
+        $a;
       
-      // Initialize the genome picker
-      self._defaultTitle = window.document.title;
-      window.document.title = o.species + ' - ' + self._defaultTitle;
-      $title.text(o.species.replace(/\s+\(.*$/, ''));
-      if (speciesParenthetical) { $('<em class="parenth" />').text(', ' + speciesParenthetical[1]).appendTo($title); }
-      $genome.find('.description').text(o.assemblyDate + ' (' + o.genome + ')');
-      if (genomes.length > 0) {
-        _.each(genomes, function(k) {
-          var v = o.genomes[k],
-            $a = $('<a class="clickable"/>').attr('href', './?db='+k).appendTo($('<li class="choice"/>').appendTo($ul));
-          $('<span class="name"/>').text(v.species).appendTo($a);
-          $('<span class="long-desc"/>').text(v.assemblyDate + ' (' + k + ')').appendTo($a);
-          $a.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
-        });
-      } else {
-        $('<li class="thats-it"/>').text('No other genomes available').appendTo($ul);
-      }
+      $ul.append('<li class="divider"/>')
+      $a = $('<a class="clickable"/>').attr('href', o.dialogs[4]).appendTo($('<li class="choice"/>').appendTo($ul));
+      $('<span class="name"/>').text('More genomes\u2026').appendTo($a);
+      $('<span class="long-desc"/>').text('Fetch or specify chrom sizes').appendTo($a);
+      $ul.append('<li class="divider"/>')
+      $a = $('<a class="clickable"/>').appendTo($('<li class="choice"/>').appendTo($ul));
+      $('<span class="name"/>').text('Load from file or URL\u2026').appendTo($a);
+      $('<span class="long-desc"/>').text('in GenBank, FASTA, or EMBL format').appendTo($a);
+      
+      $genome.find('.clickable').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+      self._updateGenomes();
+
       self._createPicker($toggleBtn, $genomePicker);
       
       // Setup the dialogs that appear upon clicking footerbar links
@@ -509,15 +538,17 @@
         function openDialog() { 
           $('.ui-dialog').hide();
           $dialog.addClass('visible').show();
-          $dialog.find('a[href^="http://"]').attr('target', '_blank');
+          $dialog.find('a[href^="http://"],a[href^="https://"]').attr('target', '_blank');
           $dialog.css('top', Math.max(($elem.parent().innerHeight() - $dialog.outerHeight()) * 0.5, 30));
         };
         $dialog.bind('open.genobrowser', openDialog);
-        $foot.find('a[href='+id+']').click(openDialog);
+        $foot.find('a[href='+id+']').click(function() { $dialog.trigger('open.genobrowser'); });
         $dialog.find('.ui-dialog-buttonpane button').button().not('.dont-close').click(function() {
           $dialog.fadeOut();
         });
       });
+      
+      self._initCustomGenomeDialogs();
       
       // Show the quickstart screen if the user has never been here before and the viewport is big enough to show it
       if ($.cookie('db')===null && $(window).width() > 600 && $(window).height() > 420) { 
@@ -530,7 +561,7 @@
         o = self.options,
         d = o.trackDesc,
         $toggleBtn = $(o.trackPicker[0]),
-        $trackPicker = $(o.trackPicker[1]),
+        $trackPicker = $(o.trackPicker[1]).empty(),
         $ul = $('<ul/>').appendTo($trackPicker),
         $div = $('<div class="button-line"/>').appendTo($trackPicker),
         $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
@@ -566,14 +597,17 @@
         $add = $picker.find('.form-line').first(),
         $overlay = $(o.overlay[0]),
         $overlayMessage = $(o.overlay[1]),
-        browserOpts = {
+        $urlInput, $urlGet, $div, $b, $reset;
+      
+      function browserOpts() {
+        return {
           bppps: o.bppps,
           chrPos: self.chrPos,
           chrLengths: o.chrLengths,
           genomeSize: o.genomeSize,
           ajaxDir: o.ajaxDir
-        },
-        $urlInput, $urlGet, $div, $b, $reset;
+        };
+      }
       
       self._customTrackUrls = {
         requested: [],
@@ -598,7 +632,7 @@
         if (e.target.files.length) {
           reader.onload = (function(f) {
             return function(ev) {
-              CustomTracks.parseAsync(ev.target.result, browserOpts, function(tracks) {
+              CustomTracks.parseAsync(ev.target.result, browserOpts(), function(tracks) {
                 $spinner.hide();
                 self._addCustomTracks(f.name, tracks);
               });
@@ -628,7 +662,7 @@
       function handlePastedData(e) {
         var $add = $(e.target).closest('.form-line'),
           $spinner = $add.find('.spinner').show();
-        CustomTracks.parseAsync($add.find('textarea').val(), browserOpts, function(tracks) {
+        CustomTracks.parseAsync($add.find('textarea').val(), browserOpts(), function(tracks) {
           $spinner.hide();
           self._addCustomTracks(_.uniqueId('pasted_data_'), tracks);
           $add.find('textarea').val('');
@@ -655,7 +689,7 @@
         self._customTrackUrls.processing = _.union(self._customTrackUrls.processing, [url]);
         $.ajax(url, {
           success: function(data) {
-            CustomTracks.parseAsync(data, browserOpts, function(tracks) {
+            CustomTracks.parseAsync(data, browserOpts(), function(tracks) {
               $spinner.hide();
               $url.val('');
               self._customTrackUrls.loaded = _.union(self._customTrackUrls.loaded, [url]);
@@ -970,6 +1004,98 @@
       $dialog.addClass('initialized');
     },
     
+    _initCustomGenomeDialogs: function() {
+      var self = this,
+        o = self.options,
+        $dialog = $(o.dialogs[4]).closest('.ui-dialog');
+      
+      $dialog.bind('open.genobrowser', function() {
+        var $genomeList = $dialog.find('[name=ucscGenome]');
+        $dialog.find('[name=filterUcscGenome]').select();
+        $(o.genomePicker[1]).trigger('close.genobrowser');
+        if ($dialog.hasClass('initialized')) { return; }
+        $dialog.find('.accordion').accordion({heightStyle: 'content'});
+        $dialog.find('[name=save]').button('disable');
+        $.ajax(o.ajaxDir+'chromsizes.php', {
+          dataType: 'json',
+          success: function(data) {
+            var $select = $genomeList.empty().removeClass('loading');
+            _.each(data, function(v) {
+              var $option = $('<option/>').text(v.species + ' (' + v.name + ') ' + v.assemblyDate);
+              $option.val(v.name).data('metadata', v).appendTo($select);
+            });
+          }
+        });
+        $dialog.find('[name=filterUcscGenome]').bind('keyup change', function() {
+          var searchTerms = _.map($(this).val().split(/\s+/), function(t) { return t.toLowerCase(); });
+          searchTerms = _.reject(searchTerms, function(t) { t == ''; });
+          $genomeList.children('option').each(function() {
+            var v = $(this).text().toLowerCase(),
+              termsFound = _.reduce(searchTerms, function(memo, t){ return memo + (v.indexOf(t) !== -1 ? 1 : 0); }, 0);
+            if (searchTerms.length == 0 || termsFound == searchTerms.length) { $(this).removeClass('hidden'); }
+            else { $(this).addClass('hidden'); }
+          });
+          $genomeList.scrollTop(0).val($genomeList.children('option:not(.hidden)').eq(0).val()).change();
+        });
+        $genomeList.bind('change', function() {
+          var db = $dialog.find('[name=ucscGenome]').val();
+          if (db) {
+            $dialog.find('[name=save]').button('disable').removeClass('glowing');
+            $dialog.find('.contigs-loading').show();
+            $dialog.find('.ui-state-error, .contig-load-error, .skipped-warning').hide();
+            $.ajax(o.ajaxDir+'chromsizes.php', {
+              data: { db: db, limit: $dialog.find('[name=limit]').val() },
+              dataType: 'json',
+              success: function(data) {
+                $dialog.find('.contigs-loading').stop().fadeOut();
+                if (data.error) {
+                  $dialog.find('.skipped-num').text(data.skipped);
+                  $dialog.find('.ui-state-error').fadeIn().children('.contig-load-error').show();
+                } else {
+                  $dialog.find('[name=chromsizes]').val(data.chromsizes);
+                  $dialog.find('[name=name]').val(data.db);
+                  $dialog.data('loadedFromUCSC', data);
+                  $dialog.find('[name=save]').button('enable').addClass('glowing');
+                  if (data.skipped) {
+                    $dialog.find('.skipped-num').text(data.skipped);
+                    $dialog.find('.ui-state-error').fadeIn().children('.skipped-warning').show();
+                  }
+                }
+              }
+            });
+          }
+        });
+        $dialog.find('[name=limit]').change(function() { $genomeList.change(); });
+        $dialog.addClass('initialized');
+      });
+      $dialog.find('[name=chromsizes]').one('focus', function() { 
+        var $this = $(this).removeClass('placeholder');
+        $dialog.find('[name=save]').button('enable');
+        _.defer(function() { $this.select(); });
+      });
+      $dialog.find('[name=save]').click(function() { 
+        var choseUCSC = $dialog.find('.accordion').accordion('option', 'active') === 0,
+          metadata = { format: 'chromsizes' },
+          loadedFromUCSC = $dialog.data('loadedFromUCSC'),
+          origMetadata;
+        if (choseUCSC) {
+          // This is an unaltered set of chromosome sizes pulled from UCSC
+          chromSizes = loadedFromUCSC.chromsizes;
+          metadata.name = loadedFromUCSC.db;
+          origMetadata = $dialog.find('[name=ucscGenome] > option[value='+metadata.name+']').data('metadata');
+          metadata.species = origMetadata.species;
+          metadata.assemblyDate = origMetadata.assemblyDate;
+          metadata.ucsc = metadata.name + ':' + loadedFromUCSC.limit;
+        } else {
+          chromSizes = $dialog.find('[name=chromsizes]').val();
+          metadata.name = $dialog.find('[name=name]').val();
+        }
+        genome = CustomGenomes.parse(chromSizes, metadata);
+        self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
+      });
+      
+    },
+    
     _initFromParams: function(params, suppressRepeat) {
       var self = this,
         o = self.options,
@@ -996,11 +1122,14 @@
         });
       });
       params = params || _.extend({}, sessionVars, $.urlParams());
+      
       if (suppressRepeat && self._lastParams && _.isEqual(self._lastParams, params)) { return; }
       self._lastParams = _.clone(params);
       
       self._customTrackUrls.requested = _.union(self._customTrackUrls.requested, params.customTracks || []);
       var unprocessedUrls = _.difference(self._customTrackUrls.requested, self._customTrackUrls.processing);
+      
+      // TODO: If the params specify a genome that is not the current genome, load it now
       
       // If there are custom track URLs somewhere in the parameters that have not been processed yet...
       if (unprocessedUrls.length) {
@@ -1403,6 +1532,7 @@
       matches = ret.pos.match(/^([a-z]+[a-z0-9]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
       if (matches && matches[1]) {
         var chr = _.find(o.chrLabels, function(v) { return v.n === matches[1]; });
+        // TODO: if there is a custom genome about to be loaded, don't bother searching
         if (!chr) { this._searchFor(ret.pos, forceful); return null; }
         this._searchFor('', forceful);
         ret.pos = chr.p + parseInt(matches[3] || '1', 10);
@@ -1605,7 +1735,7 @@
         bpWidth = this.bpWidth(),
         pos = self.pos,
         numLines = self.lines().length,
-        margins = [(-1.0 + o.bounceMargin) * bpWidth, o.genomeSize - (numLines - 1.0 + o.bounceMargin) * bpWidth],
+        margins = [(-numLines + o.bounceMargin) * bpWidth, o.genomeSize - o.bounceMargin * bpWidth],
         outsideGenomeRange = pos < margins[0] || pos > margins[1];
       
       if (outsideGenomeRange && !self._bouncing) {
@@ -1688,7 +1818,7 @@
           e.originalEvent.axis == 2 && -e.originalEvent.detail],
         userAgent = navigator && navigator.userAgent,
         adjust = [[(/chrome/i), 0.1], [(/safari/i), 0.03], [(/opera|msie/i), 0.01]];
-      if ($(e.target).closest('.picker').length) { return; } // You can scroll the track pickers
+      if ($(e.target).closest('.picker,select,textarea').length) { return; } // Allow the user to scroll widgets normally
       self.element.find('.drag-cont').stop(); // Stop any current inertial scrolling
       if (_.isUndefined(self._wheelDelta)) { self._wheelDelta = 0; }
       $.tipTip.hide(); // Hide any tipTips showing
@@ -1985,6 +2115,34 @@
         this._dnaCallbacks.push({left: left, right: right, fn: callback, extraData: extraData});
         ajaxLoadDNA();
       }
+    },
+    
+    // Updates the text for the genome species and description in the window title and footer
+    _updateGenomes: function() {
+      var self = this,
+        o = self.options,
+        $genome = $(o.genomePicker[0]),
+        $title = $genome.find('.title'),
+        speciesParenthetical = o.species.match(/\((.+)\)/),
+        $li = $genome.find('li.divider').eq(0).show();
+      
+      self._defaultTitle = window.document.title;
+      window.document.title = o.species + ' - ' + self._defaultTitle;
+      $title.text(o.species.replace(/\s+\(.*$/, ''));
+      if (speciesParenthetical) { $('<em class="parenth" />').text(', ' + speciesParenthetical[1]).appendTo($title); }
+      $genome.find('.description').text(o.assemblyDate + ' (' + o.genome.replace(/\|.*$/, '') + ')');
+      
+      // Fill the genome picker with available configured genomes
+      $genome.find('.choice.genome-choice').remove();
+      _.each(o.genomes, function(v, k) {
+        if (/^_/.test(k) || k == o.genome) { return; }
+        var $a = $('<a class="clickable"/>').attr('href', './?db='+k);
+        $a.appendTo($('<li class="choice genome-choice"/>').insertBefore($li));
+        $('<span class="name"/>').text(v.species).appendTo($a);
+        $('<span class="long-desc"/>').text(v.assemblyDate + ' (' + k + ')').appendTo($a);
+        $a.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+      });
+      if ($genome.find('.choice.genome-choice').length == 0) { $li.hide(); }
     }
     
   });
@@ -2961,7 +3119,7 @@
       var o = this.options;
       if (tileId < 0 || tileId > o.genomeSize) { return {blank: true, left: tileId < 0}; }
       if (o.track.custom) { return {custom: true}; }
-      if (this.ruler && bppp <= o.ideogramsAbove) { return {ruler: true}; }
+      if (this.ruler && (bppp <= o.ideogramsAbove || !o.chrBands)) { return {ruler: true}; }
     },
     
     _tileSrc: function(tileId, bppp, density) {
@@ -3186,14 +3344,22 @@
     
     _addLabel: function(label, zoom) {
       var o = this.options,
-        $l = $.mk('div').text(label.n.replace(/^chr/,'')).addClass('label label-'+label.p);
-      if (label.n.indexOf('chr') === 0) { $l.prepend('<span class="chr">chr</span'); }
+        $l = $.mk('div').addClass('label label-'+label.p),
+        $lt = $.mk('div').addClass('label-text').prependTo($l).text(label.n.replace(/^chr/,''));
+      if (label.n.indexOf('chr') === 0) { $lt.prepend('<span class="chr">chr</span>'); }
       $l.prepend('<span class="start-line"></span>');
+      if (label.end === true) { $l.addClass('label-end'); }
+      //$l.css('z-index', 200 + label.i);
       return $l.appendTo(this.element);
     },
     
     _reposLabel: function($l, label, zoom) {  
-      $l.css('left', (label.p + 1 - this.options.line.genoline('option', 'origin')) / zoom);
+      // constrain width of label so it doesn't run over into the next one
+      // max-width doesn't include padding (5px)
+      if (label.end !== true) { $l.children('.label-text').css('max-width', Math.max(label.w / zoom - 5, 0)); }
+      // `+ 1` --> convert 0-based positioning
+      // `- 1` --> label is offset 1px to left to compensate for the 2px width of the red indicator line
+      $l.css('left', (label.p + 1 - this.options.line.genoline('option', 'origin')) / zoom - 1);
     },
     
     _addBand: function(band, zoom) {
