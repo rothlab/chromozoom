@@ -662,7 +662,7 @@ body.row-resizing * {
   z-index: 200;
 }
 .browser-track div.label .label-text, div.first-label {
-  height: 25px;
+  height: 24px;
   padding: 0 2px 0 3px;
   background: white;
   overflow: hidden;
@@ -907,6 +907,12 @@ body.row-resizing * {
   line-height: 1em;
   margin: 0;
   color: #999;
+  white-space: nowrap;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  height: 40px;
 }
 #genome .description {
   position: absolute;
@@ -916,6 +922,11 @@ body.row-resizing * {
   margin: 0;
   color: #666;
   font-weight: normal;
+  white-space: nowrap;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 #genome-picker {
   display: none;
@@ -1150,6 +1161,32 @@ body.row-resizing * {
 #chrom-sizes-dialog-cont .contigs-loading img {
   padding: 3px 0 0 3px;
   vertical-align: bottom;
+}
+
+#custom-genome-dialog-cont {
+  margin-left: -250px;
+  width: 500px;
+  overflow: visible;
+}
+.ui-dialog .form-line strong {
+  float: left;
+  text-align: right;
+  margin: 0.2em 0.5em 0 0;
+  width: 20%;
+}
+.ui-dialog .help-line {
+  padding: 0.3em 0.8em 0.7em;
+  font-size: 0.8em;
+  color: #999;
+  text-align: center;
+  clear: both;
+}
+#custom-genome-dialog label {
+  width: 75%;
+  text-align: left;
+}
+#custom-genome-dialog textarea.paste {
+  float: left;
 }
 
 /* ============== */

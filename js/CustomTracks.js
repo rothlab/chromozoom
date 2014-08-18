@@ -944,7 +944,9 @@
           return {data: data};
         }
         function nameFunc(fields) {
-          return (fields.ref.length > fields.alt.length ? fields.ref : fields.alt) || '';
+          var ref = fields.ref || '',
+            alt = fields.alt || '';
+          return (ref.length > alt.length ? ref : alt) || '';
         }
       
         function success(data) {
