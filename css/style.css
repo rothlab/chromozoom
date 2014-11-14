@@ -531,6 +531,21 @@ body {
   right: 0;
 }
 
+.browser-line .zoom-shield {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 100%;
+  background: white;
+  opacity: 0;
+  z-index: 1000;
+}
+
+.browser-line .zoom-shield.hidden {
+  display: none;
+}
+
 .browser-track { 
   position: relative;
 }

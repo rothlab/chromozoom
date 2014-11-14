@@ -348,7 +348,7 @@
           $(o.navBar).toggleClass('narrow', self._width < 950).find('.picker').trigger('remaxheight');
         }
       });
-      $(document).bind('DOMMouseScroll mousewheel', _.bind(self._recvZoom, self));
+      $(document.body).bind('DOMMouseScroll mousewheel', _.bind(self._recvZoom, self));
       $(o.zoomBtns[0]).click(function() { delete self.centeredOn; self._animateZoom(true, 1000); });
       $(o.zoomBtns[1]).click(function() { delete self.centeredOn; self._animateZoom(false, 1000); });
       $elem.mouseenter(function() { self.showReticle('mouseArea', false); });
@@ -1854,13 +1854,18 @@
         d = [manualDelta, e.originalEvent.wheelDeltaY, e.originalEvent.wheelDelta, 
           e.originalEvent.axis == 2 && -e.originalEvent.detail],
         userAgent = navigator && navigator.userAgent,
-        adjust = [[(/chrome/i), 0.1], [(/safari/i), 0.03], [(/opera|msie/i), 0.01]];
-      if ($(e.target).closest('.picker,select,textarea').length) { return; } // Allow the user to scroll widgets normally
-      self.element.find('.drag-cont').stop(); // Stop any current inertial scrolling
+        adjust = [[(/chrome/i), 0.06], [(/safari/i), 0.03], [(/opera|msie/i), 0.01]];
+      if ($(e.target).closest('.picker').length) { return; }            // You can scroll the track pickers
+      self.element.find('.drag-cont').stop();                           // Stop any current inertial scrolling
       if (_.isUndefined(self._wheelDelta)) { self._wheelDelta = 0; }
-      $.tipTip.hide(); // Hide any tipTips showing
+      $.tipTip.hide();                                                  // Hide any tipTips showing
       d = _.reject(d, _.isUndefined).shift();
       self.centeredOn = self._posAtMouse(e.originalEvent);
+      
+      // mousewheeling is more performant (esp in Safari) if it all the events fire on a single element
+      // which is why we throw a "shield" element in front of all the browser lines during zooms to capture the events
+      self.lines().genoline('toggleZoomShield', true);                
+      
       if (d && self.centeredOn !== null) {
         var value = self.$slider.slider('value'),
           delta = (o.snapZoom ? (self._wheelDelta += d) : d) / 20;
@@ -1875,7 +1880,8 @@
         } else { self.$slider.slider('value', value + delta); }
         self._finishZoomDebounced(delta > 0);
       }
-      return false;
+      
+      return false; // disable scrolling of the document
     },
     
     // This is fired shortly after tracks believe that all images have loaded.
@@ -1954,6 +1960,7 @@
       this.bounceCheck();
       if (this.options.snapZoomAfter && !this.options.snapZoom) { this._animateZoom(direction); }
       if (this.options.snapZoom) { self._wheelDelta = 0; }
+      this.lines().genoline('toggleZoomShield', false);
     },
     
     // Everytime we zoom in on a line, we have to recalculate the density order of tracks,
@@ -2207,6 +2214,7 @@
       this.$cont = $('<div class="drag-cont"/>').appendTo(this.$trackCont);
       this.$retic = $('<div class="retic hidden"/>').appendTo($elem);
       this.$indices = $('<div class="indices"/>').appendTo($elem);
+      this.$zoomshield = $('<div class="zoom-shield hidden"/>').appendTo($elem);
       this.centeredOn = null; // for the reticle
       
       html = '<div class="c nw"/><div class="c ne"/><div class="c sw"/>'
@@ -2535,6 +2543,10 @@
         offset = $(self.$trackCont).offset(),
         offsetLeft = (e.pageX + 8) - offset.left; // compensating for the center of the cursor?
       $browser.genobrowser('zoom', !e.shiftKey, self.pos + (offsetLeft * zoom), 1000);
+    },
+    
+    toggleZoomShield: function(show) {
+      this.$zoomshield.toggleClass('hidden', !show);
     }
     
   });
