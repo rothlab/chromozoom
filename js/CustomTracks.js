@@ -29,6 +29,8 @@
     if (state != 'optname') { return false; }
     return opts;
   }
+  
+  function strip(str) { return str.replace(/^\s+|\s+$/g, ''); }
 
   // Faster than Math.floor (http://webdood.com/?p=219)
   function floorHack(num) { return (num << 0) - (num < 0 ? 1 : 0); }
@@ -40,33 +42,39 @@
   // ========================================================================
 
   var CustomTracks = {
-    parse: function(text, browserOpts) {
+    parse: function(chunks, browserOpts) {
       var customTracks = [],
         data = [],
         track, opts, m;
+      
+      if (typeof chunks == "string") { chunks = [chunks]; }
+      
       function pushTrack() {
         if (track.parse(data)) { customTracks.push(track); }
       }
+      
       customTracks.browser = {};
-      _.each(text.split("\n"), function(line, lineno) {
-        if (/^#/.test(line)) {
-          // comment line
-        } else if (/^browser\s+/.test(line)) {
-          // browser lines
-          m = line.match(/^browser\s+(\w+)\s+(\S*)/);
-          if (!m) { throw new Error("Could not parse browser line found at line " + (lineno + 1)); }
-          customTracks.browser[m[1]] = m[2];
-        } else if (/^track\s+/i.test(line)) {
-          if (track) { pushTrack(); }
-          opts = parseDeclarationLine(line, (/^track\s+/i));
-          if (!opts) { throw new Error("Could not parse track line found at line " + (lineno + 1)); }
-          opts.lineNum = lineno + 1;
-          track = new CustomTrack(opts, browserOpts);
-          data = [];
-        } else if (/\S/.test(line)) {
-          if (!track) { throw new Error("Found data on line "+(lineno+1)+" but no preceding track definition"); }
-          data.push(line);
-        }
+      _.each(chunks, function(text) {
+        _.each(text.split("\n"), function(line, lineno) {
+          if (/^#/.test(line)) {
+            // comment line
+          } else if (/^browser\s+/.test(line)) {
+            // browser lines
+            m = line.match(/^browser\s+(\w+)\s+(\S*)/);
+            if (!m) { throw new Error("Could not parse browser line found at line " + (lineno + 1)); }
+            customTracks.browser[m[1]] = m[2];
+          } else if (/^track\s+/i.test(line)) {
+            if (track) { pushTrack(); }
+            opts = parseDeclarationLine(line, (/^track\s+/i));
+            if (!opts) { throw new Error("Could not parse track line found at line " + (lineno + 1)); }
+            opts.lineNum = lineno + 1;
+            track = new CustomTrack(opts, browserOpts);
+            data = [];
+          } else if (/\S/.test(line)) {
+            if (!track) { throw new Error("Found data on line "+(lineno+1)+" but no preceding track definition"); }
+            data.push(line);
+          }
+        });
       });
       if (track) { pushTrack(); }
       return customTracks;
@@ -77,12 +85,15 @@
       console.log(e);
     },
     
-    // NOTE: To temporarily disable Web Worker usage, have this return null
+    _workerScript: 'js/CustomTrackWorker.js',
+    // NOTE: To temporarily disable Web Worker usage, set this to true.
+    _disableWorkers: false,
+    
     worker: function() { 
       var self = this,
         callbacks = [];
       if (!self._worker && global.Worker) { 
-        self._worker = new global.Worker('js/CustomTrackWorker.js');
+        self._worker = new global.Worker(self._workerScript);
         self._worker.addEventListener('error', function(e) { self.error(e); }, false);
         self._worker.addEventListener('message', function(e) {
           if (e.data.log) { console.log(JSON.parse(e.data.log)); return; }
@@ -103,21 +114,21 @@
           this.postMessage({op: 'throwErrors', args: [toggle]});
         };
       }
-      return self._worker;
+      return self._disableWorkers ? null : self._worker;
     },
     
     async: function(self, fn, args, asyncExtraArgs, wrapper) {
       args = _.toArray(args);
       wrapper = wrapper || _.identity;
-      var firstargs = _.initial(args),
+      var argsExceptLastOne = _.initial(args),
         callback = _.last(args),
         w = this.worker();
       // Fallback if web workers are not supported.
       // This could also be tweaked to not use web workers when there would be no performance gain;
       //   activating this branch disables web workers entirely and everything happens synchronously.
-      if (!w) { return callback(self[fn].apply(self, firstargs)); }
-      Array.prototype.unshift.apply(firstargs, asyncExtraArgs);
-      w.call(fn, firstargs, function(ret) { callback(wrapper(ret)); });
+      if (!w) { return callback(self[fn].apply(self, argsExceptLastOne)); }
+      Array.prototype.unshift.apply(argsExceptLastOne, asyncExtraArgs);
+      w.call(fn, argsExceptLastOne, function(ret) { callback(wrapper(ret)); });
     },
     
     parseAsync: function() {
@@ -125,11 +136,10 @@
         // These have been serialized, so they must be hydrated into real CustomTrack objects.
         // We replace .prerender() with an asynchronous version.
         return _.map(tracks, function(t) {
-          return _.extend(new CustomTrack, t, {
+          return _.extend(new CustomTrack(), t, {
             prerender: function() { CustomTrack.prototype.prerenderAsync.apply(this, arguments); }
           });
         });
-        return tracks;
       });
     }
   };
@@ -141,18 +151,19 @@
   function LineMask(width, fudge) {
     this.fudge = fudge = (fudge || 1);
     this.items = [];
-    this.mask = global.Uint8Array ? new Uint8Array(Math.ceil(width / fudge)) : new Array(Math.ceil(width / fudge));
+    this.length = Math.ceil(width / fudge);
+    this.mask = global.Uint8Array ? new Uint8Array(this.length) : new Array(this.length);
   }
 
   LineMask.prototype.add = function(x, w, data) {
     var upTo = Math.ceil((x + w) / this.fudge);
     this.items.push({x: x, w: w, data: data});
-    for (var i = floorHack(x / this.fudge); i < upTo; i++) { this.mask[i] = 1; }
+    for (var i = Math.max(floorHack(x / this.fudge), 0); i < Math.min(upTo, this.length); i++) { this.mask[i] = 1; }
   };
 
   LineMask.prototype.conflict = function(x, w) {
     var upTo = Math.ceil((x + w) / this.fudge);
-    for (var i = floorHack(x / this.fudge); i < upTo; i++) { if (this.mask[i]) return true; }
+    for (var i = Math.max(floorHack(x / this.fudge), 0); i < Math.min(upTo, this.length); i++) { if (this.mask[i]) return true; }
     return false;
   };
 
@@ -181,11 +192,11 @@
     name: 'User Track',
     description: 'User Supplied Track',
     color: '0,0,0'
-  }
+  };
 
   // Constructs a mapping function that converts bp intervals into pixel intervals, with optional calculations for text too
   CustomTrack.pixIntervalCalculator = function(start, width, bppp, withText, nameFunc, startkey, endkey) {
-    if (!_.isFunction(nameFunc)) { nameFunc = function(d) { return d.name || ''; } }
+    if (!_.isFunction(nameFunc)) { nameFunc = function(d) { return d.name || ''; }; }
     if (_.isUndefined(startkey)) { startkey = 'start'; }
     if (_.isUndefined(endkey)) { endkey = 'end'; }
     return function(d) {
@@ -330,11 +341,11 @@
     
       parse: function(lines) {
         var self = this,
-          middleishPos = _.last(_.sortBy(_.values(this.browserOpts.chrPos), function(a,b){return a - b})) / 2,
+          middleishPos = self.browserOpts.genomeSize / 2,
           data = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'});
         _.each(lines, function(line, lineno) {
           var feature = self.type().parseLine.call(self, line, lineno);
-          feature && data.add(feature);
+          if (feature) { data.add(feature); }
         });
         self.data = data;
         self.heights = {max: null, min: 15, start: 15};
@@ -348,7 +359,7 @@
         // so as to not break a ranged feature that extends over multiple tiles.
         lineNum = _.isFunction(lineNum) ? lineNum : function() { return; };
         var lines = [],
-          maxExistingLine = _.max(_.map(intervals, function(v) { return lineNum(v.data) || 0 })) + 1,
+          maxExistingLine = _.max(_.map(intervals, function(v) { return lineNum(v.data) || 0; })) + 1,
           sortedIntervals = _.sortBy(intervals, function(v) { var ln = lineNum(v.data); return _.isUndefined(ln) ? 1 : -ln; });
         
         while (maxExistingLine-->0) { lines.push(new LineMask(width, 5)); }
@@ -384,10 +395,10 @@
           var key = bppp + '_' + density;
           if (!_.isUndefined(set)) { 
             if (!d.line) { d.line = {}; }
-            return d.line[key] = set;
+            return (d.line[key] = set);
           }
           return d.line && d.line[key]; 
-        };
+        }
         
         if (density == 'dense') {
           _.each(intervals, function(v) {
@@ -396,13 +407,24 @@
             drawSpec.push(pInt);
           });
         } else {
-          drawSpec = this.type().stackedLayout.call(this, intervals, width, calcPixInterval, lineNum);
+          drawSpec = this.type('bed').stackedLayout.call(this, intervals, width, calcPixInterval, lineNum);
         }
         return _.isFunction(callback) ? callback(drawSpec) : drawSpec;
       },
       
       addArea: function(areas, data, i, lineHeight, urlTemplate) {
+        var tipTipData = {},
+          tipTipDataCallback = this.type().tipTipData;
         if (!areas) { return; }
+        if (_.isFunction(tipTipDataCallback)) {
+          tipTipData = tipTipDataCallback(data);
+        } else {
+          tipTipData = {
+            position: data.d.chrom + ':' + data.d.chromStart, 
+            size: data.d.chromEnd - data.d.chromStart, 
+            score: data.d.score
+          };
+        }
         areas.push([
           data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, //x1, x2, y1, y2
           data.d.name || '', // name
@@ -410,7 +432,7 @@
           data.pInt.o, // continuation from previous tile?
           null,
           null,
-          {position: data.d.chrom + ':' + data.d.chromStart, size: data.d.chromEnd - data.d.chromStart, score: data.d.score}
+          tipTipData
         ]);
       },
       
@@ -541,7 +563,7 @@
         var self = this;
         self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
           self.type().drawSpec.call(self, canvas, drawSpec, density);
-          _.isFunction(callback) && callback();
+          if (_.isFunction(callback)) { callback(); }
         });
       },
     
@@ -565,6 +587,255 @@
         o.url = $dialog.find('[name=url]').val();
         this.type('bed').initOpts.call(this);
       }
+    },
+    
+    // ======================================================================
+    // = featureTable format: http://www.insdc.org/files/feature_table.html =
+    // ======================================================================
+    
+    featuretable: {
+      defaults: {
+        collapseByGene: 'off',
+        keyColumnWidth: 21,
+        itemRgb: 'off',
+        colorByStrand: '',
+        useScore: 0,
+        group: 'user',
+        priority: 'user',
+        offset: 0,
+        url: '',
+        htmlUrl: '',
+        drawLimit: {squish: 500, pack: 100}
+      },
+      
+      init: function() {
+        this.type('bed').initOpts.call(this);
+        this.opts.collapseByGene = this.isOn(this.opts.collapseByGene);
+      },
+      
+      // parses one feature key + location/qualifiers row from the feature table
+      parseEntry: function(chrom, lines, startLineNo) {
+        var feature = {
+            chrom: chrom,
+            score: '?',
+            blocks: null,
+            qualifiers: {}
+          },
+          keyColumnWidth = this.opts.keyColumnWidth,
+          qualifier = null,
+          fullLocation = [],
+          collapseKeyQualifiers = ['locus_tag', 'gene', 'db_xref'],
+          qualifiersThatAreNames = ['gene', 'locus_tag', 'db_xref'],
+          RNATypes = ['rrna', 'trna'],
+          alsoTryForRNATypes = ['product'],
+          locationPositions, chrPos, blockSizes;
+        
+        chrPos = this.browserOpts.chrPos[chrom];
+        startLineNo = startLineNo || 0;
+        if (_.isUndefined(chrPos)) {
+          this.warn("Invalid chromosome at line " + (lineno + 1 + this.opts.lineNum));
+          return null;
+        }
+        
+        // fill out feature's keys with info from these lines
+        _.each(lines, function(line, lineno) {
+          var key = line.substr(0, keyColumnWidth),
+            restOfLine = line.substr(keyColumnWidth),
+            qualifierMatch = restOfLine.match(/^\/(\w+)(=?)(.*)/);
+          if (key.match(/\w/)) {
+            feature.type = strip(key);
+            qualifier = null;
+            fullLocation.push(restOfLine);
+          } else {
+            if (qualifierMatch) {
+              qualifier = qualifierMatch[1];
+              if (!feature.qualifiers[qualifier]) { feature.qualifiers[qualifier] = []; }
+              feature.qualifiers[qualifier].push([qualifierMatch[2] ? qualifierMatch[3] : true]);
+            } else {
+              if (qualifier !== null) { 
+                _.last(feature.qualifiers[qualifier]).push(restOfLine);
+              } else {
+                fullLocation.push(restOfLine);
+              }
+            }
+          }
+        });
+        
+        feature.fullLocation = fullLocation = fullLocation.join('');
+        locationPositions = _.map(_.filter(fullLocation.split(/\D+/), _.identity), parseInt10);
+        feature.chromStart =  _.min(locationPositions);
+        feature.chromEnd = _.max(locationPositions);
+        feature.start = chrPos + feature.chromStart;
+        feature.end = chrPos + feature.chromEnd;
+        feature.strand = /complement/.test(fullLocation) ? "-" : "+";
+        
+        // Until we merge by gene name, we don't care about these
+        feature.thickStart = feature.thickEnd = null;
+        feature.blocks = null;
+        
+        // Parse the qualifiers properly
+        _.each(feature.qualifiers, function(v, k) {
+          _.each(v, function(entryLines, i) {
+            v[i] = strip(entryLines.join(' '));
+            if (/^"[\s\S]*"$/.test(v[i])) {
+              // Dequote free text
+              v[i] = v[i].replace(/^"|"$/g, '').replace(/""/g, '"');
+            }
+          });
+          //if (v.length == 1) { feature.qualifiers[k] = v[0]; }
+        });
+        
+        // Find something that can serve as a name
+        feature.name = feature.type;
+        if (_.contains(RNATypes, feature.type.toLowerCase())) { 
+          Array.prototype.push.apply(qualifiersThatAreNames, alsoTryForRNATypes); 
+        }
+        _.find(qualifiersThatAreNames, function(k) {
+          if (feature.qualifiers[k] && feature.qualifiers[k][0]) { return (feature.name = feature.qualifiers[k][0]); }
+        });
+        
+        // Find a key that is appropriate for collapsing
+        if (this.opts.collapseByGene) {
+          _.find(collapseKeyQualifiers, function(k) {
+            if (feature.qualifiers[k] && feature.qualifiers[k][0]) { 
+              return (feature._collapseKey = feature.qualifiers[k][0]);
+            }
+          });
+        }
+        
+        return feature;
+      },
+      
+      // collapses multiple features that are about the same gene into one drawable feature
+      collapseFeatures: function(features) {
+        var chrPos = this.browserOpts.chrPos,
+          preferredTypeToMergeInto = ['mrna', 'gene', 'cds'],
+          preferredTypeForExons = ['exon', 'cds'],
+          mergeInto = features[0],
+          blocks = [],
+          foundType, cds, exons;
+        foundType = _.find(preferredTypeToMergeInto, function(type) {
+          var found = _.find(features, function(feat) { return feat.type.toLowerCase() == type; });
+          if (found) { mergeInto = found; return true; }
+        });
+        
+        // Look for exons (eukaryotic) or a CDS (prokaryotic)
+        _.find(preferredTypeForExons, function(type) {
+          exons = _.select(features, function(feat) { return feat.type.toLowerCase() == type; });
+          if (exons.length) { return true; }
+        });
+        cds = _.find(features, function(feat) { return feat.type.toLowerCase() == "cds"; });
+        
+        _.each(exons, function(exonFeature) {
+          exonFeature.fullLocation.replace(/(\d+)\.\.[><]?(\d+)/g, function(fullMatch, start, end) {
+            blocks.push({
+              start: chrPos[exonFeature.chrom] + Math.min(start, end), 
+              end: chrPos[exonFeature.chrom] +  Math.max(start, end)
+            });
+          });
+        });
+        
+        // Convert exons and CDS into blocks, thickStart and thickEnd (in BED terminology)
+        if (blocks.length) { 
+          mergeInto.blocks = _.sortBy(blocks, function(b) { return b.start; });
+          mergeInto.thickStart = cds ? cds.start : feature.start;
+          mergeInto.thickEnd = cds ? cds.end : feature.end;
+        }
+        
+        // finally, merge all the qualifiers
+        _.each(features, function(feat) {
+          if (feat === mergeInto) { return; }
+          _.each(feat.qualifiers, function(values, k) {
+            if (!mergeInto.qualifiers[k]) { mergeInto.qualifiers[k] = []; }
+            _.each(values, function(v) {
+              if (!_.contains(mergeInto.qualifiers[k], v)) { mergeInto.qualifiers[k].push(v); }
+            });
+          });
+        });
+        
+        return mergeInto;
+      },
+    
+      parse: function(lines) {
+        var self = this,
+          o = self.opts,
+          middleishPos = this.browserOpts.genomeSize / 2,
+          data = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
+          numLines = lines.length,
+          chrom = null,
+          lastEntryStart = null,
+          featuresByCollapseKey = {},
+          feature;
+        
+        function collectLastEntry(lineno) {
+          if (lastEntryStart !== null) {
+            feature = self.type().parseEntry.call(self, chrom, lines.slice(lastEntryStart, lineno), lastEntryStart);
+            if (feature) { 
+              if (o.collapseByGene) {
+                featuresByCollapseKey[feature._collapseKey] = featuresByCollapseKey[feature._collapseKey] || [];
+                featuresByCollapseKey[feature._collapseKey].push(feature);
+              } else { data.add(feature); }
+            }
+          }
+        }
+        
+        // Chunk the lines into entries and parse each of them
+        _.each(lines, function(line, lineno) {
+          if (line.substr(0, 12) == "ACCESSION   ") {
+            collectLastEntry(lineno);
+            chrom = line.substr(12);
+            lastEntryStart = null;
+          } else if (chrom !== null && line.substr(5, 1).match(/\w/)) {
+            collectLastEntry(lineno);
+            lastEntryStart = lineno;
+          }
+        });
+        // parse the last entry
+        if (chrom !== null) { collectLastEntry(lines.length); }
+        
+        if (o.collapseByGene) {
+          _.each(featuresByCollapseKey, function(features, gene) {
+            data.add(self.type().collapseFeatures.call(self, features));
+          });
+        }
+        
+        self.data = data;
+        self.heights = {max: null, min: 15, start: 15};
+        self.sizes = ['dense', 'squish', 'pack'];
+        self.mapSizes = ['pack'];
+        return true;
+      },
+      
+      // special formatter for content in tooltips for features
+      tipTipData: function(data) {
+        var qualifiersToAbbreviate = {translation: 1},
+          content = {
+            type: data.d.type,
+            position: data.d.chrom + ':' + data.d.chromStart, 
+            size: data.d.chromEnd - data.d.chromStart
+          };
+        if (data.d.qualifiers.note && data.d.qualifiers.note[0]) {  }
+        _.each(data.d.qualifiers, function(v, k) {
+          if (k == 'note') { content.description = v.join('; '); return; }
+          content[k] = v.join('; ');
+          if (qualifiersToAbbreviate[k] && content[k].length > 25) { content[k] = content[k].substr(0, 25) + '...'; }
+        });
+        return content;
+      },
+      
+      prerender: function(start, end, density, precalc, callback) {
+        return this.type('bed').prerender.call(this, start, end, density, precalc, callback);
+      },
+      
+      drawSpec: function() { return this.type('bed').drawSpec.apply(this, arguments); },
+      
+      render: function(canvas, start, end, density, callback) {
+        this.type('bed').render.call(this, canvas, start, end, density, callback);
+      },
+      
+      loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
+      
+      saveOpts: function() { return this.type('bed').saveOpts.apply(this, arguments); }
     },
     
     // =========================================================================
@@ -702,7 +973,9 @@
       
         _.each(lines, function(line, lineno) {
           var val, start;
-          if (m = line.match(/^(variable|fixed)Step\s+/i)) {
+          
+          m = line.match(/^(variable|fixed)Step\s+/i);
+          if (m) {
             mode = m[1].toLowerCase();
             modeOpts = parseDeclarationLine(line, /^(variable|fixed)Step\s+/i);
             modeOpts.start = parseInt10(modeOpts.start);
@@ -753,10 +1026,10 @@
         }
         data.all = new SortedList(data.all, {
           compare: function(a, b) {
-            if (a == null) return -1;
-            if (b == null) return  1;
+            if (a === null) return -1;
+            if (b === null) return  1;
             var c = a.start - b.start;
-            return (c > 0) ? 1 : (c == 0)  ? 0 : -1;
+            return (c > 0) ? 1 : (c === 0)  ? 0 : -1;
           }
         });
       
@@ -853,7 +1126,7 @@
         if (!ctx) { throw "Canvas not supported"; }
         self.prerender(start, end, density, {width: width, height: height}, function(drawSpec) {
           self.type().drawBars.call(self, ctx, drawSpec, height, width);
-          _.isFunction(callback) && callback();
+          if (_.isFunction(callback)) { callback(); }
         });
       },
       
@@ -1009,7 +1282,7 @@
               });
             });
           }
-          _.isFunction(callback) && callback();
+          if (_.isFunction(callback)) { callback(); }
         });
       }
     },
@@ -1020,7 +1293,6 @@
   
     bigbed: {
       defaults: {
-        priority: 100,
         maxWindowToDraw: 0,
         chromosomes: '',
         itemRgb: 'off',
@@ -1059,10 +1331,10 @@
           var key = bppp + '_' + density;
           if (!_.isUndefined(set)) { 
             if (!d.line) { d.line = {}; }
-            return d.line[key] = set;
+            return (d.line[key] = set);
           }
           return d.line && d.line[key]; 
-        };
+        }
         
         function success(data) {
           var drawSpec = [], 
@@ -1091,7 +1363,7 @@
         var self = this;
         self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
           self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
-          _.isFunction(callback) && callback();
+          if (_.isFunction(callback)) { callback(); }
         });
       },
       

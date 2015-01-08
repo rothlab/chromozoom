@@ -162,7 +162,7 @@ body {
   padding-left: 24%;
   text-align: left;
 }
-#custom-picker .form-line .spinner {
+.spinner {
   display: none;
   margin-top: 4px;
   float: right;
@@ -1191,17 +1191,24 @@ body.row-resizing * {
 }
 .ui-dialog .help-line {
   padding: 0.3em 0.8em 0.7em;
-  font-size: 0.8em;
+  font-size: 1em;
   color: #999;
   text-align: center;
   clear: both;
 }
+#custom-genome-dialog-cont .url {
+  width: 85%;
+}
+
 #custom-genome-dialog label {
-  width: 75%;
+  width: 72%;
   text-align: left;
 }
 #custom-genome-dialog textarea.paste {
   float: left;
+}
+#custom-genome-dialog input[type="file"], #custom-genome-dialog input[type="button"] {
+  font-size: 1em;
 }
 
 /* ============== */

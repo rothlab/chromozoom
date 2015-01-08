@@ -68,7 +68,7 @@
             <div class="help-line indented">
               Pasted data are not sent to the server.
             </div>
-            <div class="form-line"><div class="spinner"></div><strong>add url: </strong><label></label></div>
+            <div class="form-line"><div class="spinner"></div><strong>add URL: </strong><label></label></div>
             <div class="help-line">
               <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format1">BED</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bedgraph.html">bedGraph</a>,
@@ -373,34 +373,33 @@ chr3 2000000</textarea>
 
       <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="custom-genome-dialog-cont">
         <div id="custom-genome-dialog" class="ui-dialog-content ui-widget-content">
+          <div class="help-line">
+            <a target="_blank" href="ftp://ftp.ebi.ac.uk/pub/databases/embl/doc/usrman.txt">EMBL</a>,
+            <a target="_blank" href="http://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html">GenBank</a>,
+            and <a target="_blank" href="http://en.wikipedia.org/wiki/FASTA_format">FASTA</a>
+            are currently supported.<br/>
+            For more details, please see the <a target="_blank" href="docs/#custom-genomes">User Guide.</a>
+          </div>
           <div class="form-line">
-            <div class="spinner"></div><strong>add file: </strong><label></label>
+            <div class="spinner"></div><strong>load file: </strong><label></label>
             <div class="help-line indented">
               Files are read locally, not sent to the server.
             </div>
           </div>
-          <div class="form-line"><div class="spinner"></div><strong>paste: </strong>
+          <div class="form-line"><div class="spinner"></div><strong>paste:</strong>
             <label>
-              <textarea class="paste" name="customPaste" rows="1" cols="30"></textarea>
-              <input type="button" name="customPasteAdd" value="add"/>
+              <textarea class="paste" name="customGenomePaste" rows="3" cols="30"></textarea>
+              <input type="button" name="customGenomePasteAdd" value="Load"/>
             </label>
             <div class="help-line indented">
               Pasted data are not sent to the server.
             </div>
           </div>
           <div class="form-line">
-            <div class="spinner"></div><strong>add url: </strong><label></label>
-            <div class="help-line">
-              <a target="_blank" href="ftp://ftp.ebi.ac.uk/pub/databases/embl/doc/usrman.txt">EMBL</a>,
-              <a target="_blank" href="http://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html">GenBank</a>,
-              and <a target="_blank" href="http://en.wikipedia.org/wiki/FASTA_format">FASTA</a>
-              are currently supported.<br/>
-              For more details, please see the <a target="_blank" href="docs/#custom-genomes">User Guide.</a>
-            </div>
+            <div class="spinner"></div><strong>load URL: </strong><label></label>
           </div>
         </div>
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
-          <button type="button" class="ui-state-default ui-corner-all right" name="save">Load genome</button>
           <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
         </div>
       </div>

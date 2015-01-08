@@ -372,19 +372,59 @@
     // Called when a new options object is passed in
     _setOptions: function(options) {
       var self = this,
-        $elem = self.element;
+        $elem = self.element,
+        o = self.options,
+        tracksToParse,
+        finishSetupAfterParsing,
+        $overlay = $(o.overlay[0]),
+        $overlayMessage = $(o.overlay[1]);
       self._resetCustomTracks();
       self._removeLines(self.$lines.length, {duration: 0});
       
       console.log(options);
-      _.extend(self.options, options);
+      o = _.extend(self.options, options);
       
       self._initInstanceVars();
-      self.$slider = self._initSlider();
-      self.$trackPicker = self._initTrackPicker();
-      self._updateGenomes();
       
-      $(window).trigger('resize');
+      tracksToParse = _.filter(o.availTracks, function(t) { return t.customData; });
+      
+      // a subset of options that CustomTracks needs to parse tracks
+      function browserOpts() {
+        return {
+          bppps: o.bppps,
+          chrPos: self.chrPos,
+          chrLengths: o.chrLengths,
+          genomeSize: o.genomeSize,
+          ajaxDir: o.ajaxDir
+        };
+      }
+      
+      function finishSetup() {
+        _.each(o.tracks, function(t){ 
+          $.extend(t, self.availTracks[t.n]);
+        });
+        
+        self.$slider = self._initSlider();
+        self.$trackPicker = self._initTrackPicker();
+        self._updateGenomes();
+      
+        $overlay.add($overlayMessage).hide();
+        $(window).trigger('resize');
+      }
+      
+      if (tracksToParse.length > 0) {
+        finishSetupAfterParsing = _.after(tracksToParse.length, finishSetup);
+        _.each(tracksToParse, function(t) {
+          CustomTracks.parseAsync(t.customData, browserOpts(), function(customTracks) {
+            var customTrack = customTracks[0]; // t.customData should only contain data for one track
+            _.each(o.bppps, function(bppp) { 
+              self.availTracks[t.n].fh[o.bpppFormat(bppp)] = {dense: customTrack.heights.min}; 
+            });
+            self.availTracks[t.n].custom = t.custom = customTrack;
+            finishSetupAfterParsing();
+          });
+        });
+      } else { finishSetup(); }
     },
     
     _initInstanceVars: function() {
@@ -1010,8 +1050,11 @@
         $chromSizesDialog = $(o.dialogs[4]).closest('.ui-dialog'),
         $genomeDialog = $(o.dialogs[5]).closest('.ui-dialog'),
         $add = $genomeDialog.find('.form-line').first(),
+        $overlay = $(o.overlay[0]),
+        $overlayMessage = $(o.overlay[1]),
         fileInputHTML = '<input type="file" name="genomeFile"/>',
-        urlInputHTML = '<input type="url" name="genomeUrl" class="url"/><input type="button" name="customUrlGet" value="go!"/>';
+        urlInputHTML = '<input type="url" name="genomeUrl" class="url"/>' +
+                       '<input type="button" name="genomeUrlGet" value="Load"/>';
       
       $chromSizesDialog.bind('open.genobrowser', function() {
         var $genomeList = $chromSizesDialog.find('[name=ucscGenome]');
@@ -1098,16 +1141,32 @@
         self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
       });
       
+      function customGenomeError(e) {
+        $genomeDialog.find('.spinner').hide();
+        var msg = e.message.replace(/^Uncaught Error: /, '');
+        alert('Sorry, an error occurred while adding this custom genome file:\n\n' + msg);
+        // TODO: replace this with something more friendly.
+        replaceFileInput(); 
+      }
+      
       function handleFileSelect(e) {
-        var reader = new FileReader();
+        var reader = new FileReader(),
+          $add = $(e.target).closest('.form-line'),
+          $spinner = $add.find('.spinner').show();
+          
+        $overlay.show();
+        $overlayMessage.show().text('Loading custom genome...');
+        
         if (e.target.files.length) {
           reader.onload = (function(f) {
             var metadata = { file: f.name },
               genome;
             return function(ev) {
-              genome = CustomGenomes.parse(ev.target.result, metadata);
-              self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
-              // TODO: the above will be asynchronous
+              CustomGenomes.parseAsync(ev.target.result, metadata, function(genome) {
+                self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
+                $spinner.hide();
+                $genomeDialog.fadeOut();
+              });
             };
           })(e.target.files[0]);
           reader.readAsText(e.target.files[0]);
@@ -1130,7 +1189,47 @@
         $add = $picker.find('.form-line').first();
       }
       
+      function handlePastedData(e) {
+        var $add = $(e.target).closest('.form-line'),
+          $spinner = $add.find('.spinner').show();
+        $overlay.show();
+        $overlayMessage.show().text('Loading custom genome...');
+        CustomGenomes.parseAsync($add.find('textarea').val(), { file: "_pasted_data" }, function(genome) {
+          self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
+          $spinner.hide();
+          $genomeDialog.fadeOut();
+          $add.find('textarea').val('');
+        });
+      }
+      $add.find('[name=customGenomePasteAdd]').click(handlePastedData);
+      $add = $add.nextAll('.form-line').first();
       
+      function handleUrlSelect(e) {
+        var $add = $(e.target).closest('.form-line'),
+          $spinner = $add.find('.spinner'),
+          $url = $add.find('[name=genomeUrl]'),
+          url = $.trim($url.val());
+        if (!url.length) { return; }
+        $spinner.show();
+        $.ajax(url, {
+          success: function(data) {
+            CustomGenomes.parseAsync(data, {url: url}, function(genome) {
+              self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
+              $spinner.hide();
+              $url.val('');
+              $genomeDialog.fadeOut();
+            });
+          },
+          error: function() {
+            $overlay.hide();
+            $overlayMessage.hide();
+            customGenomeError({message: "No valid custom track data was found at this URL."}); 
+          }
+        });
+      }
+      $add.find('label').html(urlInputHTML);
+      $add.find('[name=genomeUrlGet]').click(handleUrlSelect);
+      $add.find('[name=genomeUrl]').bind('keydown', function(e) { if (e.which==13) { handleUrlSelect(e); } });
     },
     
     _initFromParams: function(params, suppressRepeat) {
@@ -1517,10 +1616,13 @@
           self.densityOrder(track, height, bppps); 
         }));
       }
+      // Always show the base density when within 3px of the baseHeight (the initial height)
       if (height <= baseHeight + 3) {
         order[base] = 0;
         _.each(t.s, function(d) { if (_.isArray(d)) { order[d[0]] = ++i; } });
       } else {
+        // Otherwise, order the densities by their tiles' max height's proximity to the track height
+        // with a 3x bias toward showing the taller density
         _.each(t.s, function(d) {
           if (_.isArray(d)) { d = d[0]; }
           if (fixedHeights[d]) { return heights.push([d, fixedHeights[d]]); }
@@ -1531,9 +1633,13 @@
           }).get());
           heights.push([d, h]);
         });
-        heights = _.map(heights, function(v) {
-          var deltaY = height - v[1]; 
-          v[1] = forceAt[v[0]] && height > forceAt[v[0]][0] ? forceAt[v[0]][1] : (deltaY > 0 ? deltaY * 3 : -deltaY); 
+        heights = _.map(heights, function(v, i) {
+          var deltaY;
+          v[1] = v[1] == 0 ? 1000000 : v[1]; // effectively, never show 0 height tiles
+          deltaY = height - v[1];
+                                             // this is where the 3x bias toward the taller density is inserted
+          v[1] = (forceAt[v[0]] && height > forceAt[v[0]][0]) ? forceAt[v[0]][1] : (deltaY > 0 ? deltaY * 3 : -deltaY);
+          v[1] -= i * 0.1;                   // marginally prioritize more detailed tracks in the event of ties
           return v; 
         });
         heights.sort(function(a,b){ return a[1] - b[1]; });
@@ -1566,7 +1672,7 @@
       var o = this.options, ret = {}, matches, end;
       ret.pos = $.trim(_.isUndefined(pos) ? $(o.jump[0]).val() : pos);
       if (ret.pos === '') { this._searchFor(''); return null; }
-      matches = ret.pos.match(/^([a-z]+[a-z0-9]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
+      matches = ret.pos.match(/^([a-z]+[a-z0-9_]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
       if (matches && matches[1]) {
         var chr = _.find(o.chrLabels, function(v) { return v.n === matches[1]; });
         // TODO: if there is a custom genome about to be loaded, don't bother searching
@@ -1655,7 +1761,7 @@
         success: function(data) {
           self.$choices.removeClass('loading');
           if (data['goto']) { self.jumpTo(data['goto']); return; }
-          if (data.categories.length===0) { self.$choices.addClass('no-results'); }
+          if (!data.categories || data.categories.length===0) { self.$choices.addClass('no-results'); return; }
           var numCategories = _.keys(data.categories).length,
             choicesPerCategory = Math.max(Math.ceil(12 / numCategories), 3);
           _.each(data.categories, function(cat, catname) {
@@ -2011,8 +2117,9 @@
       end = Math.min(Math.round(pos - chr.p + self.bpWidth() * self.$lines.length), o.chrLengths[chr.n]);
       ucscParams = {db: o.genome, position: chr.n + ':' + start + '-' + end};
       _.each(o.tracks, function(t) { 
-        var densityOrderAsArray = _.map(self.densityOrder(t.n), function(v,k) { return [k,v]; });
-        ucscParams[t.n] = _.min(densityOrderAsArray, function(p) { return p[1]; })[0];  
+        var densityOrderAsArray = _.map(self.densityOrder(t.n), function(v,k) { return [k,v]; }),
+          topDensity = _.min(densityOrderAsArray, function(p) { return p[1]; });
+        if (topDensity) { ucscParams[t.n] = topDensity[0]; }
       });
       $ucscLink.attr('href', o.ucscURL + '?' + $.param(ucscParams));
       
@@ -2153,7 +2260,13 @@
         });
       }
       
-      var dna = getFromCache(left, right);
+      var dna;
+      if (o.custom) {
+        o.custom.getSequence(left, right, function(dna) { callback(dna, extraData); });
+        return;
+      } else {
+        dna = getFromCache(left, right);
+      }
       if (dna !== null) { callback(dna, extraData); }
       else {
         this._dnaCallbacks.push({left: left, right: right, fn: callback, extraData: extraData});
