@@ -380,8 +380,7 @@
         $overlayMessage = $(o.overlay[1]);
       self._resetCustomTracks();
       self._removeLines(self.$lines.length, {duration: 0});
-      
-      console.log(options);
+
       o = _.extend(self.options, options);
       
       self._initInstanceVars();

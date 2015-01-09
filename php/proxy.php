@@ -4,8 +4,9 @@
  *
  * To prevent abuse, it only performs GET requests and if a content-type header is fetched,
  * it has to contain "text/plain".  Also, the first line that does not start with # (used for comments)
- * must start with "browser" or "track."  This restricts usage of this proxy to just textual data that
- * looks like a valid UCSC custom track file, which will (hopefully) curb any desire to use it illicitly.
+ * must start with "browser" or "track" or the first part of a GenBank, EMBL, or FASTA file.
+ * This restricts usage of this proxy to just textual data that looks like a valid UCSC custom track file or
+ * a GenBank, EMBL, or FASTA file, which will (hopefully) curb any desire to use it illicitly.
  **/
 function forbidden() { header('HTTP/1.1 403 Forbidden'); exit; }
 
@@ -18,10 +19,11 @@ function bigformat_track_def($url, $type) {
   exit;
 }
 
-// Determines if the $buffer looks like the beginning of a valid custom track file for the UCSC browser.
+// Determines if the $buffer looks like the beginning of a valid custom track file for the UCSC browser,
+// or a plausible GenBank, EMBL, or FASTA file
 function is_track($buffer) {
   $body_first = ltrim(preg_replace('/^#.*$/m', '', $buffer));       // discard inital whitespace and comment lines
-  $is_track = preg_match('/^(browser|track)\\s/', $body_first)===1;
+  $is_track = preg_match('/^(browser|track|LOCUS|[A-Z]{2} {3}|[>;])\\s/', $body_first)===1;
   if (!$is_track && strlen($body_first) < 7) { return NULL; }       // haven't received enough data to make a ruling
   return $is_track;
 }

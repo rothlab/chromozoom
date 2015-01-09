@@ -411,8 +411,6 @@
         
         if (firstContig.source) { o.species = firstContig.source[0].organism.split("\n")[0]; }
         if (firstContig.date) { o.assemblyDate = firstContig.date; }
-        
-        console.log(self.data);
       }
       
     },
