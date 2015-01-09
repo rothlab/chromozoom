@@ -117,8 +117,8 @@
   
   CustomGenome.defaults = {
     // The following keys should be overridden while parsing the genome file
-    genome: 'custom',
-    species: 'Custom Genome',
+    genome: '_blank',
+    species: 'Blank Genome',
     assemblyDate: '',
     tileDir: null,
     overzoomBppps: [],
@@ -409,7 +409,7 @@
         self.data.sequence = self.data.sequence.join('');
         self.format().createTracksFromFeatures();
         
-        if (firstContig.source) { o.species = firstContig.source[0].organism.split("\n")[0]; }
+        o.species = firstContig.source ? firstContig.source[0].organism.split("\n")[0] : 'Custom Genome';
         if (firstContig.date) { o.assemblyDate = firstContig.date; }
       }
       

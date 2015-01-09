@@ -1210,6 +1210,8 @@
           url = $.trim($url.val());
         if (!url.length) { return; }
         $spinner.show();
+        $overlay.show();
+        $overlayMessage.show().text('Loading custom genome...');
         $.ajax(url, {
           success: function(data) {
             CustomGenomes.parseAsync(data, {url: url}, function(genome) {
@@ -1238,8 +1240,11 @@
         $overlay = $(o.overlay[0]),
         $overlayMessage = $(o.overlay[1]),
         $customPicker = $(o.trackPicker[3]),
-        $urlInput = $customPicker.find('[name=customUrl]'),
-        $urlGet = $customPicker.find('[name=customUrlGet]'),
+        $genomeDialog = $(o.dialogs[5]).closest('.ui-dialog'),
+        $trackUrlInput = $customPicker.find('[name=customUrl]'),
+        $trackUrlGet = $customPicker.find('[name=customUrlGet]'),
+        $genomeUrlInput = $genomeDialog.find('[name=genomeUrl]'),
+        $genomeUrlGet = $genomeDialog.find('[name=genomeUrlGet]'),
         sessionVars = {},
         trackSpec;
       
@@ -1257,21 +1262,30 @@
         });
       });
       params = params || _.extend({}, sessionVars, $.urlParams());
-      
+            
       if (suppressRepeat && self._lastParams && _.isEqual(self._lastParams, params)) { return; }
       self._lastParams = _.clone(params);
       
       self._customTrackUrls.requested = _.union(self._customTrackUrls.requested, params.customTracks || []);
       var unprocessedUrls = _.difference(self._customTrackUrls.requested, self._customTrackUrls.processing);
       
-      // TODO: If the params specify a genome that is not the current genome, load it now
+      // We need to load a custom genome
+      if (params.db != o.genome) {
+        if (/^url:/.test(params.db)) {
+          $genomeUrlInput.val(params.db.substr(4));
+          $genomeUrlGet.click();
+          return;
+        }
+        // self._nextDirectives = params;
+      }
       
-      // If there are custom track URLs somewhere in the parameters that have not been processed yet...
+      // If there are custom track URLs somewhere in the parameters that have not been processed yet
+      // they need to be loaded before we can make sense of the rest of the params
       if (unprocessedUrls.length) {
-        // they need to be loaded before we can make sense of the rest of the params
+        
         $overlay.show();
         $overlayMessage.show().text('Loading custom track...');
-        $urlInput.val(unprocessedUrls[0]); $urlGet.click();
+        $trackUrlInput.val(unprocessedUrls[0]); $trackUrlGet.click();
         // This should have added the URL to self._customTrackUrls.processing, so it will not be submitted again
         self._nextDirectives = params;
       } else {
