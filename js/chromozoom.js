@@ -369,7 +369,7 @@
       $(window).trigger('resize', function() { self._initFromParams(null, true); });
     },
     
-    // Called when a new options object is passed in
+    // Called when a new options object is passed in, typically after a custom genome is loaded
     _setOptions: function(options) {
       var self = this,
         $elem = self.element,
@@ -377,7 +377,8 @@
         tracksToParse,
         finishSetupAfterParsing,
         $overlay = $(o.overlay[0]),
-        $overlayMessage = $(o.overlay[1]);
+        $overlayMessage = $(o.overlay[1]),
+        nextDirectives = _.extend({}, self._nextDirectives);
       self._resetCustomTracks();
       self._removeLines(self.$lines.length, {duration: 0});
 
@@ -408,7 +409,10 @@
         self._updateGenomes();
       
         $overlay.add($overlayMessage).hide();
-        $(window).trigger('resize');
+        $(window).trigger('resize', function() { 
+          self._nextDirectives = {};
+          if (_.keys(nextDirectives).length) { self._initFromParams(nextDirectives); }
+        });
       }
       
       if (tracksToParse.length > 0) {
@@ -1274,9 +1278,9 @@
         if (/^url:/.test(params.db)) {
           $genomeUrlInput.val(params.db.substr(4));
           $genomeUrlGet.click();
+          self._nextDirectives = params;
           return;
         }
-        // self._nextDirectives = params;
       }
       
       // If there are custom track URLs somewhere in the parameters that have not been processed yet
