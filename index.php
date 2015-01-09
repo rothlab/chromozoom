@@ -374,11 +374,13 @@ chr3 2000000</textarea>
       <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="custom-genome-dialog-cont">
         <div id="custom-genome-dialog" class="ui-dialog-content ui-widget-content">
           <div class="help-line">
-            <a target="_blank" href="ftp://ftp.ebi.ac.uk/pub/databases/embl/doc/usrman.txt">EMBL</a>,
+            <!--<a target="_blank" href="ftp://ftp.ebi.ac.uk/pub/databases/embl/doc/usrman.txt">EMBL</a>,
             <a target="_blank" href="http://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html">GenBank</a>,
             and <a target="_blank" href="http://en.wikipedia.org/wiki/FASTA_format">FASTA</a>
             are currently supported.<br/>
-            For more details, please see the <a target="_blank" href="docs/#custom-genomes">User Guide.</a>
+            For more details, please see the <a target="_blank" href="docs/#custom-genomes">User Guide.</a>-->
+            <a target="_blank" href="http://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html">GenBank</a>
+              files are supported, FASTA and EMBL are coming soon.
           </div>
           <div class="form-line">
             <div class="spinner"></div><strong>load file: </strong><label></label>
