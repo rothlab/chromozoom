@@ -27,7 +27,7 @@ function is_track($buffer) {
   if (!$is_track && strlen($body_first) < 7) { return NULL; }       // haven't received enough data to make a ruling
   return $is_track;
 }
- 
+
 if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { forbidden(); }
 
 // First check if this is actually a bigBed, bigWig, or vcfTabix file
@@ -68,15 +68,18 @@ function receive_body($ch, $body_data) {
   global $header, $header_parsed, $is_track, $body_buffer;
   $len = strlen($body_data);
   $content_type = NULL;
+  $content_length = NULL;
   $header_lines = preg_split('/[\\r\\n]+/', $header);
   foreach ($header_lines as $index=>$line) {
     if (preg_match('/^\\s*Content-Type\\s*:\\s*(.*)/i', $line, $matches)) { $content_type = $matches[1]; }
+    if (preg_match('/^\\s*Content-Length\\s*:\\s*(.*)/i', $line, $matches)) { $content_length = $matches[1]; }
   }
   if ($content_type !== NULL && strpos($content_type, 'text/plain')===FALSE) { 
     if (!headers_sent()) { forbidden(); }
     return $len;
   }
-  if (!headers_sent()) { header('Content-Type: ' . $content_type); }
+  if (!headers_sent() && $content_type !== NULL) { header('Content-Type: ' . $content_type); }
+  if (!headers_sent() && $content_length !== NULL) { header('Content-Length: ' . $content_length); }
   if ($is_track===NULL) {
     $body_buffer .= $body_data;
     $is_track = is_track($body_buffer);

@@ -873,6 +873,19 @@
             o = url;
             url = o.url;
           } else { o.url = url; }
+          
+          // capture and forward progress events from XHR's to o.progress callback
+          o.xhr = (function(_xhr){
+            return function() {
+              var xhr = _.isFunction(_xhr) ? _xhr() : new window.XMLHttpRequest();
+              xhr.addEventListener("progress", function(e) {
+                if (e.lengthComputable && _.isFunction(o.progress)) {
+                  o.progress.call(this, e.loaded, e.total);
+                }
+              }, false);
+              return xhr;
+            };
+          })(o.xhr);
 
           if ( (/get/i.test(o.type) || !o.type) && !/json/i.test(o.dataType) && isExternal(url) ) {
             // Manipulate options so that AJAX request gets sent to our proxy
@@ -1224,6 +1237,11 @@
               $url.val('');
               $genomeDialog.fadeOut();
             });
+          },
+          progress: function(loaded, total) {
+            var $progress = $overlayMessage.find('.ui-progressbar');
+            if (!$progress.length) { $progress = $('<div/>').appendTo($overlayMessage).progressbar(); }
+            $progress.progressbar('value', loaded/total * 100);
           },
           error: function() {
             $overlay.hide();
