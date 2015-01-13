@@ -664,9 +664,10 @@
         feature.fullLocation = fullLocation = fullLocation.join('');
         locationPositions = _.map(_.filter(fullLocation.split(/\D+/), _.identity), parseInt10);
         feature.chromStart =  _.min(locationPositions);
-        feature.chromEnd = _.max(locationPositions);
+        feature.chromEnd = _.max(locationPositions) + 1; // Feature table ranges are *inclusive* of the end base
+                                                         // chromEnd columns in BED format are *not*.
         feature.start = chrPos + feature.chromStart;
-        feature.end = chrPos + feature.chromEnd;
+        feature.end = chrPos + feature.chromEnd; 
         feature.strand = /complement/.test(fullLocation) ? "-" : "+";
         
         // Until we merge by gene name, we don't care about these
@@ -730,7 +731,8 @@
           exonFeature.fullLocation.replace(/(\d+)\.\.[><]?(\d+)/g, function(fullMatch, start, end) {
             blocks.push({
               start: chrPos[exonFeature.chrom] + Math.min(start, end), 
-              end: chrPos[exonFeature.chrom] +  Math.max(start, end)
+              // Feature table ranges are *inclusive* of the end base.
+              end: chrPos[exonFeature.chrom] +  Math.max(start, end) + 1
             });
           });
         });
