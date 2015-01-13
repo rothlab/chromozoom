@@ -80,6 +80,9 @@ function receive_body($ch, $body_data) {
   }
   if (!headers_sent() && $content_type !== NULL) { header('Content-Type: ' . $content_type); }
   if (!headers_sent() && $content_length !== NULL) { header('Content-Length: ' . $content_length); }
+  // If the server compresses the content automatically (e.g. mod_deflate), we lose Content-Length
+  // Adding the uncompressed length into another header allows the XHR to know how much content to expect
+  if (!headers_sent() && $content_length !== NULL) { header('X-Content-Length: ' . $content_length); }
   if ($is_track===NULL) {
     $body_buffer .= $body_data;
     $is_track = is_track($body_buffer);

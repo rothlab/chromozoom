@@ -879,8 +879,9 @@
             return function() {
               var xhr = _.isFunction(_xhr) ? _xhr() : new window.XMLHttpRequest();
               xhr.addEventListener("progress", function(e) {
-                if (e.lengthComputable && _.isFunction(o.progress)) {
-                  o.progress.call(this, e.loaded, e.total);
+                var total = e.lengthComputable ? e.total : xhr.getResponseHeader('X-Content-Length');
+                if (total && _.isFunction(o.progress)) {
+                  o.progress.call(this, e.loaded, total);
                 }
               }, false);
               return xhr;
