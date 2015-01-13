@@ -740,6 +740,11 @@
               $overlay.add($overlayMessage).fadeOut();
             });
           },
+          progress: function(loaded, total) {
+            var $progress = $overlayMessage.find('.ui-progressbar');
+            if (!$progress.length) { $progress = $('<div/>').appendTo($overlayMessage).progressbar(); }
+            $progress.progressbar('value', loaded/total * 100);
+          },
           error: function() {
             $overlay.hide();
             $overlayMessage.hide();
