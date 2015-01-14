@@ -28,7 +28,7 @@ function is_track($buffer) {
   return $is_track;
 }
 
-if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { forbidden(); }
+if (!isset($_GET['url']) || !preg_match('#^(https?|ftp)://#', $_GET['url'])) { forbidden(); }
 
 // First check if this is actually a bigBed, bigWig, or vcfTabix file
 // If the corresponding tool returns a exit code of 0, we guess that it is, and proxy back
