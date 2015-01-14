@@ -69,12 +69,14 @@ function receive_body($ch, $body_data) {
   $len = strlen($body_data);
   $content_type = NULL;
   $content_length = NULL;
+  $acao = NULL;
   $header_lines = preg_split('/[\\r\\n]+/', $header);
   foreach ($header_lines as $index=>$line) {
     if (preg_match('/^\\s*Content-Type\\s*:\\s*(.*)/i', $line, $matches)) { $content_type = $matches[1]; }
     if (preg_match('/^\\s*Content-Length\\s*:\\s*(.*)/i', $line, $matches)) { $content_length = $matches[1]; }
+    if (preg_match('/^\\s*Access-Control-Allow-Origin\\s*:\\s*(.*)/i', $line, $matches)) { $acao = $matches[1]; }
   }
-  if ($content_type !== NULL && strpos($content_type, 'text/plain')===FALSE) { 
+  if (($acao === NULL || $acao !== '*') && $content_type !== NULL && strpos($content_type, 'text/plain')===FALSE) {
     if (!headers_sent()) { forbidden(); }
     return $len;
   }
