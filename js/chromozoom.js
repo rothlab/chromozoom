@@ -1304,7 +1304,7 @@
       if (params.db != o.genome) {
         customGenomePieces = params.db.split(':');
         if (customGenomePieces[0] == 'url') {          // It's a URL to a genome file
-          $genomeUrlInput.val(customGenomePieces[1]);
+          $genomeUrlInput.val(customGenomePieces.slice(1).join(':'));
           $genomeUrlGet.click();
           self._nextDirectives = params;
           return;
