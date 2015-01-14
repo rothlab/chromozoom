@@ -96,6 +96,30 @@ function chrSort($rowA, $rowB) {
   return $sizeA < $sizeB ? 1 : -1;
 }
 
+function getAllGenomes() {
+  global $all_genomes_url, $prefix, $big_zips;
+  $genomes = array();
+  $dom = new DOMDocument;
+  @$dom->loadHTML(file_get_contents($all_genomes_url));
+  $xpath = new DOMXPath($dom);
+  $node_list = $xpath->query("//a[starts-with(@href,'$prefix')][contains(@href,'$big_zips')]");
+
+  foreach($node_list as $node) {
+    $genome = array();
+    $genome['name'] = preg_replace('/\/.*$/', '', substr($node->attributes->getNamedItem('href')->nodeValue, strlen($prefix)));
+    $sibling_table = $xpath->query("./ancestor::table[1]/preceding-sibling::table[1]", $node);
+    if ($sibling_table->length == 1) {
+      $genome['species'] = preg_replace('/^[^\x21-\x7E]+|\\s+genome\\s+$/i', '', $sibling_table->item(0)->textContent);
+    }
+    $desc_nodes = $xpath->query("./ancestor::ul[1]/preceding-sibling::p[1]", $node);
+    if ($desc_nodes->length == 1) {
+      $genome['assemblyDate'] = preg_replace('/\\s+\\(\\w+(,\\s+\\w+)?\\):?$|/', '', trim($desc_nodes->item(0)->textContent));
+    }
+    $genomes[] = $genome;
+  }
+  return $genomes;
+}
+
 if (isset($_GET['db'])) {
   // If the db parameter is provided, provide a sorted chrom.sizes file for this genome
   
@@ -164,6 +188,16 @@ if (isset($_GET['db'])) {
     $response['mem'] = memory_get_usage();
     $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $rows));
     
+    if (isset($_GET['meta'])) {
+      foreach (getAllGenomes() as $genome) {
+        if ($genome['name'] == $db) { 
+          $response['species'] = $genome['species'];
+          $response['assemblyDate'] = $genome['assemblyDate']; 
+          break;
+        }
+      }
+    }
+    
   } else {
     $response['error'] = TRUE;
   }
@@ -171,26 +205,7 @@ if (isset($_GET['db'])) {
 } else {
   // Otherwise, return an array of UCSC genome names, and species/assembly dates for each
   // Compare with UCSCClient#list_genomes and UCSCClient#get_species_and_date in lib/ucsc_stitch.rb
-  
-  $dom = new DOMDocument;
-  @$dom->loadHTML(file_get_contents($all_genomes_url));
-  $xpath = new DOMXPath($dom);
-  $node_list = $xpath->query("//a[starts-with(@href,'$prefix')][contains(@href,'$big_zips')]");
-
-  foreach($node_list as $node) {
-    $genome = array();
-    $genome['name'] = preg_replace('/\/.*$/', '', substr($node->attributes->getNamedItem('href')->nodeValue, strlen($prefix)));
-    $sibling_table = $xpath->query("./ancestor::table[1]/preceding-sibling::table[1]", $node);
-    if ($sibling_table->length == 1) {
-      $genome['species'] = preg_replace('/^[^\x21-\x7E]+|\\s+genome\\s+$/i', '', $sibling_table->item(0)->textContent);
-    }
-    $desc_nodes = $xpath->query("./ancestor::ul[1]/preceding-sibling::p[1]", $node);
-    if ($desc_nodes->length == 1) {
-      $genome['assemblyDate'] = preg_replace('/\\s+\\(\\w+(,\\s+\\w+)?\\):?$|/', '', trim($desc_nodes->item(0)->textContent));
-    }
-    $response[] = $genome;
-  }
-  
+  $response = getAllGenomes();
 }
 
 echo json_encode($response);
