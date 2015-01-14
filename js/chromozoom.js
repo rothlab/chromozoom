@@ -2355,7 +2355,7 @@
         speciesParenthetical = o.species.match(/\((.+)\)/),
         $li = $genome.find('li.divider').eq(0).show();
       
-      self._defaultTitle = window.document.title;
+      self._defaultTitle = self._defaultTitle || window.document.title;
       window.document.title = o.species + ' - ' + self._defaultTitle;
       $title.text(o.species.replace(/\s+\(.*$/, '')).attr('title', o.species);
       if (speciesParenthetical) { $('<em class="parenth" />').text(', ' + speciesParenthetical[1]).appendTo($title); }
