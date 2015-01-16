@@ -1,12 +1,8 @@
 <?php
   $REQUIRED_BINARIES = array('tabix', 'bigBedInfo', 'bigBedSummary' ,'bigBedToBed', 'bigWigSummary', 'bigWigInfo');
-  function found_on_path($bin) {
-    $output = array(); $retval = 0;
-    exec("which $bin", $output, $retval);
-    return $retval === 0;
-  }
-  $MISSING_BINARIES = $REQUIRED_BINARIES;//array_filter($REQUIRED_BINARIES, 'found_on_path');
-  
+  include('lib/require_binaries.php');
+  $MISSING_BINARIES = find_and_link_binaries($REQUIRED_BINARIES);
+    
   $genomes = array();
   foreach (glob('*.json') as $filename) {
     $f = file_get_contents($filename);
