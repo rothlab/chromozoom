@@ -1,10 +1,15 @@
 # ChromoZoom
 
-The goal of ChromoZoom is to make genome browsing as effortless as navigating the world on Google Maps,
+The goal of ChromoZoom is to make genome browsing online as effortless as navigating the world on Google Maps,
 while retaining the data density and customizability of UCSC's browser.
 
-To achieve this goal, this project stitches images from the [UCSC Genome Browser](http://genome.ucsc.edu/) 
-into tiles, and presents these tiles via a dynamic web interface called ChromoZoom.
+To achieve this goal, this project takes two approaches: 
+
+- For small genomes and custom tracks: drawing data directly in the browser using [canvas][] and [SVG][]
+- For larger data: stitching images from the [UCSC Genome Browser](http://genome.ucsc.edu/) into tiles
+
+[canvas]: http://en.wikipedia.org/wiki/Canvas_element
+[SVG]: http://en.wikipedia.org/wiki/Scalable_Vector_Graphics
 
 Although the below steps will most directly guide you toward setting up your own instance of ChromoZoom,
 the tiles created by the tile stitcher could conceivably power other visualizations.
@@ -15,7 +20,28 @@ ChromoZoom is free for academic, nonprofit, and personal use.  The source code i
 
 ## Requirements
 
-ChromoZoom was designed to run in a \*NIX environment and has been tested on OS X and Debian Linux.  The web interface should work in any recent version of a modern HTML5-capable web browser (apologies to IE users).
+ChromoZoom was designed to run in a \*NIX environment and has been tested on OS X and Debian Linux.  The web interface should work in any recent version of a modern HTML5-capable web browser (Chrome, Firefox, Safari, IE ≥9).
+
+### To serve the ChromoZoom web interface
+
+ChromoZoom is perfectly functional out of the box for serving a web interface that can load data on small genomes (think megabase size) or custom tracks on top of bare chromosome layouts loaded from UCSC. You will need:
+
+- PHP 5.x + Apache (or another webserver that can run PHP scripts)
+- [libcurl bindings for PHP][10] (included in OS X's default PHP install)
+- If you would like to support the full range of custom tracks, you need the following on your `$PATH`, which during setup will be symlinked into a new directory in this repo called `bin/`:
+    - [`tabix`][11], a generic indexer for TAB-delimited genome position files
+    - The following [Jim Kent binaries for big tracks][12]:
+        - `bigBedInfo`
+        - `bigBedSummary`
+        - `bigBedToBed`
+        - `bigWigSummary`
+        - `bigWigInfo`
+
+Place a checkout of this repo somewhere in your webserver's DOCROOT.  Files under `php/` will need to be executable by the webserver.  Access `index.php` from a web browser to view the ChromoZoom interface.
+
+[10]: http://php.net/manual/en/book.curl.php
+[11]: http://www.htslib.org/download/
+[12]: http://hgdownload.cse.ucsc.edu/admin/exe/
 
 ### To generate tiles
 
@@ -55,26 +81,7 @@ By default, the tile stitcher will scrape the [public UCSC browser](http://genom
 [4]: http://0xcc.net/ruby-bsearch/index.html.en
 [5]: http://htmlentities.rubyforge.org/
 
-### To serve the ChromoZoom web interface
-
-- PHP 5.x + Apache (or another webserver that can run PHP scripts)
-- [libcurl bindings for PHP][10] (included in OS X's default PHP install)
-- If you would like to support the full range of custom tracks, you need the following on your `$PATH`,
-  which during setup will be symlinked into a new directory in this repo called `bin/`:
-    - [tabix][11], a generic indexer for TAB-delimited genome position files
-    - The following [Jim Kent binaries for big tracks][12]:
-        - `bigBedSummary`
-        - `bigBedToBed`
-        - `bigWigSummary`
-        - `bigWigInfo`
-
-Place a checkout of this repo somewhere in your webserver's DOCROOT.  Files under `php/` will need to be executable by the webserver.  After generating tiles and a JSON configuration for your genome of interest (detailed in **Usage**), you will access `index.html` from a web browser to view the ChromoZoom interface.
-
-[10]: http://php.net/manual/en/book.curl.php
-[11]: http://samtools.sourceforge.net/tabix.shtml
-[12]: http://hgdownload.cse.ucsc.edu/admin/exe/
-
-## Usage
+## Using the tile stitcher
 
 All interactions with the tile stitcher are performed via [rake][13].  To check that you have all the above requirements, `cd` into this repo and run
 
@@ -125,7 +132,7 @@ Instructions for creating a mirror of the UCSC browser are [available from UCSC]
 
 For maximum performance, scraping tiles directly from the machine(s) running your local genome browser allows the tile stitcher to call the CGI binaries directly, avoiding the overhead of the network, HTTP, and the Apache server.  If you can run the tile stitcher from the same machine(s) that have the kentsrc CGI binaries, set `cgi_bin_dir` in `ucsc.yaml` to the directory that contains them (e.g., `/var/www/website/cgi-bin`), then set the `scrape_method` to `cgi_bin`.  If you must run the tile stitcher from a different machine, set `cgi_bin` to `local` to scrape your local genome browser using HTTP requests to the `browser_hosts.local` address.
 
-One significant modification we made to our local install of UCSC was to increase the maximum pixel width for images, which decreases the frequency of "seams" in genomic features at closer zoom levels.  A patch is available in `kentsrc-rothlab.patch`.  To apply it, first navigate to the root of the [kentsrc tree][14]:
+One significant modification we made to our local install of UCSC was to increase the maximum pixel width for images, which decreases the frequency of "seams" in genomic features at closer zoom levels.  A patch is available in `kentsrc-rothlab.patch`.  To apply it, first navigate to the root of the [kentsrc tree][15]:
 
     $ cd path/to/kentsrc && ls
 
@@ -137,7 +144,7 @@ if you're in the right place, you should see `build java python src`.  Then,
 
 and re-compile and install the binaries as instructed in `src/product/README.building.source` in the Kent source tree.  Note that our additions are conditional on the `ROTHLAB` environment variable being set when running `make`, as included in the above example.
 
-[14]: http://genome.ucsc.edu/admin/git.html
+[15]: http://genome.ucsc.edu/admin/git.html
 
 ### Installing Tokyo Cabinet for tile storage
 

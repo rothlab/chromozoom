@@ -302,7 +302,7 @@
       verticalDragDeadZone: 12,
       maxNtRequest: 20000,
       bounceMargin: 0.2,
-      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie', '#chrom-sizes-dialog', '#custom-genome-dialog'],
+      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie', '#chrom-sizes-dialog', '#custom-genome-dialog', '#binaries-warning-dialog'],
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
       trackDescURL: 'http://genome.ucsc.edu/cgi-bin/hgTrackUi',
       bpppFormat: function(bppp) { return bppp.toExponential(2).replace(/(\+|-)(\d)$/, '$10$2'); },
@@ -559,6 +559,7 @@
         $title = $genome.find('.title'),
         $toggleBtn = $genome.children('input').eq(0),
         speciesParenthetical = o.species.match(/\((.+)\)/),
+        $binaryWarningDialog = $(o.dialogs[6]),
         $a;
       
       $ul.append('<li class="divider"/>')
@@ -597,6 +598,8 @@
       if ($.cookie('db')===null && $(window).width() > 600 && $(window).height() > 420) { 
         $foot.find('a[href="'+o.dialogs[1]+'"]').click();
       }
+      // Show the uninstalled binaries warning, if it was written into the page
+      if ($binaryWarningDialog.length) { $binaryWarningDialog.trigger('open.genobrowser'); }
     },
         
     _initTrackPicker: function() {

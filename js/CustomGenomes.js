@@ -56,6 +56,12 @@
       return genome;
     },
     
+    blank: function() {
+      var genome = new CustomGenome("chromsizes", {species: "Blank Genome"});
+      genome.parse("blank\t50000");
+      return genome;
+    },
+    
     guessFormat: function(text) {
       if (text.substring(0, 5) == 'LOCUS') { return "genbank"; }
       if (/^[A-Z]{2} {3}/.test(text)) { return "embl"; }
@@ -454,6 +460,8 @@
   // Some of the options for $.ui.genobrowser (all r/t zoom levels) must be set based on the width of the window
   //   They are .bppps, .bpppNumbersBelow, and .initZoom
   //   They do not affect any of the other options set during parsing.
+  //
+  // windowOpts MUST include a property, .width, that is the window.innerWidth
   CustomGenome.prototype.setBppps = function(windowOpts) {
     windowOpts = windowOpts || {};
     
@@ -479,6 +487,8 @@
   // Construct a complete configuration for $.ui.genobrowser based on the information parsed from the genome file
   // which should be mostly in this.opts, excepting those related to zoom levels, which can be set now.
   // (see CustomGenome.defaults above for what a base configuration looks like)
+  //
+  // windowOpts MUST include include the property .width which is the window.innerWidth
   CustomGenome.prototype.options = function(windowOpts) {
     if (!this._parsed) { throw "Cannot generate options before parsing the genome file"; }
     this.setBppps(windowOpts);

@@ -1,4 +1,12 @@
 <?php
+  $REQUIRED_BINARIES = array('tabix', 'bigBedInfo', 'bigBedSummary' ,'bigBedToBed', 'bigWigSummary', 'bigWigInfo');
+  function found_on_path($bin) {
+    $output = array(); $retval = 0;
+    exec("which $bin", $output, $retval);
+    return $retval === 0;
+  }
+  $MISSING_BINARIES = $REQUIRED_BINARIES;//array_filter($REQUIRED_BINARIES, 'found_on_path');
+  
   $genomes = array();
   foreach (glob('*.json') as $filename) {
     $f = file_get_contents($filename);
@@ -14,9 +22,10 @@
       : reset(array_keys($genomes));
     $db = isset($_GET['db']) && isset($genomes[$_GET['db']]) ? $_GET['db'] 
       : (isset($_COOKIE['db']) && $genomes[$_COOKIE['db']] ? $_COOKIE['db'] : $default);
+    $db = preg_match('/^\w+$/', $db) && is_readable("$db.json") ? $db : NULL;
     $ver = isset($genomes[$db]) ? "?v={$genomes[$db]['ver']}" : '';
   } else {
-    exit('No genome configurations have been created; please run `rake` or read the README.');
+    $db = NULL;
   }
 ?><!DOCTYPE html>
 <html>
@@ -146,6 +155,7 @@
         <div id="genome-picker" class="ui-widget ui-widget-content ui-corner-top shadow picker picker-dark"></div>
       </div>
       <a href="#old-msie" style="display: none"></a>
+      <a href="#binaries-warning" style="display: none"></a>
     </div>
     
     <div id="dialogs">
@@ -430,6 +440,29 @@ chr3 2000000</textarea>
         </div>
       </div>
       <![endif]-->
+      <?php if (count($MISSING_BINARIES) > 0): ?>
+      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" tabindex="-1" role="dialog" id="binaries-warning-dialog-cont">
+        <div id="binaries-warning-dialog" class="ui-dialog-content ui-widget-content">
+          <h2 id="binaries-warning">Installing extra binaries</h2>
+          <p>
+            In order for certain features of custom tracks to work, you will need to install the following
+            binaries on PATH for the account that your webserver runs under:
+          </p>
+          <ul>
+            <?php foreach ($MISSING_BINARIES as $bin): ?>
+            <li><?php echo $bin; ?></li>
+            <?php endforeach; ?>
+          </ul>
+          <p>Visit the <a href="http://www.htslib.org/download/">HTSLib</a>
+            and <a href="http://hgdownload.cse.ucsc.edu/admin/exe/">Jim Kent big* tools</a> sites 
+            for download links and installation instructions.
+          </p>
+        </div>
+        <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
+          <button type="button" class="ui-state-default ui-corner-all loading">Proceed anyway</button>
+        </div>
+      </div>
+      <?php endif; ?>
       
     </div>
     
@@ -438,10 +471,12 @@ chr3 2000000</textarea>
   <script type="text/javascript">
     $(function() {
       var genomes = <?php echo json_encode($genomes); ?>;
-      $.ajax(<?php echo json_encode("$db.json$ver"); ?>, {
-        dataType: 'json',
-        success: function(options) { $("#browser").genobrowser($.extend(options, {genomes: genomes})); }
-      });
+    <?php if ($db === NULL): ?>
+      var options = CustomGenomes.blank().options({width: window.innerWidth});
+    <?php else: ?>
+      var options = <?php file_get_contents($db); ?>;
+    <?php endif; ?>
+      $("#browser").genobrowser($.extend(options, {genomes: genomes}));
     });
   </script>
   
