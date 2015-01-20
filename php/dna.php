@@ -21,7 +21,8 @@ function seq_from_fasta($fasta) {
 $ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 $genome_config = array();
 
-$db = isset($_REQUEST['db']) ? $_REQUEST['db'] : 'hg18';
+$db = isset($_POST['db']) ? $_POST['db'] : (isset($_GET['db']) ? $_GET['db'] : NULL);
+if ($db === NULL) { forbidden('db parameter not specified'); }
 if (preg_match('/^ucsc:/', $db)) {
   $db = explode(':', $db);
   $db = preg_replace('/[^a-z0-9]/i', '', $db[1]);

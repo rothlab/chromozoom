@@ -611,6 +611,7 @@
       init: function() {
         this.type('bed').initOpts.call(this);
         this.opts.collapseByGene = this.isOn(this.opts.collapseByGene);
+        this.featureTypeCounts = {};
       },
       
       // parses one feature key + location/qualifiers row from the feature table
@@ -694,6 +695,11 @@
         _.find(qualifiersThatAreNames, function(k) {
           if (feature.qualifiers[k] && feature.qualifiers[k][0]) { return (feature.name = feature.qualifiers[k][0]); }
         });
+        // In the worst case, add a counter to disambiguate features named only by type
+        if (feature.name == feature.type) {
+          if (!this.featureTypeCounts[feature.type]) { this.featureTypeCounts[feature.type] = 1; }
+          feature.name = feature.name + '_' + this.featureTypeCounts[feature.type]++;
+        }
         
         // Find a key that is appropriate for collapsing
         if (this.opts.collapseByGene) {
