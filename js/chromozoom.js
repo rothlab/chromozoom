@@ -2189,15 +2189,20 @@
       $url.val(window.location.href.replace(/\?.*$/, '') + url);
       
       // Also make a URL to the equivalent view in UCSC
-      start = Math.max(Math.round(pos - chr.p), 1);
-      end = Math.min(Math.round(pos - chr.p + self.bpWidth() * self.$lines.length), o.chrLengths[chr.n]);
-      ucscParams = {db: o.genome, position: chr.n + ':' + start + '-' + end};
-      _.each(o.tracks, function(t) { 
-        var densityOrderAsArray = _.map(self.densityOrder(t.n), function(v,k) { return [k,v]; }),
-          topDensity = _.min(densityOrderAsArray, function(p) { return p[1]; });
-        if (topDensity) { ucscParams[t.n] = topDensity[0]; }
-      });
-      $ucscLink.attr('href', o.ucscURL + '?' + $.param(ucscParams));
+      if (!o.custom || (/^ucsc:/).test(o.genome)) {
+        start = Math.max(Math.round(pos - chr.p), 1);
+        end = Math.min(Math.round(pos - chr.p + self.bpWidth() * self.$lines.length), o.chrLengths[chr.n]);
+        ucscParams = {db: o.genome.replace(/^ucsc:|:\d+$/g, ''), position: chr.n + ':' + start + '-' + end};
+        _.each(o.tracks, function(t) { 
+          var densityOrderAsArray = _.map(self.densityOrder(t.n), function(v,k) { return [k,v]; }),
+            topDensity = _.min(densityOrderAsArray, function(p) { return p[1]; });
+          if (topDensity) { ucscParams[t.n] = topDensity[0]; }
+        });
+        $ucscLink.closest('.form-line').show();
+        $ucscLink.attr('href', o.ucscURL + '?' + $.param(ucscParams));
+      } else {
+        $ucscLink.closest('.form-line').hide();
+      }
       
       // Save state in localStorage, sessionStorage, and $.cookie as appropriate
       self.state = state;
