@@ -23,7 +23,8 @@ $genome_config = array();
 
 $db = isset($_REQUEST['db']) ? $_REQUEST['db'] : 'hg18';
 if (preg_match('/^ucsc:/', $db)) {
-  $db = preg_replace('/[^a-z0-9]/i', '', explode(':', $db)[1]);
+  $db = explode(':', $db);
+  $db = preg_replace('/[^a-z0-9]/i', '', $db[1]);
   $genome_config['chr_order'] = json_decode($_REQUEST['chr_order'], TRUE);
   $genome_config['chr_lengths'] = json_decode($_REQUEST['chr_lengths'], TRUE);
   
