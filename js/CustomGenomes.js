@@ -109,7 +109,7 @@
     // it DOES NOT relate to "options" for parsing, or how the genome is being interpreted, or anything like that
     this.opts = _.extend({}, deepClone(this.constructor.defaults), deepClone(format.defaults || {}));
     
-    // this.parseOpts holds information external to the parsed text passed in from the browser (e.g. filename, metadata)
+    // this.metadata holds information external to the parsed text passed in from the browser (e.g. filename, source)
     this.metadata = metadata;
     
     // this.data holds anything additionally parsed from the genome file (metadata, references, etc.)
@@ -117,6 +117,9 @@
     this.data = {
       sequence: "" // the full concatenated sequence for all contigs in this genome, if available
     };
+    
+    // can we call .getSequence on this CustomGenome?
+    this.canGetSequence = false;
     
     if(format.init) { format.init.call(this); }
   }
@@ -413,6 +416,7 @@
         });
         
         self.data.sequence = self.data.sequence.join('');
+        self.canGetSequence = true;
         self.format().createTracksFromFeatures();
         
         o.species = firstContig.source ? firstContig.source[0].organism.split("\n")[0] : 'Custom Genome';

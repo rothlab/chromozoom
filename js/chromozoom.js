@@ -464,6 +464,7 @@
       self._tileFixingEnabled = true;
       self._showReticle = {mouseArea: false, dragging: false, hotKeys: false};
       self._defaultLineMode = $(o.lineMode).find(':checked').val();
+      self._dna = {};
     },
     
     _initSlider: function() {
@@ -1305,7 +1306,7 @@
       
       // We need to load a custom genome
       if (params.db != o.genome) {
-        customGenomePieces = params.db.split(':');
+        customGenomePieces = (params.db || '').split(':');
         if (customGenomePieces[0] == 'url') {          // It's a URL to a genome file
           $genomeUrlInput.val(customGenomePieces.slice(1).join(':'));
           $genomeUrlGet.click();
@@ -2284,7 +2285,6 @@
       var self = this,
         o = self.options,
         chunkSize = o.maxNtRequest;
-      if (!this._dna) { this._dna = {}; }
       if (!this._dnaCallbacks) { this._dnaCallbacks = []; }
       
       function loadedFromAjax(data, statusCode, jqXHR) {
@@ -2336,7 +2336,7 @@
       }
       
       var dna;
-      if (o.custom) {
+      if (o.custom && o.custom.canGetSequence) {
         o.custom.getSequence(left, right, function(dna) { callback(dna, extraData); });
         return;
       } else {

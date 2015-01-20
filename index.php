@@ -470,7 +470,7 @@ chr3 2000000</textarea>
     <?php if ($db === NULL): ?>
       var options = CustomGenomes.blank().options({width: window.innerWidth});
     <?php else: ?>
-      var options = <?php file_get_contents($db); ?>;
+      var options = <?php echo file_get_contents("$db.json"); ?>;
     <?php endif; ?>
       $("#browser").genobrowser($.extend(options, {genomes: genomes}));
     });
