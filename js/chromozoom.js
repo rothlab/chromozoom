@@ -2294,12 +2294,18 @@
       function ajaxLoadDNA() {
         var slots = emptyCacheSlots(self.pos, self.pos + self.bpWidth() * self.$lines.length);
         _.each(slots, function(s) {
-          $.ajax(o.ajaxDir + 'dna.php', {
+          var ajaxOptions = {
             data: {db: o.genome, left: s * chunkSize + 1, right: (s + 1) * chunkSize + 1},
             dataType: 'json',
             success: loadedFromAjax,
             beforeSend: function(jqXHR) { jqXHR._s = s; }
-          });
+          };
+          if (o.custom) {
+            ajaxOptions.type = "POST";
+            ajaxOptions.data.chr_order = JSON.stringify(o.chrOrder);
+            ajaxOptions.data.chr_lengths = JSON.stringify(o.chrLengths);
+          }
+          $.ajax(o.ajaxDir + 'dna.php', ajaxOptions);
           self._dna[s] = false;
         });
       }

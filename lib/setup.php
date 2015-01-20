@@ -17,3 +17,9 @@
   function find_and_link_binaries($bins) {
     return array_filter($bins, 'not_symlinked_or_found_on_path');
   }
+  
+  function where_is_ucsc_yaml() {
+    $ucsc_dist_yaml = dirname(dirname(__FILE__)) . "/ucsc.dist.yaml";
+    $ucsc_yaml = dirname(dirname(__FILE__)) . "/ucsc.yaml";
+    return file_exists($ucsc_yaml) ? $ucsc_yaml : $ucsc_dist_yaml;
+  }

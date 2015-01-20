@@ -2,6 +2,7 @@
 
 header("Content-type: application/json");
 require_once("../lib/spyc.php");
+require_once("../lib/setup.php");
 
 /* Allow calling from the command line, when filling the search cache */
 $php_cli = isset($_SERVER['argv']) && $_SERVER['argc'] >= 3;
@@ -14,7 +15,7 @@ if (!file_exists("../$db.yaml")) {
   exit('{"error":"specified genome does not exist"}');
 }
 $genome_config = Spyc::YAMLLoad("../$db.yaml");
-$ucsc_config = Spyc::YAMLLoad("../ucsc.yaml");
+$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 $serve_tracks = array();
 foreach($genome_config['serve_tracks'] as $trk) {
   $serve_tracks[$trk['n']] = true;

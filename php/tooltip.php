@@ -4,6 +4,7 @@ header("Content-type: application/json");
 header("Cache-control: max-age=172800, public, must-revalidate");
 header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
 require_once("../lib/spyc.php");
+require_once("../lib/setup.php");
 
 function bad_request() {
   header('HTTP/1.1 403 Forbidden');
@@ -12,7 +13,7 @@ function bad_request() {
 
 if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
 $url = $_GET['url'];
-$ucsc_config = Spyc::YAMLLoad("../ucsc.yaml");
+$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 if (strpos($url, $ucsc_config['browser_hosts']['authoritative']) !== 0) { bad_request(); }
 $url = $ucsc_config['browser_hosts']['local'] . substr($url, strlen($ucsc_config['browser_hosts']['authoritative']));
 

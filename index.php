@@ -1,6 +1,6 @@
 <?php
   $REQUIRED_BINARIES = array('tabix', 'bigBedInfo', 'bigBedSummary' ,'bigBedToBed', 'bigWigSummary', 'bigWigInfo');
-  include('lib/require_binaries.php');
+  include('lib/setup.php');
   $MISSING_BINARIES = find_and_link_binaries($REQUIRED_BINARIES);
     
   $genomes = array();

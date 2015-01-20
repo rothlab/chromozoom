@@ -8,12 +8,13 @@ header("Cache-control: max-age=172800, public, must-revalidate");
 header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
 
 require_once("../lib/spyc.php");
+require_once("../lib/setup.php");
 
 function forbidden($err) { header('HTTP/1.1 403 Forbidden'); if (strlen($err)) { echo json_encode(array('error'=>$err)); } exit; }
 
 $response = array();
 
-$ucsc_config = Spyc::YAMLLoad("../ucsc.yaml");
+$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 
 $all_genomes_url = $ucsc_config['data_urls']['all_genomes'];
 $chrom_info_url = $ucsc_config['data_urls']['chrom_info'];
