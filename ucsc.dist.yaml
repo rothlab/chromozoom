@@ -84,6 +84,11 @@ custom_tracks:
         squeeze: 1000
         pack: 100
 
+igb_dirs:
+    - 'http://igbquickload.org/quickload/'
+    - 'https://pakt01.u.hpc.mssm.edu/igb/'
+    - 'https://vanbah01.u.hpc.mssm.edu/igb/'
+
 # The genome configuration options that are more likely to be customized by the user should be put toward the top.
 genome_config_key_order:
     - species
