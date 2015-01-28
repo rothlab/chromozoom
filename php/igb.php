@@ -12,9 +12,9 @@ header("Content-type: application/json");
 
 require_once("../lib/spyc.php");
 require_once("../lib/setup.php");
-require_once("../lib/chrsort.php");
+require_once("../lib/chromsizes.php");
 
-function forbidden($err) { 
+function forbidden($err) {
   header('HTTP/1.1 403 Forbidden'); 
   if (strlen($err)) { echo json_encode(array('error'=>$err)); } 
   exit;
@@ -24,7 +24,7 @@ $response = array();
 
 $ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 
-$default_igb_dirs = array('http://igbquickload.org/quickload/');
+$default_igb_dirs = array('http://igbquickload.org/quickload');
 $default_igb_dirs = isset($ucsc_config['igb_dirs']) ? $ucsc_config['igb_dirs'] : $default_igb_dirs;
 $looks_roman = FALSE;
 
@@ -44,64 +44,49 @@ function checkURLType($url) {
   if (urlExists("$url/contents.txt")) { return 'dir'; }
 }
 
+function getQuickloadDirContents($url, &$response) {
+  $contents = file_get_contents("$url/contents.txt");
+  $response[$url] = array();
+  foreach(explode("\n", $contents) as $line) {
+    $fields = array_slice(explode("\t", $line), 0, 2);
+    if (trim($fields[0]) == '') { continue; }
+    $fields[1] = isset($fields[1]) && trim($fields[1]) != '' ? trim($fields[1]) : $fields[0];
+    $response[$url][$fields[0]] = $fields[1];
+  }
+}
+
 if (isset($_GET['url'])) {
   if (!preg_match('#^(https?|ftp)://#', $_GET['url'])) { forbidden(); }
   $url = preg_replace('#/$#', '', $_GET['url']); // remove trailing slash
   $url_type = checkURLType($url);
   
   if ($url_type == 'genome') {
-    $chrom_sizes = array();
-    $rows = array();
-    $important_chroms = array();
+    $contig_limit = isset($_GET['limit']) ? min(max(intval($_GET['limit']), 50), 500) : 100;
     
-    $fp = fopen($_GET['url'] . "/genome.txt");
-    $last_line = "";
-    while (!feof($fp)) {
-      $chunk = $last_line . fread($fp, 1048576); // want to read 1MB at a time
-      $lines = explode("\n", $chunk);
-      foreach($lines as $i => $line) {
-        if ($i == count($lines) - 1) { $last_line = $line; continue; }
-        else {
-          $chr = processLine($line, $chrom_sizes);
-          if ($chr !== FALSE) { $important_chroms[$chr] = TRUE; }
-        }
-      }
-    }
-    $chr = processLine($line, $chrom_sizes);
-    if ($chr !== FALSE) { $important_chroms[$chr] = TRUE; }
-    fclose($fp);
-    
-    // Throw out everything but the top $contig_limit contigs
-    arsort($chrom_sizes);
-    $orig_chrom_sizes_length = count($chrom_sizes);
-    $biggest_contigs = array_slice($chrom_sizes, 0, $contig_limit);
-    foreach ($biggest_contigs as $chr => $size) {
-      if (!array_key_exists($chr, $important_chroms)) {
-        $rows[] = array($chr, $chrom_sizes[$chr]);
-        $i++;
-        if ($i > $contig_limit) { break; }
-      }
-    }
-    
-    $looks_roman = looksRomanToMe(array_keys($important_chroms));
-    usort($rows, "chrSort");
+    $top_chroms = getTopChromSizes("$url/genome.txt", $contig_limit);
   
-    $response['db'] = $db;
-    $response['limit'] = $contig_limit;
-    $response['skipped'] = $orig_chrom_sizes_length - $i;
-    $response['mem'] = memory_get_usage();
-    $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $rows));
+    if ($top_chroms === FALSE) { 
+      $response['error'] = TRUE;
+    } else {
+      $response['db'] = "igb:$url";
+      $response['limit'] = $contig_limit;
+      $response['skipped'] = $top_chroms['skipped'];
+      $response['mem'] = memory_get_usage();
+      $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
+    }
   } elseif ($url_type == 'dir') {
     // this is a Quickload dir, with a contents.txt
-    $response[$url] = array($nice_names => $genome_directory_names);
+    // parse it and return the genome directories and descriptions
+    getQuickloadDirContents($url, $response);
   } else {
     forbidden();
   }
 } else {
-  // We don't know what we want. get the contents.txts for all default IGB dirs
+  // We don't know what we want.
+  // Get contents.txt for all of the default IGB dirs;
+  // parse them and return the genome directories and descriptions
   foreach ($default_igb_dirs as $igb_dir) {
-    // fetch the contents.txt, parse it...
-    $response[$igb_dir] = array($nice_names => $genome_directory_names);
+    getQuickloadDirContents(preg_replace('#/$#', '', $igb_dir), $response);
   }
 }
 

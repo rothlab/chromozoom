@@ -1149,12 +1149,12 @@ body.row-resizing * {
   width: 500px;
   overflow: visible;
 }
-#chrom-sizes-dialog { overflow: visible; height: 245px; }
+#chrom-sizes-dialog { overflow: visible; height: 268px; }
 #chrom-sizes-dialog textarea { width: 99%; height: 90px; }
 #chrom-sizes-dialog select option.hidden { display: none; }
 #chrom-sizes-dialog .placeholder { color: #ccc; }
 #chrom-sizes-dialog .accordion {
-  height: 200px;
+  height: 260px;
 }
 #chrom-sizes-dialog .accordion p {
   margin: 0 0 0.5em;
@@ -1172,15 +1172,28 @@ body.row-resizing * {
   font-style: italic;
   background: url(loading-sm.gif) no-repeat top 1px right 1px;
 }
-#chrom-sizes-dialog .ucsc-genomes, #chrom-sizes-dialog .input-med {
+#chrom-sizes-dialog .genome-list, #chrom-sizes-dialog .input-med {
   width: 300px;
 }
-#chrom-sizes-dialog .ucsc-genomes, #chrom-sizes-dialog .second-col {
+#chrom-sizes-dialog .genome-list, #chrom-sizes-dialog .second-col {
   float: left;
 }
 #chrom-sizes-dialog .second-col {
   width: 150px;
   margin-left: 10px;
+}
+#chrom-sizes-dialog .igb-dirs, #chrom-sizes-dialog .add-igb-dir {
+  margin-bottom: 2px;
+}
+#chrom-sizes-dialog .igb-dirs select {
+  width: 95%;
+  font-size: 130%;
+}
+#chrom-sizes-dialog .add-igb-dir {
+  display: none;
+}
+#chrom-sizes-dialog .add-igb-dir .url {
+  width: 60%;
 }
 #chrom-sizes-dialog .ui-state-error {
   display: none;

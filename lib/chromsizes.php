@@ -33,7 +33,7 @@ function romanToInt($roman) {
   return $result;
 }
 
-function looksRomanToMe($chrs) {
+function guessIfRoman($chrs) {
   global $looks_roman;
   foreach($chrs as $chr) {
     $roman_chrs += romanToInt(preg_replace(IMPORTANT_CHROMS_PATTERN, '', $chr)) > 0 ? 1 : 0;
@@ -77,4 +77,67 @@ function chrSort($rowA, $rowB) {
   // sizes get sorted in reverse
   if ($sizeA == $sizeB) { return 0; }
   return $sizeA < $sizeB ? 1 : -1;
+}
+
+// Fetches a chrom.sizes file from $chrom_info_url
+// Sorts the contigs by "importance" and then contig length (see chrSort above)
+function getTopChromSizes($chrom_info_url, $contig_limit) {
+  $chrom_sizes = array();
+  $rows = array();
+  $important_chroms = array();
+  
+  $fp = @gzopen($chrom_info_url, 'rb');
+  if ($fp === FALSE) {
+    // Some chromInfo.txt's are not gzipped
+    $fp = @gzopen(preg_replace('/.gz$/', '', $chrom_info_url), 'rb');
+  }
+  if ($fp === FALSE) { return FALSE; }
+    
+  // decompress the gzipped data into a temporary stream
+  $temp_fp = fopen("php://temp", "w+");
+  while(!gzeof($fp)) {
+    fwrite($temp_fp, gzread($fp, 1048576));
+  }
+  gzclose($fp);
+  rewind($temp_fp);
+  
+  $last_line = "";
+  while (!feof($temp_fp)) {
+    $chunk = $last_line . fread($temp_fp, 1048576); // want to read 1MB at a time
+    $lines = explode("\n", $chunk);
+    foreach($lines as $i => $line) {
+      if ($i == count($lines) - 1) { $last_line = $line; continue; }
+      else {
+        $chr = processLine($line, $chrom_sizes);
+        if ($chr !== FALSE) { $important_chroms[$chr] = TRUE; }
+      }
+    }
+  }
+  $chr = processLine($line, $chrom_sizes);
+  if ($chr !== FALSE) { $important_chroms[$chr] = TRUE; }
+  fclose($temp_fp);
+    
+  $i = 0;
+  foreach(array_keys($important_chroms) as $chr) {
+    $rows[] = array($chr, $chrom_sizes[$chr]);
+    $i++;
+    if ($i > $contig_limit) { break; }
+  }
+  
+  // Throw out everything but the top $contig_limit contigs
+  arsort($chrom_sizes);
+  $orig_chrom_sizes_length = count($chrom_sizes);
+  $biggest_contigs = array_slice($chrom_sizes, 0, $contig_limit);
+  foreach ($biggest_contigs as $chr => $size) {
+    if (!array_key_exists($chr, $important_chroms)) {
+      $rows[] = array($chr, $chrom_sizes[$chr]);
+      $i++;
+      if ($i > $contig_limit) { break; }
+    }
+  }
+    
+  guessIfRoman(array_keys($important_chroms));
+  usort($rows, "chrSort");
+  
+  return array("rows" => $rows, "skipped" => $orig_chrom_sizes_length - $i);
 }

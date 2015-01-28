@@ -333,10 +333,10 @@
               <div>
                 <input type="search" name="filterUcscGenome" value="" class="input-med" placeholder="Filter by keyword" />
               </div>
-              <select name="ucscGenome" size="8" class="ucsc-genomes loading">
+              <select name="ucscGenome" size="8" class="genome-list loading">
                 <option>loading...</option>
               </select>
-              <div class="second-col">
+              <div class="ucsc-options second-col">
                 <div class="limit">
                   Load the
                     <select name="limit">
@@ -358,6 +358,50 @@
                 </div>
               </div>
             </div>
+            <h3>Load an IGB Quickload directory</h3>
+            <div>
+              <div class="igb-dirs">
+                <select name="igbDirs">
+                  <option></option>
+                  <option value="">Add a new Quickload URL...</option>
+                </select>
+              </div>
+              <div class="add-igb-dir">
+                <label>
+                  add URL:
+                  <input type="url" name="newIgbDir" class="url" value=""/>
+                  <input type="button" name="loadIgbDir" value="Load"/>
+                  <input type="button" name="cancelLoadIgbDir" value="Cancel"/>
+                </label>
+              </div>
+              <div>
+                <input type="search" name="filterIgbGenome" value="" class="input-med" placeholder="Filter by keyword" />
+              </div>
+              <select name="igbGenome" size="7" class="genome-list loading">
+                <option>loading...</option>
+              </select>
+              <div class="igb-options second-col">
+                <div class="limit">
+                  Load the
+                    <select name="igblimit">
+                      <option>50</option>
+                      <option selected="selected">100</option>
+                      <option>500</option>
+                    </select>
+                  largest contigs
+                </div>
+                <div class="ui-state-error ui-corner-all">
+                  <span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
+                  <span class="contig-load-error">
+                    <strong>Error:</strong> Could not load this genome, sorry!
+                  </span>
+                  <span class="skipped-warning">
+                    <strong>Warning:</strong>
+                    <span class="skipped-num"></span> contigs were too small to be loaded
+                  </span>
+                </div>
+              </div>
+            </div>
             <h3>Or, enter chromosome names and sizes</h3>
             <div>
               <p>One chromosome per line, followed by whitespace, then the size in bp.</p>
@@ -371,7 +415,7 @@ chr3 2000000</textarea>
         </div>
         
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
-          <div class="left contigs-loading"><img src="css/loading-sm.gif" alt="loading"/> Loading from UCSC&hellip;</div>
+          <div class="left contigs-loading"><img src="css/loading-sm.gif" alt="loading"/> Loading contigs&hellip;</div>
           <button type="button" class="ui-state-default ui-corner-all right" name="save">Set chromosomes</button>
           <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
         </div>

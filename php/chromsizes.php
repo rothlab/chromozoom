@@ -52,72 +52,22 @@ function getAllGenomes() {
 
 if (isset($_GET['db'])) {
   // If the db parameter is provided, provide a sorted chrom.sizes file for this genome
-  
   $db = preg_replace('/[^a-zA-Z0-9]/', '', $_GET['db']);
   $contig_limit = isset($_GET['limit']) ? min(max(intval($_GET['limit']), 50), 500) : 100;
   
   $chrom_info_url = sprintf($chrom_info_url, $db);
-  $chrom_info = '';
-  $chrom_sizes = array();
-  $rows = array();
-  $important_chroms = array();
-  $fp = @gzopen($chrom_info_url, 'rb');
-  if ($fp === FALSE) {
-    // Some chromInfo.txt's are not gzipped
-    $fp = @gzopen(preg_replace('/.gz$/', '', $chrom_info_url), 'rb');
-  }
-  if ($fp !== FALSE) {
-    // decompress the gzipped data into a temporary stream
-    $temp_fp = fopen("php://temp", "w+");
-    while(!gzeof($fp)) {
-      fwrite($temp_fp, gzread($fp, 1048576));
-    }
-    gzclose($fp);
-    rewind($temp_fp);
-    
-    $last_line = "";
-    while (!feof($temp_fp)) {
-      $chunk = $last_line . fread($temp_fp, 1048576); // want to read 1MB at a time
-      $lines = explode("\n", $chunk);
-      foreach($lines as $i => $line) {
-        if ($i == count($lines) - 1) { $last_line = $line; continue; }
-        else {
-          $chr = processLine($line, $chrom_sizes);
-          if ($chr !== FALSE) { $important_chroms[$chr] = TRUE; }
-        }
-      }
-    }
-    $chr = processLine($line, $chrom_sizes);
-    if ($chr !== FALSE) { $important_chroms[$chr] = TRUE; }
-    fclose($temp_fp);
-    
-    $i = 0;
-    foreach(array_keys($important_chroms) as $chr) {
-      $rows[] = array($chr, $chrom_sizes[$chr]);
-      $i++;
-      if ($i > $contig_limit) { break; }
-    }
-    // Throw out everything but the top $contig_limit contigs
-    arsort($chrom_sizes);
-    $orig_chrom_sizes_length = count($chrom_sizes);
-    $biggest_contigs = array_slice($chrom_sizes, 0, $contig_limit);
-    foreach ($biggest_contigs as $chr => $size) {
-      if (!array_key_exists($chr, $important_chroms)) {
-        $rows[] = array($chr, $chrom_sizes[$chr]);
-        $i++;
-        if ($i > $contig_limit) { break; }
-      }
-    }
-    
-    looksRomanToMe(array_keys($important_chroms));
-    usort($rows, "chrSort");
+
+  $top_chroms = getTopChromSizes($chrom_info_url, $contig_limit);
   
+  if ($top_chroms === FALSE) { 
+    $response['error'] = TRUE;
+  } else {
     $response['db'] = $db;
     $response['limit'] = $contig_limit;
-    $response['skipped'] = $orig_chrom_sizes_length - $i;
+    $response['skipped'] = $top_chroms['skipped'];
     $response['mem'] = memory_get_usage();
-    $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $rows));
-    
+    $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
+  
     if (isset($_GET['meta'])) {
       foreach (getAllGenomes() as $genome) {
         if ($genome['name'] == $db) { 
@@ -127,9 +77,6 @@ if (isset($_GET['db'])) {
         }
       }
     }
-    
-  } else {
-    $response['error'] = TRUE;
   }
   
 } else {
