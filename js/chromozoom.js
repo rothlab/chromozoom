@@ -2225,7 +2225,7 @@
     // Everytime we move the browser, we have to fetch new click area data.
     // NOTE: This is _.debounce'd in _init()
     _fixClickAreasDebounced: function() {
-      var self = this,
+      var self = this, 
         o = this.options,
         $elem = self.element;
       _.each(o.tracks, function(t) {

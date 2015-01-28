@@ -12,98 +12,47 @@ header("Content-type: application/json");
 
 require_once("../lib/spyc.php");
 require_once("../lib/setup.php");
+require_once("../lib/chrsort.php");
 
-function forbidden($err) { header('HTTP/1.1 403 Forbidden'); if (strlen($err)) { echo json_encode(array('error'=>$err)); } exit; }
+function forbidden($err) { 
+  header('HTTP/1.1 403 Forbidden'); 
+  if (strlen($err)) { echo json_encode(array('error'=>$err)); } 
+  exit;
+}
 
 $response = array();
 
 $ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 
-$default_igb_dirs = isset($ucsc_config['igb_dirs']) ? $ucsc_config['igb_dirs'] : array('http://igbquickload.org/quickload/');
-$important_chroms_pattern = '/^chr(?!Un)/';
+$default_igb_dirs = array('http://igbquickload.org/quickload/');
+$default_igb_dirs = isset($ucsc_config['igb_dirs']) ? $ucsc_config['igb_dirs'] : $default_igb_dirs;
 $looks_roman = FALSE;
 
-function processLine($line, &$chrom_sizes) {
-  global $important_chroms_pattern;
-  $fields = array_slice(explode("\t", $line), 0, 2);
-  if ($fields[0] != '') {
-    $chrom_sizes[$fields[0]] = $fields[1];
-    if (preg_match($important_chroms_pattern, $fields[0])) { return $fields[0]; }
+function urlExists($url) {
+  $file_headers = @get_headers($url);
+  if (!$file_headers || !is_array($file_headers)) { return false; }
+  // get_headers() will follow redirects and return all lines.
+  // We want to search for an HTTP 20x response in a Status-Line of the headers
+  foreach ($file_headers as $header) {
+    if (preg_match('#HTTP/\\d\\.\\d +2\\d\\d +#', trim($header))) { return true; }
   }
-  return FALSE;
+  return false;
 }
 
-function implodeOnTabs($row) {
-  return implode("\t", $row);
-}
-
-function romanToInt($roman) {
-  $romans = array('M' => 1000, 'CM' => 900, 'D' => 500, 'CD' => 400, 'C' => 100, 'XC' => 90, 'L' => 50, 
-      'XL' => 40, 'X' => 10, 'IX' => 9, 'V' => 5, 'IV' => 4, 'I' => 1);
-  $result = 0;
-  
-  foreach ($romans as $key => $value) {
-    while (strpos($roman, $key) === 0) {
-      $result += $value;
-      $roman = substr($roman, strlen($key));
-    }
-  }
-  return $result;
-}
-
-function looksRomanToMe($chrs) {
-  global $important_chroms_pattern;
-  foreach($chrs as $chr) {
-    $roman_chrs += romanToInt(preg_replace($important_chroms_pattern, '', $chr)) > 0 ? 1 : 0;
-  }
-  return $roman_chrs > count($chrs) * 0.8;
-}
-
-// Compare with UCSCClient#chr_sort in lib/ucsc_stitch.rb
-function chrSort($rowA, $rowB) {
-  global $looks_roman, $important_chroms_pattern;
-  list($chrA, $sizeA) = $rowA;
-  list($chrB, $sizeB) = $rowB;
-  $chrA_is_important = preg_match($important_chroms_pattern, $chrA);
-  $chrB_is_important = preg_match($important_chroms_pattern, $chrB);
-  
-  // important chroms always win
-  if ($chrA_is_important && !$chrB_is_important) { return -1; }
-  if (!$chrA_is_important && $chrB_is_important) { return 1; }
-  
-  // if both are important, sort by the number of the chromosome (can be roman)
-  if ($chrA_is_important && $chrB_is_important) {
-    $chrA = preg_replace($important_chroms_pattern, '', $chrA);
-    $chrB = preg_replace($important_chroms_pattern, '', $chrB);
-    if ($looks_roman) {
-      $sizeA = -romanToInt($chrA);
-      $sizeB = -romanToInt($chrB);
-    } else {
-      // if the chromosome doesn't have a number (e.g., chrM or chrX)
-      // we put it at the end and sort by the ASCII value of this character
-      if (preg_match('/^\\d+(\\.\\d+)?(\w+)?/', $chrA, $matches)) { 
-        $sizeA = -floatval($chrA);
-        if (strlen($matches[2]) > 0) { $sizeA -= 0.5; }
-      } else { $sizeA = -1e7 - ord($chrA); }
-      if (preg_match('/^\\d+(\\.\\d+)?(\w+)?/', $chrB, $matches)) { 
-        $sizeB = -floatval($chrB);
-        if (strlen($matches[2]) > 0) { $sizeB -= 0.5; }
-      } else { $sizeB = -1e7 - ord($chrB); }
-    }
-  }
-  
-  // sizes get sorted in reverse
-  if ($sizeA == $sizeB) { return 0; }
-  return $sizeA < $sizeB ? 1 : -1;
+function checkURLType($url) {
+  if (urlExists("$url/genome.txt")) { return 'genome'; }
+  if (urlExists("$url/contents.txt")) { return 'dir'; }
 }
 
 if (isset($_GET['url'])) {
-  if ($this_is_a_genome) {
+  if (!preg_match('#^(https?|ftp)://#', $_GET['url'])) { forbidden(); }
+  $url = preg_replace('#/$#', '', $_GET['url']); // remove trailing slash
+  $url_type = checkURLType($url);
+  
+  if ($url_type == 'genome') {
     $chrom_sizes = array();
     $rows = array();
     $important_chroms = array();
-    
-    // normalize $_GET['url'] for trailing slash
     
     $fp = fopen($_GET['url'] . "/genome.txt");
     $last_line = "";
@@ -142,21 +91,18 @@ if (isset($_GET['url'])) {
     $response['skipped'] = $orig_chrom_sizes_length - $i;
     $response['mem'] = memory_get_usage();
     $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $rows));
-  } else {
+  } elseif ($url_type == 'dir') {
     // this is a Quickload dir, with a contents.txt
-    return array(
-      $url => array($nice_names => $genome_directory_names)
-    )
+    $response[$url] = array($nice_names => $genome_directory_names);
+  } else {
+    forbidden();
   }
 } else {
   // We don't know what we want. get the contents.txts for all default IGB dirs
   foreach ($default_igb_dirs as $igb_dir) {
     // fetch the contents.txt, parse it...
+    $response[$igb_dir] = array($nice_names => $genome_directory_names);
   }
-  return array(
-    $url_1 => array($nice_names => $genome_directory_names),
-    $url_2 => array($nice_names => $genome_directory_names)
-  )
 }
 
 echo json_encode($response);

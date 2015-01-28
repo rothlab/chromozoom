@@ -9,8 +9,13 @@ header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
 
 require_once("../lib/spyc.php");
 require_once("../lib/setup.php");
+require_once("../lib/chromsizes.php");
 
-function forbidden($err) { header('HTTP/1.1 403 Forbidden'); if (strlen($err)) { echo json_encode(array('error'=>$err)); } exit; }
+function forbidden($err) { 
+  header('HTTP/1.1 403 Forbidden'); 
+  if (strlen($err)) { echo json_encode(array('error'=>$err)); } 
+  exit;
+}
 
 $response = array();
 
@@ -20,82 +25,6 @@ $all_genomes_url = $ucsc_config['data_urls']['all_genomes'];
 $chrom_info_url = $ucsc_config['data_urls']['chrom_info'];
 $prefix = parse_url(preg_replace('/%s.*$/', '', $chrom_info_url), PHP_URL_PATH);
 $big_zips = $ucsc_config['data_urls']['big_zips'];
-$important_chroms_pattern = '/^chr(?!Un)/';
-$looks_roman = FALSE;
-
-function processLine($line, &$chrom_sizes) {
-  global $important_chroms_pattern;
-  $fields = array_slice(explode("\t", $line), 0, 2);
-  if ($fields[0] != '') {
-    $chrom_sizes[$fields[0]] = $fields[1];
-    if (preg_match($important_chroms_pattern, $fields[0])) { return $fields[0]; }
-  }
-  return FALSE;
-}
-
-function implodeOnTabs($row) {
-  return implode("\t", $row);
-}
-
-function romanToInt($roman) {
-  $romans = array('M' => 1000, 'CM' => 900, 'D' => 500, 'CD' => 400, 'C' => 100, 'XC' => 90, 'L' => 50, 
-      'XL' => 40, 'X' => 10, 'IX' => 9, 'V' => 5, 'IV' => 4, 'I' => 1);
-  $result = 0;
-  
-  foreach ($romans as $key => $value) {
-    while (strpos($roman, $key) === 0) {
-      $result += $value;
-      $roman = substr($roman, strlen($key));
-    }
-  }
-  return $result;
-}
-
-function looksRomanToMe($chrs) {
-  global $important_chroms_pattern;
-  foreach($chrs as $chr) {
-    $roman_chrs += romanToInt(preg_replace($important_chroms_pattern, '', $chr)) > 0 ? 1 : 0;
-  }
-  return $roman_chrs > count($chrs) * 0.8;
-}
-
-// Compare with UCSCClient#chr_sort in lib/ucsc_stitch.rb
-function chrSort($rowA, $rowB) {
-  global $looks_roman, $important_chroms_pattern;
-  list($chrA, $sizeA) = $rowA;
-  list($chrB, $sizeB) = $rowB;
-  $chrA_is_important = preg_match($important_chroms_pattern, $chrA);
-  $chrB_is_important = preg_match($important_chroms_pattern, $chrB);
-  
-  // important chroms always win
-  if ($chrA_is_important && !$chrB_is_important) { return -1; }
-  if (!$chrA_is_important && $chrB_is_important) { return 1; }
-  
-  // if both are important, sort by the number of the chromosome (can be roman)
-  if ($chrA_is_important && $chrB_is_important) {
-    $chrA = preg_replace($important_chroms_pattern, '', $chrA);
-    $chrB = preg_replace($important_chroms_pattern, '', $chrB);
-    if ($looks_roman) {
-      $sizeA = -romanToInt($chrA);
-      $sizeB = -romanToInt($chrB);
-    } else {
-      // if the chromosome doesn't have a number (e.g., chrM or chrX)
-      // we put it at the end and sort by the ASCII value of this character
-      if (preg_match('/^\\d+(\\.\\d+)?(\w+)?/', $chrA, $matches)) { 
-        $sizeA = -floatval($chrA);
-        if (strlen($matches[2]) > 0) { $sizeA -= 0.5; }
-      } else { $sizeA = -1e7 - ord($chrA); }
-      if (preg_match('/^\\d+(\\.\\d+)?(\w+)?/', $chrB, $matches)) { 
-        $sizeB = -floatval($chrB);
-        if (strlen($matches[2]) > 0) { $sizeB -= 0.5; }
-      } else { $sizeB = -1e7 - ord($chrB); }
-    }
-  }
-  
-  // sizes get sorted in reverse
-  if ($sizeA == $sizeB) { return 0; }
-  return $sizeA < $sizeB ? 1 : -1;
-}
 
 function getAllGenomes() {
   global $all_genomes_url, $prefix, $big_zips;
@@ -180,7 +109,7 @@ if (isset($_GET['db'])) {
       }
     }
     
-    $looks_roman = looksRomanToMe(array_keys($important_chroms));
+    looksRomanToMe(array_keys($important_chroms));
     usort($rows, "chrSort");
   
     $response['db'] = $db;
