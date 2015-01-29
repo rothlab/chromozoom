@@ -44,6 +44,25 @@ function checkURLType($url) {
   if (urlExists("$url/contents.txt")) { return 'dir'; }
 }
 
+// resolves a relative URL to an absolute one given a base URL
+// from http://stackoverflow.com/questions/4444475/transfrom-relative-path-into-absolute-url-using-php
+function rel2abs($rel, $base) {
+  if (parse_url($rel, PHP_URL_SCHEME) != '') return $rel;
+  if ($rel[0]=='#' || $rel[0]=='?') return $base.$rel;
+
+  extract(parse_url($base));
+
+  $path = preg_replace('#/[^/]*$#', '', $path);
+  if ($rel[0] == '/') $path = '';
+  
+  $abs = "$host$path/$rel";
+  /* replace '//' or '/./' or '/foo/../' with '/' */
+  $re = array('#(/\.?/)#', '#/(?!\.\.)[^/]+/\.\./#');
+  for($n=1; $n>0; $abs=preg_replace($re, '/', $abs, -1, $n)) {}
+
+  return $scheme.'://'.$abs;
+}
+
 function getQuickloadDirContents($url, &$response) {
   $contents = file_get_contents("$url/contents.txt");
   $response[$url] = array();
@@ -53,6 +72,33 @@ function getQuickloadDirContents($url, &$response) {
     $fields[1] = isset($fields[1]) && trim($fields[1]) != '' ? trim($fields[1]) : $fields[0];
     $response[$url][$fields[0]] = $fields[1];
   }
+}
+
+function guessTrackFormat($url) {
+  
+}
+
+function getAnnotsAsTracks($url) {
+  $tracks = array();
+  if (!urlExists($url)) { return $tracks; }
+  $files = new SimpleXMLElement(file_get_contents($url));
+  if (!$files) { return $tracks; }
+  foreach ($files->file as $file) {
+    $track_url = rel2abs((string) $file['name'], $url);
+    $track = array(
+      "name" => (string) ($file['title'] ? $file['title'] : $file['name']),
+      "description" => (string) $file['description']
+    );
+    if ($file['url']) {
+      $track['url'] = rel2abs((string) $file['url'], $url);
+    }
+    if ((string) $file['url'] == 'Whole Sequence') {
+      // We could use this as an option to inline tracks
+    }
+    
+    array_push($tracks, $track);
+  }
+  return $tracks;
 }
 
 if (isset($_GET['url'])) {
@@ -76,6 +122,7 @@ if (isset($_GET['url'])) {
       
       // TODO: $response['species'], $response['assemblyDate']
       // TODO: Get stuff from annots.xml into $response somehow
+      $response['tracks'] = getAnnotsAsTracks("$url/annots.xml");
       
     }
   } elseif ($url_type == 'dir') {
