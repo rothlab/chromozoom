@@ -75,7 +75,8 @@ function getQuickloadDirContents($url, &$response) {
 }
 
 function guessTrackFormat($url) {
-  
+  $path = parse_url($url, PHP_URL_PATH);
+  $file_ext = array_pop(explode('.', basename($path)));
 }
 
 function getAnnotsAsTracks($url) {
@@ -93,9 +94,9 @@ function getAnnotsAsTracks($url) {
       $track['url'] = rel2abs((string) $file['url'], $url);
     }
     if ((string) $file['url'] == 'Whole Sequence') {
-      // We could use this as an option to inline tracks
+      // We could use this as an option to forcibly inline track data
     }
-    
+
     array_push($tracks, $track);
   }
   return $tracks;
