@@ -2141,7 +2141,10 @@
           e.originalEvent.axis == 2 && -e.originalEvent.detail],
         userAgent = navigator && navigator.userAgent,
         adjust = [[(/chrome/i), 0.06], [(/safari/i), 0.03], [(/opera|msie/i), 0.01]];
-      if ($(e.target).closest('.picker').length) { return; }            // You can scroll the track pickers
+        
+      // You can scroll the track pickers, select boxes, and textareas
+      if ($(e.target).closest('.picker,select,textarea').length) { return; }
+      
       self.element.find('.drag-cont').stop();                           // Stop any current inertial scrolling
       if (_.isUndefined(self._wheelDelta)) { self._wheelDelta = 0; }
       $.tipTip.hide();                                                  // Hide any tipTips showing

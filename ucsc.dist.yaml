@@ -84,6 +84,7 @@ custom_tracks:
         squeeze: 1000
         pack: 100
 
+# IGB Quickload directories that will show up as default sources the user can choose from
 igb_dirs:
     - 'http://igbquickload.org/quickload'
     #- 'https://pakt01.u.hpc.mssm.edu/igb/'
