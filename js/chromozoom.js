@@ -1098,7 +1098,7 @@
         } else {
           $chromSizesDialog.find('[name=chromsizes]').val(data.chromsizes);
           $chromSizesDialog.find('[name=name]').val(data.db);
-          $chromSizesDialog.data('loadedFromUCSC', data);
+          $chromSizesDialog.data('genomeMetadata', data);
           $chromSizesDialog.find('[name=save]').button('enable').addClass('glowing');
           if (data.skipped) {
             $panel.find('.skipped-num').text(data.skipped);
@@ -1236,20 +1236,28 @@
         $chromSizesDialog.find('[name=save]').button('enable');
         _.defer(function() { $this.select(); });
       });
-      $chromSizesDialog.find('[name=save]').click(function(e, choseUCSC) { 
+      $chromSizesDialog.find('[name=save]').click(function(e, chose) { 
         var metadata = { format: 'chromsizes' },
-          loadedFromUCSC = $chromSizesDialog.data('loadedFromUCSC'),
+          remoteMetadata = $chromSizesDialog.data('genomeMetadata'),
+          activeAccordion = $chromSizesDialog.find('.ui-accordion').accordion('option', 'active'),
+          choseWhatSource = ['ucsc', 'igb', 'chromsizes'],
           origMetadata, $origOption, genome;
-        choseUCSC = choseUCSC || $chromSizesDialog.find('.ui-accordion').accordion('option', 'active') === 0;
-        if (choseUCSC) {
+        chose = chose || choseWhatSource[activeAccordion];
+        if (chose == 'ucsc' || chose == 'igb') {
           // This is an unaltered set of chromosome sizes pulled from UCSC
-          chromSizes = loadedFromUCSC.chromsizes;
-          metadata.name = loadedFromUCSC.db;
-          $origOption = $chromSizesDialog.find('[name=ucscGenome] > option[value='+metadata.name+']');
-          origMetadata = loadedFromUCSC.species ? loadedFromUCSC : $origOption.data('metadata');
+          chromSizes = remoteMetadata.chromsizes;
+          metadata.name = remoteMetadata.db;
+          origMetadata = remoteMetadata;
+          if (chose == 'ucsc') {
+            $origOption = $chromSizesDialog.find('[name=ucscGenome] > option[value='+metadata.name+']');
+            if (!remoteMetadata.species) { origMetadata = $origOption.data('metadata'); }
+            metadata.ucsc = metadata.name + ':' + remoteMetadata.limit;
+          } else {
+            // TODO: find some way to get the other metadata/custom track data from annots.xml into metadata
+            metadata.igb = remoteMetadata.limit + ':' + metadata.name;
+          }
           metadata.species = origMetadata.species;
           metadata.assemblyDate = origMetadata.assemblyDate;
-          metadata.ucsc = metadata.name + ':' + loadedFromUCSC.limit;
         } else {
           chromSizes = $chromSizesDialog.find('[name=chromsizes]').val();
           metadata.name = $chromSizesDialog.find('[name=name]').val();
@@ -1384,8 +1392,12 @@
         $trackUrlGet = $customPicker.find('[name=customUrlGet]'),
         $genomeUrlInput = $genomeDialog.find('[name=genomeUrl]'),
         $genomeUrlGet = $genomeDialog.find('[name=genomeUrlGet]'),
+        remoteGenomeSettings = {
+          ucsc: { url: 'chromsizes.php', messageText: 'from UCSC' },
+          igb: {url: 'igb.php', messageText: 'via IGB Quickload' }
+        },
         sessionVars = {},
-        customGenomePieces, customGenomeName, chromSizes, trackSpec;
+        customGenomePieces, customGenomeName, chromSizes, trackSpec, remote, remoteParams;
       
       function persistentCookie(k, v) { $.cookie(k, v, {expires: 60}); }
       function removeCookie(k) { $.cookie(k, null); }
@@ -1411,25 +1423,31 @@
       // We need to load a custom genome
       if (params.db != o.genome) {
         customGenomePieces = (params.db || '').split(':');
-        if (customGenomePieces[0] == 'url') {          // It's a URL to a genome file
+        remote = remoteGenomeSettings[customGenomePieces[0]];
+        if (customGenomePieces[0] == 'url') {   // It's a URL to a full genome file
           $genomeUrlInput.val(customGenomePieces.slice(1).join(':'));
           $genomeUrlGet.click();
           self._nextDirectives = params;
           return;
-        } else if (customGenomePieces[0] == 'ucsc') {  // It's a genome stored at UCSC
+        } else if (remote) {
+          // It's a genome stored at UCSC or in an IGB Quickload directory
           $overlay.show();
-          $overlayMessage.show().text('Loading genome from UCSC...');
-          $.ajax(o.ajaxDir+'chromsizes.php', {
-            data: { db: customGenomePieces[1], limit: customGenomePieces[2], meta: 1 },
+          $overlayMessage.show().text('Loading genome ' + remote.messageText + '...');
+          if (customGenomePieces[0] == 'ucsc') {
+            remoteParams = { db: customGenomePieces[1], limit: customGenomePieces[2], meta: 1 };
+          } else { // customGenomePieces[1] == 'igb'
+            remoteParams = { url: customGenomePieces.slice(2).join(':'), limit: customGenomePieces[1] };
+          }
+          
+          $.ajax(o.ajaxDir + remote.url, {
+            data: remoteParams,
             dataType: 'json',
             success: function(data) {
               if (data.error) {
-                $overlayMessage.text('Error loading genome data from UCSC');
+                $overlayMessage.text('Error loading genome data ' + remote.messageText);
               } else {
-                $chromSizesDialog.find('[name=chromsizes]').val(data.chromsizes);
-                $chromSizesDialog.find('[name=name]').val(data.db);
-                $chromSizesDialog.data('loadedFromUCSC', data);
-                $chromSizesDialog.find('[name=save]').trigger('click', [true]);
+                $chromSizesDialog.data('genomeMetadata', data);
+                $chromSizesDialog.find('[name=save]').trigger('click', ['ucsc']);
                 self._nextDirectives = params;
                 return;
               }
@@ -1440,7 +1458,7 @@
           $chromSizesDialog.find('[name=chromsizes]').val(chromSizes);
           customGenomeName = (params.db[6] == ':') ? params.db.substring(7).replace(/\|.*/, '') : '';
           $chromSizesDialog.find('[name=name]').val(customGenomeName);
-          $chromSizesDialog.find('[name=save]').trigger('click', [false]);
+          $chromSizesDialog.find('[name=save]').trigger('click', ['chromsizes']);
           self._nextDirectives = params;
           return;
         }
@@ -1449,7 +1467,6 @@
       // If there are custom track URLs somewhere in the parameters that have not been processed yet
       // they need to be loaded before we can make sense of the rest of the params
       if (unprocessedUrls.length) {
-        
         $overlay.show();
         $overlayMessage.show().text('Loading custom track...');
         $trackUrlInput.val(unprocessedUrls[0]); $trackUrlGet.click();

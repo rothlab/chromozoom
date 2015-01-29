@@ -68,11 +68,15 @@ if (isset($_GET['url'])) {
     if ($top_chroms === FALSE) { 
       $response['error'] = TRUE;
     } else {
-      $response['db'] = "igb:$url";
+      $response['db'] = $url;
       $response['limit'] = $contig_limit;
       $response['skipped'] = $top_chroms['skipped'];
       $response['mem'] = memory_get_usage();
       $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
+      
+      // TODO: $response['species'], $response['assemblyDate']
+      // TODO: Get stuff from annots.xml into $response somehow
+      
     }
   } elseif ($url_type == 'dir') {
     // this is a Quickload dir, with a contents.txt

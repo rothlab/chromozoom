@@ -188,6 +188,10 @@
           o = this.opts;
         o.species = m.species || 'Custom Genome';
         o.assemblyDate = m.assemblyDate || '';
+        
+        // TODO: if metadata also contains custom track data, e.g. from annots.xml
+        // must convert them into items for o.availTracks, o.tracks, and o.trackDesc
+        // The o.availTracks items should contain {customData: tracklines} to be parsed
       },
       
       parse: function(text) {
@@ -210,6 +214,7 @@
     // ===========================================================
     
     fasta: {
+      // TODO
       init: function() {},
       parse: function(text) {}
     },
@@ -426,7 +431,7 @@
     },
     
     embl: {
-      
+      // TODO
     }
     
   };
@@ -448,7 +453,7 @@
   CustomGenome.prototype.setGenomeString = function() {
     var self = this,
       o = self.opts,
-      exceptions = ['file', 'acc', 'url', 'ucsc'],
+      exceptions = ['file', 'igb', 'acc', 'url', 'ucsc'],
       exception = _.find(exceptions, function(v) { return !_.isUndefined(self.metadata[v]); }),
       pieces = [];
     if (exception) { o.genome = exception + ":" + self.metadata[exception]; }
