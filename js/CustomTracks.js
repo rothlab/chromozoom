@@ -2,6 +2,9 @@
   
   // Some utility functions.
 
+  // Parse a track declaration line, which is in the format of:
+  // track name="blah" optname1="value1" optname2="value2" ...
+  // into a hash of options
   function parseDeclarationLine(line, start) {
     var opts = {}, optname = '', value = '', state = 'optname';
     function pushValue(quoting) {

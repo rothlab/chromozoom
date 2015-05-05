@@ -1247,6 +1247,7 @@
           // This is an unaltered set of chromosome sizes pulled from UCSC
           chromSizes = remoteMetadata.chromsizes;
           metadata.name = remoteMetadata.db;
+          metadata.tracks = remoteMetadata.tracks;
           origMetadata = remoteMetadata;
           if (chose == 'ucsc') {
             $origOption = $chromSizesDialog.find('[name=ucscGenome] > option[value='+metadata.name+']');
@@ -1397,7 +1398,7 @@
           igb: {url: 'igb.php', messageText: 'via IGB Quickload' }
         },
         sessionVars = {},
-        customGenomePieces, customGenomeName, chromSizes, trackSpec, remote, remoteParams;
+        customGenomePieces, customGenomeSource, customGenomeName, chromSizes, trackSpec, remote, remoteParams;
       
       function persistentCookie(k, v) { $.cookie(k, v, {expires: 60}); }
       function removeCookie(k) { $.cookie(k, null); }
@@ -1423,8 +1424,9 @@
       // We need to load a custom genome
       if (params.db != o.genome) {
         customGenomePieces = (params.db || '').split(':');
-        remote = remoteGenomeSettings[customGenomePieces[0]];
-        if (customGenomePieces[0] == 'url') {   // It's a URL to a full genome file
+        customGenomeSource = customGenomePieces[0];
+        remote = remoteGenomeSettings[customGenomeSource];
+        if (customGenomeSource == 'url') {   // It's a URL to a full genome file
           $genomeUrlInput.val(customGenomePieces.slice(1).join(':'));
           $genomeUrlGet.click();
           self._nextDirectives = params;
@@ -1433,9 +1435,9 @@
           // It's a genome stored at UCSC or in an IGB Quickload directory
           $overlay.show();
           $overlayMessage.show().text('Loading genome ' + remote.messageText + '...');
-          if (customGenomePieces[0] == 'ucsc') {
+          if (customGenomeSource == 'ucsc') {
             remoteParams = { db: customGenomePieces[1], limit: customGenomePieces[2], meta: 1 };
-          } else { // customGenomePieces[1] == 'igb'
+          } else { // customGenomeSource == 'igb'
             remoteParams = { url: customGenomePieces.slice(2).join(':'), limit: customGenomePieces[1] };
           }
           
@@ -1447,7 +1449,7 @@
                 $overlayMessage.text('Error loading genome data ' + remote.messageText);
               } else {
                 $chromSizesDialog.data('genomeMetadata', data);
-                $chromSizesDialog.find('[name=save]').trigger('click', ['ucsc']);
+                $chromSizesDialog.find('[name=save]').trigger('click', [customGenomeSource]);
                 self._nextDirectives = params;
                 return;
               }
@@ -1866,14 +1868,18 @@
     
     // Turns a string like "chrX:12512" into an bp position from the start of the genome
     normalizePos: function(pos, forceful) {
-      var o = this.options, ret = {}, matches, end;
+      var o = this.options, 
+        ret = {}, 
+        matches, end;
+        
       ret.pos = $.trim(_.isUndefined(pos) ? $(o.jump[0]).val() : pos);
       if (ret.pos === '') { this._searchFor(''); return null; }
+      
       matches = ret.pos.match(/^([a-z]+[a-z0-9_]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
       if (matches && matches[1]) {
         var chr = _.find(o.chrLabels, function(v) { return v.n === matches[1]; });
-        // TODO: if there is a custom genome about to be loaded, don't bother searching
-        if (!chr) { this._searchFor(ret.pos, forceful); return null; }
+        // If this didn't match a real chromosome name, use the first, by default.
+        if (!chr) { chr = _.first(o.chrLabels); }
         this._searchFor('', forceful);
         ret.pos = chr.p + parseInt(matches[3] || '1', 10);
           if (matches[5] == '-') {
@@ -1891,6 +1897,7 @@
             ret.bppp = parseFloat(matches[6]);
           }
       } else { ret.pos = parseInt(pos, 10); }
+      
       return ret;
     },
     

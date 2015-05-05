@@ -10,6 +10,10 @@
   
   function roundToPlaces(num, dec) { return Math.round(num * Math.pow(10, dec)) / Math.pow(10, dec); }
   
+  /****
+   * These functions are common subroutines for parsing GenBank and other formats based on column positions
+   ****/
+  
   // Splits a multiline string before the lines that contain a character in the first column
   // (a "top tag") in a GenBank-style text file
   function topTagsAsArray(field) {
@@ -37,10 +41,20 @@
     return strip(field.substring(0, tagSize).toLowerCase());
   }
   
+  /****
+   * End GenBank and column-based format helpers
+   ****/
+  
+  // Given a hash and a presumptive new key, appends a counter to the key until it is actually an unused key
   function ensureUnique(key, hash) {
     var i = 1, keyCheck = key;
     while (!_.isUndefined(hash[keyCheck])) { keyCheck = key + '_' + i++; }
     return keyCheck;
+  }
+  
+  // Given a hash with option names and values, formats it in BED track line format (similar to HTML element attributes)
+  function optsAsTrackLine(opthash) {
+    return _.map(opthash, function(v, k) { return k + '="' + v.toString().replace(/"/g, '') + '"'; }).join(' ');
   }
   
   // ================================================================
@@ -184,14 +198,40 @@
     
     chromsizes: {
       init: function() {
-        var m = this.metadata,
-          o = this.opts;
+        var self = this,
+          m = self.metadata,
+          o = self.opts;
         o.species = m.species || 'Custom Genome';
         o.assemblyDate = m.assemblyDate || '';
         
         // TODO: if metadata also contains custom track data, e.g. from annots.xml
         // must convert them into items for o.availTracks, o.tracks, and o.trackDesc
         // The o.availTracks items should contain {customData: tracklines} to be parsed
+        if (m.tracks) { self.format().createTracks(m.tracks); }
+      },
+      
+      createTracks: function(tracks) {
+        var self = this,
+          o = self.opts;
+          
+        _.each(tracks, function(t) {
+          t.lines = t.lines || [];
+          t.lines.unshift('track ' + optsAsTrackLine(_.extend({}, t.opts, {name: t.name, type: t.type})) + '\n');
+          o.availTracks.push({
+            fh: {},
+            n: t.name,
+            s: ['dense', 'squish', 'pack'],
+            h: 15,
+            m: ['pack'],
+            customData: t.lines
+          });
+          o.tracks.push({n: t.name});
+          o.trackDesc[t.name] = {
+            cat: "Feature Tracks",
+            sm: t.name,
+            lg: t.description || t.name
+          };
+        });
       },
       
       parse: function(text) {

@@ -25,6 +25,9 @@ $all_genomes_url = $ucsc_config['data_urls']['all_genomes'];
 $chrom_info_url = $ucsc_config['data_urls']['chrom_info'];
 $prefix = parse_url(preg_replace('/%s.*$/', '', $chrom_info_url), PHP_URL_PATH);
 $big_zips = $ucsc_config['data_urls']['big_zips'];
+$track_list_path = $ucsc_config['ucsc_cached_track_lists'];
+$chromozoom_port = $_SERVER["SERVER_PORT"] != 80 ? ":".$_SERVER["SERVER_PORT"] : '';
+$chromozoom_uri = "http://" . $_SERVER["SERVER_NAME"] . $chromozoom_port . dirname(dirname($_SERVER['REQUEST_URI']));
 
 function getAllGenomes() {
   global $all_genomes_url, $prefix, $big_zips;
@@ -50,6 +53,28 @@ function getAllGenomes() {
   return $genomes;
 }
 
+function getTracksForDb($db) {
+  global $track_list_path, $chromozoom_uri;
+  $tracks = array();
+  $track_list_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $track_list_path, $db));  
+  try { 
+    @$track_list_xe = new SimpleXMLElement(file_get_contents($track_list_file)); 
+  } catch (Exception $e) { return $tracks; }
+  foreach ($track_list_xe->trackInfo as $track_info_xe) {
+    $name = (string) $track_info_xe->tableName;
+    $track = array(
+      'name' => $name,
+      'description' => (string) $track_info_xe->shortLabel,
+      'type' => 'bigBed',
+      'opts' => array(
+        'bigDataUrl' => $chromozoom_uri . "/" . dirname($track_list_path) . "/" . "$db.$name.bb"
+      )
+    );
+    $tracks[] = $track;
+  }
+  return $tracks;
+}
+
 if (isset($_GET['db'])) {
   // If the db parameter is provided, provide a sorted chrom.sizes file for this genome
   $db = preg_replace('/[^a-zA-Z0-9]/', '', $_GET['db']);
@@ -67,6 +92,7 @@ if (isset($_GET['db'])) {
     $response['skipped'] = $top_chroms['skipped'];
     $response['mem'] = memory_get_usage();
     $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
+    $response['tracks'] = getTracksForDb($db);
   
     if (isset($_GET['meta'])) {
       foreach (getAllGenomes() as $genome) {

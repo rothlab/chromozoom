@@ -82,7 +82,9 @@ function guessTrackFormat($url) {
 function getAnnotsAsTracks($url) {
   $tracks = array();
   if (!urlExists($url)) { return $tracks; }
-  $files = new SimpleXMLElement(file_get_contents($url));
+  try { 
+    @$files = new SimpleXMLElement(file_get_contents($url));
+  } catch (Exception $e) { return $tracks; }
   if (!$files) { return $tracks; }
   foreach ($files->file as $file) {
     $track_url = rel2abs((string) $file['name'], $url);
@@ -93,8 +95,10 @@ function getAnnotsAsTracks($url) {
     if ($file['url']) {
       $track['url'] = rel2abs((string) $file['url'], $url);
     }
-    if ((string) $file['url'] == 'Whole Sequence') {
+    if ((string) $file['load_hint'] == 'Whole Sequence') {
       // We could use this as an option to forcibly inline track data
+      
+      // For small file formats, we just want to inline it anyway, into $track['lines']
     }
 
     array_push($tracks, $track);

@@ -1,5 +1,6 @@
 bin/
 vendor/
+tracks/
 .bundle/
 docs/examples/wgEncodeBroadHistone*.bigWig
 *.tch
