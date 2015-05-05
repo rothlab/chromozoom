@@ -12,7 +12,8 @@ define('RANGE_PATTERN', '/^(\\w+):(\\d+)-(\\d+)$/');
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
  
-if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
+if (!isset($_GET['url']) || !preg_match('#^(https?|cache)://#', $_GET['url'])) { bad_request(); }
+$_GET['url'] = preg_replace('#^cache://#', dirname(dirname(__FILE__)) . "/", $_GET['url']);
 if (!isset($_GET['range'])) { bad_request(); } 
 else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
 if (!count($ranges)) { bad_request(); }

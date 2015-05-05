@@ -67,7 +67,7 @@ function getTracksForDb($db) {
       'description' => (string) $track_info_xe->shortLabel,
       'type' => 'bigBed',
       'opts' => array(
-        'bigDataUrl' => $chromozoom_uri . "/" . dirname($track_list_path) . "/" . "$db.$name.bb"
+        'bigDataUrl' => "cache://" . dirname($track_list_path) . "/" . "$db.$name.bb"
       )
     );
     $tracks[] = $track;
