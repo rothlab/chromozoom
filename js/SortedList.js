@@ -14,7 +14,7 @@
  *
  *         (function) compare : fucntion to compare two values, 
  *                              which is used for sorting order.
- *                              the same signiture as Array.prototype.sort(fn).
+ *                              the same signature as Array.prototype.sort(fn).
  *                              
  *         (string)   compare : if you'd like to set a common comparison function,
  *                              you can specify it by string:
@@ -48,6 +48,8 @@ function SortedList() {
   if (arr) this.massInsert(arr);
 };
 
+// Binary search for the index of the item equal to `val`, or if no such item exists, the next lower item
+// This can be -1 if `val` is lower than the lowest item in the SortedList
 SortedList.prototype.bsearch = function(val) {
   var mpos,
       spos = 0,
@@ -77,6 +79,10 @@ SortedList.prototype.get = function(pos) {
 SortedList.prototype.toArray = function(pos) {
   return this.arr.slice();
 };
+
+SortedList.prototype.slice = function() {
+  return this.arr.slice.apply(this.arr, arguments);
+}
 
 SortedList.prototype.size = function() {
   return this.arr.length;
@@ -124,6 +130,10 @@ SortedList.prototype["delete"] = function(pos) {
 };
 
 SortedList.prototype.remove = SortedList.prototype["delete"];
+
+SortedList.prototype.massRemove = function(startPos, count) {
+  this.arr.splice(startPos, count);
+};
 
 /**
  * default compare functions 

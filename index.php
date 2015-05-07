@@ -38,6 +38,7 @@
   <script src="js/underscore.min.js"></script>
   <script src="js/jquery.tiptip.js"></script>
   <script src="js/SortedList.js"></script>
+  <script src="js/IntervalMask.js"></script>
   <script src="js/IntervalTree.js"></script>
   <script src="js/CustomTracks.js"></script>
   <script src="js/CustomGenomes.js"></script>

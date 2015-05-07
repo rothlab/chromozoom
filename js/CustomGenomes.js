@@ -215,8 +215,10 @@
           o = self.opts;
           
         _.each(tracks, function(t) {
+          var trackOpts;
           t.lines = t.lines || [];
-          t.lines.unshift('track ' + optsAsTrackLine(_.extend({}, t.opts, {name: t.name, type: t.type})) + '\n');
+          trackOpts = /^track\s+/i.test(t.lines[0]) ? CustomTracks.parseDeclarationLine(t.lines.shift()) : {};
+          t.lines.unshift('track ' + optsAsTrackLine(_.extend(trackOpts, t.opts, {name: t.name, type: t.type})) + '\n');
           o.availTracks.push({
             fh: {},
             n: t.name,

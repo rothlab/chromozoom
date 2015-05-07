@@ -83,6 +83,8 @@
       return customTracks;
     },
     
+    parseDeclarationLine: parseDeclarationLine,
+    
     error: function(e) {
       // Can be overridden by a parent library to handle errors more gracefully.
       console.log(e);
@@ -1247,6 +1249,9 @@
           callback(drawSpec);
         }
       
+        // TODO: Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
+        // estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
+        // TODO: cache results so we aren't refetching the same regions over and over again.
         $.ajax(this.ajaxDir() + 'tabix.php', {
           data: {range: range, url: this.opts.bigDataUrl},
           success: success
@@ -1324,7 +1329,10 @@
       },
       
       parse: function(lines) {
-        var self = this;
+        var self = this,
+          middleishPos = self.browserOpts.genomeSize / 2,
+          cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'});
+        self.data = {cache: cache, mask: new IntervalMask(0, self.browserOpts.genomeSize)};
         self.heights = {max: null, min: 15, start: 15};
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
@@ -1358,12 +1366,23 @@
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
             intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
+            // add() these to an IntervalTree
+            // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
+            // Then search() for all the intervals in the range, iff we had some cached data already.
+            
             calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, density=='pack');
+            
+            // TODO: we need to add a lineNum function here as the last argument so that we can track lines assigned to previously rendered features
+            // Otherwise, features often break between tiles which is ugly and misleading
+            // See function lineNum(d, set) above in the bed format
             drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval);
           }
           callback(drawSpec);
         }
-      
+        
+        // TODO: Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
+        // estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
+        // TODO: cache results so we aren't refetching the same regions over and over again.
         $.ajax(this.ajaxDir() + 'bigbed.php', {
           data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
           success: success
