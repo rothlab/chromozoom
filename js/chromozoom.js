@@ -1395,7 +1395,7 @@
         $genomeUrlGet = $genomeDialog.find('[name=genomeUrlGet]'),
         remoteGenomeSettings = {
           ucsc: { url: 'chromsizes.php', messageText: 'from UCSC' },
-          igb: {url: 'igb.php', messageText: 'via IGB Quickload' }
+          igb: { url: 'igb.php', messageText: 'via IGB Quickload' }
         },
         sessionVars = {},
         customGenomePieces, customGenomeSource, customGenomeName, chromSizes, trackSpec, remote, remoteParams;
