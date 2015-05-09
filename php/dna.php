@@ -30,6 +30,11 @@ if (preg_match('/^ucsc:/', $db)) {
   $genome_config['chr_lengths'] = json_decode($_REQUEST['chr_lengths'], TRUE);
   
   $dna_url = $ucsc_config['browser_hosts']['authoritative'] . $ucsc_config['browser_urls']['dna'];
+  
+  
+  // TODO: add option for pulling from IGB genomes (.2bit files) with twoBitToFa
+
+
 } else {
   // local, tile-scraped genome
   $db = preg_replace('/[^a-z0-9]/i', '', $db);
