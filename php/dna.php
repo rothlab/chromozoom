@@ -9,6 +9,8 @@ header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
 require_once("../lib/spyc.php");
 require_once("../lib/setup.php");
 
+$REQ = $_SERVER['REQUEST_METHOD'] == 'POST' ? $_POST : $_GET;
+
 function forbidden($err) { header('HTTP/1.1 403 Forbidden'); if (strlen($err)) { echo json_encode(array('error'=>$err)); } exit; }
 
 $ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
@@ -23,12 +25,12 @@ function seq_from_fasta($fasta) {
 }
 
 function load_genome_layout_from_request() {
-  global $genome_config;
-  $genome_config['chr_order'] = json_decode($_REQUEST['chr_order'], TRUE);
-  $genome_config['chr_lengths'] = json_decode($_REQUEST['chr_lengths'], TRUE);
+  global $genome_config, $REQ;
+  $genome_config['chr_order'] = json_decode($REQ['chr_order'], TRUE);
+  $genome_config['chr_lengths'] = json_decode($REQ['chr_lengths'], TRUE);
 }
 
-$db = isset($_POST['db']) ? $_POST['db'] : (isset($_GET['db']) ? $_GET['db'] : NULL);
+$db = isset($REQ['db']) ? $REQ['db'] : NULL;
 if ($db === NULL) { forbidden('db parameter not specified'); }
 if (preg_match('/^ucsc:/', $db)) {
   $db = explode(':', $db);
@@ -53,14 +55,16 @@ if (preg_match('/^ucsc:/', $db)) {
 }
 
 // This UCSC CGI expects 0-based coordinates
-$left = max(intval($_REQUEST['left']) - 1, 0);
-$right = max(intval($_REQUEST['right']) - 1, 0);
+$left = max(intval($REQ['left']) - 1, 0);
+$right = max(intval($REQ['right']) - 1, 0);
 
 $max_length = isset($genome_config['max_nt_request']) ? $genome_config['max_nt_request'] : 20000;
 if ($right - $left <= 0 || $right - $left > $max_length) { forbidden('invalid segment length'); }
 
 $chr_order = $genome_config['chr_order'];
 $chr_lengths = $genome_config['chr_lengths'];
+
+if (!$chr_order) { forbidden('chr_order is not set and could not be loaded'); }
 
 $pos = 0;
 $queries = array();
@@ -81,7 +85,7 @@ foreach($queries as $query) {
     $fasta = shell_exec("$TWOBIT_BIN $opts " . escapeshellarg($twobit_url) . " /dev/stdout");
     $ret['cmd'] = "$TWOBIT_BIN $opts " . escapeshellarg($twobit_url) . " /dev/stdout";
   }
-  if (!isset($twobit_url) || $fasta === NULL) {
+  if ((!isset($twobit_url) || $fasta === NULL) && isset($dna_url)) {
     $fasta = file_get_contents(vsprintf($dna_url, array_map('urlencode', $query)));
     $fasta = preg_replace('/.*<PRE>|<\\/PRE>.*/s', '', $fasta);
     $ret['url'] = vsprintf($dna_url, array_map('urlencode', $query));
