@@ -11,6 +11,10 @@ require_once("../lib/setup.php");
 
 function forbidden($err) { header('HTTP/1.1 403 Forbidden'); if (strlen($err)) { echo json_encode(array('error'=>$err)); } exit; }
 
+$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
+$genome_config = array();
+$TWOBIT_BIN = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/twoBitToFa');  
+
 function is_seq_line($line) { return !preg_match('/^(<\\/?PRE>|>.*|)$/', $line); }
 
 function seq_from_fasta($fasta) { 
@@ -18,23 +22,26 @@ function seq_from_fasta($fasta) {
   return implode('', $seq_lines); 
 }
 
-$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
-$genome_config = array();
+function load_genome_layout_from_request() {
+  global $genome_config;
+  $genome_config['chr_order'] = json_decode($_REQUEST['chr_order'], TRUE);
+  $genome_config['chr_lengths'] = json_decode($_REQUEST['chr_lengths'], TRUE);
+}
 
 $db = isset($_POST['db']) ? $_POST['db'] : (isset($_GET['db']) ? $_GET['db'] : NULL);
 if ($db === NULL) { forbidden('db parameter not specified'); }
 if (preg_match('/^ucsc:/', $db)) {
   $db = explode(':', $db);
   $db = preg_replace('/[^a-z0-9]/i', '', $db[1]);
-  $genome_config['chr_order'] = json_decode($_REQUEST['chr_order'], TRUE);
-  $genome_config['chr_lengths'] = json_decode($_REQUEST['chr_lengths'], TRUE);
+  load_genome_layout_from_request();
   
   $dna_url = $ucsc_config['browser_hosts']['authoritative'] . $ucsc_config['browser_urls']['dna'];
-  
-  
-  // TODO: add option for pulling from IGB genomes (.2bit files) with twoBitToFa
-
-
+  $twobit_url = sprintf($ucsc_config['data_urls']['twobit'], $db, $db); // Prefer loading from 2bit, if available
+} elseif (preg_match('/^igb:\d+:/', $db)) {
+  $db = array_pop(explode(':', $db, 3));
+  $db_folder = array_pop(explode('/', preg_replace('#/+$#', '', $db)));
+  $twobit_url = "$db/$db_folder.2bit";
+  load_genome_layout_from_request();
 } else {
   // local, tile-scraped genome
   $db = preg_replace('/[^a-z0-9]/i', '', $db);
@@ -69,9 +76,16 @@ $pad_end = max($right - $pos, 0); // if we requested past the end of the genome
 
 $ret['seq'] = '';
 foreach($queries as $query) {
-  $fasta = file_get_contents(vsprintf($dna_url, array_map('urlencode', $query)));
-  $fasta = preg_replace('/.*<PRE>|<\\/PRE>.*/s', '', $fasta);
-  $ret['url'] = vsprintf($dna_url, array_map('urlencode', $query));
+  if (isset($twobit_url)) {
+    $opts = vsprintf("-seq=%s -start=%s -end=%s", array_map('escapeshellarg', array_slice($query, 1)));
+    $fasta = shell_exec("$TWOBIT_BIN $opts " . escapeshellarg($twobit_url) . " /dev/stdout");
+    $ret['cmd'] = "$TWOBIT_BIN $opts " . escapeshellarg($twobit_url) . " /dev/stdout";
+  }
+  if (!isset($twobit_url) || $fasta === NULL) {
+    $fasta = file_get_contents(vsprintf($dna_url, array_map('urlencode', $query)));
+    $fasta = preg_replace('/.*<PRE>|<\\/PRE>.*/s', '', $fasta);
+    $ret['url'] = vsprintf($dna_url, array_map('urlencode', $query));
+  }
   $ret['seq'] .= seq_from_fasta($fasta);
 }
 $ret['seq'] .= str_repeat('-', $pad_end);

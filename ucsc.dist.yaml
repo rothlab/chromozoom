@@ -77,6 +77,7 @@ data_urls:
     big_zips: 'bigZips'
     chrom_info: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/chromInfo.txt.gz'
     cyto_band: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/cytoBand.txt.gz'
+    twobit: 'http://hgdownload-test.cse.ucsc.edu/goldenPath/%s/bigZips/%s.2bit'
 
 # 
 custom_tracks:
