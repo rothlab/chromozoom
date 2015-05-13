@@ -1834,16 +1834,18 @@
         });
         heights = _.map(heights, function(v, i) {
           var deltaY;
-          v[1] = v[1] == 0 ? 1000000 : v[1]; // effectively, never show 0 height tiles
+          v[2] = v[1] == 0;
+          v[1] = v[2] ? 1000000 : v[1];      // effectively, never show 0 height tiles
           deltaY = height - v[1];
                                              // this is where the 3x bias toward the taller density is inserted
           v[1] = (forceAt[v[0]] && height > forceAt[v[0]][0]) ? forceAt[v[0]][1] : (deltaY > 0 ? deltaY * 3 : -deltaY);
           v[1] -= i * 0.1;                   // marginally prioritize more detailed tracks in the event of ties
           return v; 
         });
-        heights.sort(function(a,b){ return a[1] - b[1]; });
+        heights.sort(function(a, b){ return a[1] - b[1]; });
         _.each(heights, function(v) { order[v[0]] = ++i; });
-        order[base] = ++i;
+        // Unless all of the other densities were 0 height tiles, make the base density last priority.
+        if (heights.length - _.compact(_.pluck(heights, '2')).length > 1) { order[base] = ++i; }
       }
       self._densityOrder[t.n] = order;
       self._densityOrderFor[t.n] = orderFor;
@@ -3771,6 +3773,9 @@
         $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
         $canvas.removeClass('unrendered').addClass('no-areas');
         e.data.self.fixClickAreas();
+        // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it.
+        // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoom in to see more
+        if ($canvas.hasClass('too-many') && $canvas.hasClass('dens-squish')) { $canvas.parent().addClass('too-many'); }
         _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
         $canvas.data('rendering', false);
       });

@@ -550,8 +550,11 @@
             ctx.fillRect(pInt.x, 1, pInt.w, 13);
           });
         } else {
-          if (drawLimit && drawSpec.length > drawLimit) { 
-            canvas.height = 0; return;
+          if ((drawLimit && drawSpec.length > drawLimit) || drawSpec.tooMany) { 
+            canvas.height = 0;
+            // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
+            canvas.className = canvas.className + ' too-many';
+            return;
           }
           canvas.height = drawSpec.length * lineHeight;
           ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
@@ -1332,10 +1335,18 @@
         var self = this,
           middleishPos = self.browserOpts.genomeSize / 2,
           cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'});
-        self.data = {cache: cache, mask: new IntervalMask(0, self.browserOpts.genomeSize)};
+        self.data = {cache: cache, mask: new IntervalMask(0, self.browserOpts.genomeSize), info: {}};
         self.heights = {max: null, min: 15, start: 15};
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
+        
+        $.ajax(this.ajaxDir() + 'bigbed.php', {
+          data: {url: this.opts.bigDataUrl},
+          success: function(data) {
+            
+          }
+        });
+        
         return true;
       },
     

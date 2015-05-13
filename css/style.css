@@ -660,7 +660,16 @@ body {
   display: none;
   z-index: 10;
 }
-/*.browser-track .tile.clipped .clip-indicator { display: block; }*/
+
+.browser-track .tile.too-many::before {
+  content: 'too much data; zoom in to display individual items';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 20px;
+  font-size: 0.7em;
+  text-align: center;
+}
 
 .browser-track *, .side-cont .side { 
   cursor: move;
@@ -780,6 +789,7 @@ body.row-resizing * {
 .browser-track-ruler .tile-off-r::before {
   content: '\2190  the genome is back there';
 }
+
 .browser-track-ruler .ticks {
   position: absolute;
   top: 0;
