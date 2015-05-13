@@ -111,7 +111,7 @@ In the first step of the workflow, you create a minimal YAML configuration file 
 
 ### Using multiple workers
 
-The third step of the workflow, or `rake tiles[GENOME]`, is usually the most time-consuming.  You can parallelize it by running multiple `rake tiles` processes at once; each process will lock the directories it is working on and therefore should be able to avoid trampling work done by others.  **NOTE:** You should only run multiple workers if you have installed a local instance of the UCSC browser as described under **Recommended Additions**, otherwise you risk running afoul of UCSC's usage limits on their public site.
+The third step of the workflow, or `rake tiles[GENOME]`, is usually the most time-consuming.  You can parallelize it by running multiple `rake tiles` processes at once; each process will lock the directories it is working on and therefore should be able to avoid trampling work done by others.  **NOTE:** You should only run multiple workers if you have installed a local instance of the UCSC browser as described under **[Recommended Enhancements](#installing-a-local-instance-of-the-ucsc-browser)**, otherwise you risk running afoul of UCSC's usage limits on their public site.
 
 To launch NUMBER worker processes in a split layout of GNU `screen`, you can run
 
