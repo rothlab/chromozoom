@@ -27,6 +27,7 @@ ChromoZoom was designed to run in a \*NIX environment and has been tested on OS 
 ChromoZoom is perfectly functional out of the box for serving a web interface that can load data on small genome files (think megabase size) or custom tracks on top of genome layouts crossloaded from UCSC. You will need:
 
 - PHP 5.x + Apache (or another webserver that can run PHP scripts)
+    - Note that [magic quotes][16] must be **disabled**.
 - [libcurl bindings for PHP][10] (included in OS X's default PHP install)
 - If you would like to support the full range of custom tracks and genomes, you need the following on your `$PATH`, which during setup will be symlinked into a new directory in this repo called `bin/`:
     - [`tabix`][11], a generic indexer for TAB-delimited genome position files
@@ -43,6 +44,7 @@ Place a checkout of this repo somewhere in your webserver's DOCROOT.  To setup t
 [10]: http://php.net/manual/en/book.curl.php
 [11]: http://www.htslib.org/download/
 [12]: http://hgdownload.cse.ucsc.edu/admin/exe/
+[16]: http://php.net/manual/en/security.magicquotes.disabling.php
 
 ### To generate tiles
 
