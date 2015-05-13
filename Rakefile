@@ -13,6 +13,7 @@ REQUIRED_LINKS = {
   "bigBedInfo" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "bigWigSummary" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "bigWigInfo" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
+  "twoBitToFa" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "tabix" => "http://www.htslib.org/download/"
 }
 REQUIRED_LINK_WARN = <<-EOS
