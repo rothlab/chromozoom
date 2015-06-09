@@ -3080,7 +3080,7 @@
     
     _nearestBppps: function(zoom) {
       var o = this.options, 
-        bppps = { nearest: [o.bppps[0]], cache: [], top:o.bppps[0] },
+        bppps = { nearest: [o.bppps[0]], cache: [], top: o.bppps[0] },
         possibleBppps = this.ruler ? this.sliderBppps : o.bppps,
         l = possibleBppps.length,
         found = false,

@@ -247,6 +247,8 @@
     /*
       A few quick notes on setting up a format.
     
+      + The type name must be lowercase, e.g. beddetail despite `track type=bedDetail`
+    
       + .parse(), .prerender(), and .render() MUST be defined.
       
       + .loadOpts() and .saveOpts() MAY be defined to handle dynamic updating of options via the Custom Track options dialog.
@@ -273,12 +275,15 @@
         It will always, however, have access to DOM methods.
       
       + start and end, as passed to .render(), are 1-based positions from the start of the genome, following the genobrowser
-        convention.  
+        convention.
     */
   
     // =================================================================
     // = BED format: http://genome.ucsc.edu/FAQ/FAQformat.html#format1 =
-    // =================================================================  
+    // =================================================================
+    //
+    // bedDetail is a trivial extension of BED that is defined separately,
+    // although a BED file with >12 columns is assumed to be bedDetail track regardless of type.
   
     bed: {
       defaults: {
@@ -288,6 +293,7 @@
         group: 'user',
         priority: 'user',
         offset: 0,
+        detail: false,
         url: '',
         htmlUrl: '',
         drawLimit: {squish: 500, pack: 100}
@@ -309,12 +315,19 @@
     
       parseLine: function(line, lineno) {
         var cols = ['chrom', 'chromStart', 'chromEnd', 'name', 'score', 'strand', 'thickStart', 'thickEnd', 'itemRgb',
-          'blockCount', 'blockSizes', 'blockStarts'],
+          'blockCount', 'blockSizes', 'blockStarts', 'id', 'description'],
           feature = {},
+          fields = /\t/.test(line) ? line.split("\t") : line.split(/\s+/),
           chrPos, blockSizes;
-        _.each(line.split(/\s+/), function(v, i) { feature[cols[i]] = v; });
+        
+        if (this.opts.detail) {
+          cols[fields.length - 2] = 'id';
+          cols[fields.length - 1] = 'description';
+        }
+        _.each(fields, function(v, i) { feature[cols[i]] = v; });
         chrPos = this.browserOpts.chrPos[feature.chrom];
         lineno = lineno || 0;
+        
         if (_.isUndefined(chrPos)) { 
           this.warn("Invalid chromosome at line " + (lineno + 1 + this.opts.lineNum));
           return null;
@@ -341,6 +354,7 @@
             feature.thickStart = feature.thickEnd = null;
           }
         }
+        
         return feature;
       },
     
@@ -424,16 +438,18 @@
         if (_.isFunction(tipTipDataCallback)) {
           tipTipData = tipTipDataCallback(data);
         } else {
-          tipTipData = {
+          if (!_.isUndefined(data.d.description)) { tipTipData.description = data.d.description; }
+          if (!_.isUndefined(data.d.score)) { tipTipData.score = data.d.score; }
+          _.extend(tipTipData, {
             position: data.d.chrom + ':' + data.d.chromStart, 
-            size: data.d.chromEnd - data.d.chromStart, 
-            score: data.d.score
-          };
+            size: data.d.chromEnd - data.d.chromStart
+          });
+          if (!_.isUndefined(data.d.id)) { tipTipData.id = data.d.id; }
         }
         areas.push([
           data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, //x1, x2, y1, y2
-          data.d.name || '', // name
-          urlTemplate.replace('$$', data.d.name), // href
+          data.d.name || data.d.id || '', // name
+          urlTemplate.replace('$$', _.isUndefined(data.d.id) ? data.d.id : data.d.name), // href
           data.pInt.o, // continuation from previous tile?
           null,
           null,
@@ -1320,6 +1336,7 @@
         group: 'user',
         priority: 'user',
         offset: 0,
+        detail: false,
         url: '',
         htmlUrl: '',
         drawLimit: {squish: 500, pack: 100}
@@ -1503,6 +1520,13 @@
     }
   
   };
+  
+  // ==========================================================================
+  // = bedDetail format: https://genome.ucsc.edu/FAQ/FAQformat.html#format1.7 =
+  // ==========================================================================  
+  
+  CustomTrack.types.beddetail = _.clone(CustomTrack.types.bed);
+  CustomTrack.types.beddetail.defaults = _.extend({}, CustomTrack.types.beddetail.defaults, {detail: true});
 
   // These functions branch to different methods depending on the .type() of the track
   _.each(['init', 'parse', 'render', 'prerender'], function(fn) {
