@@ -16,7 +16,7 @@ $INFO = FALSE;
 
 if (!isset($_GET['url']) || !preg_match('#^(https?|cache)://#', $_GET['url'])) { bad_request(); }
 $_GET['url'] = preg_replace('#^cache://#', dirname(dirname(__FILE__)) . "/", $_GET['url']);
-if (!isset($_GET['range'])) { $INFO_ONLY = TRUE; } 
+if (!isset($_GET['range'])) { $INFO = TRUE; } 
 else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
 if (isset($_GET['range']) && !count($ranges)) { bad_request(); }
 $SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
@@ -48,12 +48,23 @@ function ranges_to_args(&$ranges) {
 }
 
 if ($INFO) {
+  // Without the range and density parameters, return a JSON document containing info about the bigBed
   header('Content-type: application/json');
+  $BOOL_VALS = array('yes'=> TRUE, 'no' => FALSE);
   
   exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . ' 2>&1', $output, $retval);
-  // TODO: Convert this info into JSON
-  
+  if ($retval) { echo json_encode(array("error" => $output)); }
+  else {
+    $info = array();
+    foreach ($output as $line) { 
+      $parts = explode(':', $line, 2);
+      $val = isset($BOOL_VALS[$parts[1]]) ? $BOOL_VALS[$parts[1]] : floatval(preg_replace('/[, ]/', '', $parts[1]));
+      $info[preg_replace('/^(\w+)\W.*/', '$1', $parts[0])] = $val;
+    }
+    echo json_encode($info);
+  }
 } else {
+  // With range and density parameters, return either a summary of datapoints or the raw BED rows themselves
   header('Content-type: text/plain');
   
   ranges_to_args($ranges);
