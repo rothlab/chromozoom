@@ -25,7 +25,7 @@ if ($SUMMARY) {
   $WIDTH = max(min(intval($_GET['width']), 5000), 1);
 }
 
-$BIGBED_BIN = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigBed' . ($INFO ? 'Info' : ($SUMMARY ? 'Summary' : 'ToBed')));
+$BIGBED_BIN = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigBed' . ($INFO_ONLY ? 'Info' : ($SUMMARY ? 'Summary' : 'ToBed')));
 
 function ranges_to_args(&$ranges) {
   global $SUMMARY, $WIDTH;
@@ -51,7 +51,7 @@ if ($INFO) {
   header('Content-type: application/json');
   
   exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . ' 2>&1', $output, $retval);
-  
+  // TODO: Convert this info into JSON
   
 } else {
   header('Content-type: text/plain');

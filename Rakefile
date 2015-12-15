@@ -15,6 +15,7 @@ REQUIRED_LINKS = {
   "bigWigInfo" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "twoBitToFa" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "tabix" => "http://www.htslib.org/download/"
+  "samtools" => "http://www.htslib.org/download/"
 }
 REQUIRED_LINK_WARN = <<-EOS
 WARN: could not find the following in your $PATH: %1$s

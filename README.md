@@ -31,6 +31,7 @@ ChromoZoom is perfectly functional out of the box for serving a web interface th
 - [libcurl bindings for PHP][10] (included in OS X's default PHP install)
 - If you would like to support the full range of custom tracks and genomes, you need the following on your `$PATH`, which during setup will be symlinked into a new directory in this repo called `bin/`:
     - [`tabix`][11], a generic indexer for TAB-delimited genome position files
+    - [`samtools`][11], utilities for viewing for the Sequence Alignment/Map (SAM) and BAM (Binary SAM) formats
     - The following [Jim Kent binaries for big tracks][12]:
         - `bigBedInfo`
         - `bigBedSummary`
@@ -40,6 +41,8 @@ ChromoZoom is perfectly functional out of the box for serving a web interface th
         - `twoBitToFa`
 
 Place a checkout of this repo somewhere in your webserver's DOCROOT.  To setup the aforementioned symlinks to binaries, run `rake check` from the command line at the root of the repo.  Files under `php/` and `index.php` will need to be executable by the webserver.  Access `index.php` from a web browser to view the ChromoZoom interface.
+
+**Note:** To view VCF/tabix or BAM files from https:// URLs, you will need to compile `tabix` and `samtools` with support for `libcurl`. See [below](#https-support-for-samtools) for details.
 
 [10]: http://php.net/manual/en/book.curl.php
 [11]: http://www.htslib.org/download/
@@ -57,10 +60,9 @@ Place a checkout of this repo somewhere in your webserver's DOCROOT.  To setup t
     - [bsearch][4]
     - [htmlentities][5]
 
-On Mac OS X with MacPorts, this should be enough to get you started:
+On Mac OS X with [homebrew][], this should be enough to get you started (substitute `brew` with `sudo port` for MacPorts):
 
-    $ sudo port install ImageMagick
-    $ sudo port install libxml2 libxslt
+    $ brew install ImageMagick
     $ sudo gem install bundler
     $ cd path/to/this/repo && bundle install
 
@@ -83,6 +85,7 @@ By default, the tile stitcher will scrape the [public UCSC browser](http://genom
 [3]: http://flori.github.com/json/doc/index.html
 [4]: http://0xcc.net/ruby-bsearch/index.html.en
 [5]: http://htmlentities.rubyforge.org/
+[homebrew]: http://brew.sh
 
 ## Using the tile stitcher
 
@@ -127,6 +130,8 @@ None of the following components are strictly necessary for running the ChromoZo
 2. A Tokyo Cabinet for storing and retrieving tile images
 3. Building the native extension for image processing
 
+In addition, current release versions for `samtools` and `tabix` don't support HTTPS, but `libcurl` is being merged into the next planned release so that this is possible. To get these features now, [see below](#https-support-for-samtools).
+
 ### Installing a local instance of the UCSC browser
 
 Installing UCSC locally is not for the faint of heart and will likely require a dedicated machine with plenty of disk space.  However, it will allow you to scrape tiles much faster than the [one hit per 15 seconds](http://genome.ucsc.edu/#Conditions) allowed by the public UCSC browser and enforced by the tile scraper.  If you modify the code to ignore this limit, you risk being banned by the public UCSC browser.
@@ -158,13 +163,16 @@ To support this you must install:
 - the [Tokyo Cabinet][6] and [Tokyo Tyrant][7] binaries somewhere on your `$PATH`, along with their respective libraries
 - the [rufus-tokyo][8] gem (should have been installed by `bundle install`)
 
-On OS X, the binaries are available via MacPorts in the `tokyocabinet` and `tokyotyrant` portfiles, but Tokyo Tyrant appears to have a bug with UNIX domain sockets.  Inconveniently, the only fix is to download the Tokyo Tyrant source [directly][7], apply [a patch][9] provided in this repo as `ttserver-macosx-socketfix.patch`, and install it over the MacPorts binary.  So, in total:
+On OS X, the binaries are available via MacPorts in the `tokyocabinet` and `tokyotyrant` portfiles or via homebrew as `tokyo-cabinet` and `tokyo-tyrant`, but Tokyo Tyrant appears to have a bug with UNIX domain sockets.  Inconveniently, the only fix is to download the Tokyo Tyrant source [directly][7], apply [a patch][9] provided in this repo as `ttserver-macosx-socketfix.patch`, and install it over the normal binary.  So, in total:
 
     $ sudo port install tokyocabinet tokyotyrant
     $ cd /tmp && curl -O http://fallabs.com/tokyotyrant/tokyotyrant-1.1.41.tar.gz
     $ tar xvzf tokyotyrant-1.1.41.tar.gz
     $ cd tokyotyrant-1.1.41
     $ patch -p0 < path/to/this/repo/ttserver-macosx-socketfix.patch
+
+Depending on whether you use homebrew or MacPorts, you might want `/usr/local` here instead.
+
     $ ./configure --prefix=/opt/local && make && sudo make install
 
 If you are on Debian ≥6.0.0 "squeeze" or Ubuntu ≥10.10 "maverick" all binaries should be available as packages, so all you need is:
@@ -191,3 +199,45 @@ Once you're ready to proceed, go to the root of this repo and run:
 and the files under `ext/` will be compiled into a Ruby extension suitable for your platform.  If this works, you will no longer see the "native image processing extension" warning when you start the tile stitcher.
 
 Note that the native extension will only run if you have installed Tokyo Cabinet per the directions above.
+
+### HTTPS support for `samtools`
+
+This is largely cribbed from [this answer on BioStars](https://www.biostars.org/p/147772/), with the major change being that libcurl has already been merged into the development branch for htslib.
+
+You'll first need to have `gcc`, `autoconf`, and `zlib`, `libcurl`, `openssl`, and `ncurses` with development headers. On macs, `brew install autoconf` and you should already have the rest if you have Xcode. On most Linux distros these are all in the package repo (on [Minerva](https://hpc.mssm.edu), all of these things are already installed).
+
+Get the development version of htslib and setup the configure script:
+
+    $ git clone https://github.com/samtools/htslib.git
+    $ cd htslib/
+    $ autoconf
+
+If the last step fails with something about m4 macros, try being more forceful with `autoreconf --install`. Then configure with libcurl support and compile:
+
+    $ ./configure --enable-libcurl
+    $ make
+
+(**Side note.** To get this to compile with a slightly older `libcurl`, such as the moderately ancient version 7.19.7 on Minerva, you may have to remove the case statement about `CURLE_NOT_BUILT_IN` from `hfile_libcurl.c`.)
+
+Once it works, you'll find `tabix` in this directory, along with `htsfile` (which is like `file`, for sequencing formats), both with HTTPS formats. Test that it's working with
+
+    $ ./htsfile https://hostname.example.com/path/to/some.bam
+
+All good? Then get the source release for `samtools` 1.2:
+
+    $ cd ..
+    $ curl -LO https://github.com/samtools/samtools/releases/download/1.2/samtools-1.2.tar.bz2
+    $ tar xzvf samtools-1.2.tar.bz2
+    $ cd samtools-1.2
+
+Although this includes htslib 1.2.1, you want to point it to the development version you just installed:
+
+    $ rm -rf htslib-1.2.1
+    $ ln -s ../htslib htslib-1.2.1
+    $ make LDLIBS+=-lcurl LDLIBS+=-lcrypto
+
+You should find `samtools` in this directory. Test it against some BAM file on an HTTPS server, and if you get back SAM data you're in good shape:
+
+    $ ./samtools view https://hostname.example.com/path/to/some.bam 1:1-10000
+
+(Note that this will spit out a `.bai` file into the current directory, which you'll want to delete.)

@@ -1357,7 +1357,119 @@
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
         
+        // TODO: Get general info on the bigBed (e.g. itemCount/genomeSize and set maxWindowToDraw to avoid overfetching)
         $.ajax(this.ajaxDir() + 'bigbed.php', {
+          data: {url: this.opts.bigDataUrl},
+          success: function(data) {
+            
+          }
+        });
+        
+        return true;
+      },
+    
+      prerender: function(start, end, density, precalc, callback) {
+        var self = this,
+          width = precalc.width,
+          data = self.data,
+          bppp = (end - start) / width,
+          range = this.chrRange(start, end);
+        
+        function lineNum(d, set) {
+          var key = bppp + '_' + density;
+          if (!_.isUndefined(set)) { 
+            if (!d.line) { d.line = {}; }
+            return (d.line[key] = set);
+          }
+          return d.line && d.line[key]; 
+        }
+        
+        function success(data) {
+          var drawSpec = [], 
+            lines, intervals, calcPixInterval;
+          if (density == 'dense') {
+            lines = data.split(/\s+/g);
+            _.each(lines, function(line, x) { 
+              if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); } 
+            });
+          } else {
+            lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
+            intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
+            // add() these to an IntervalTree
+            // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
+            // Then search() for all the intervals in the range, iff we had some cached data already.
+            
+            calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, density=='pack');
+            
+            // TODO: we need to add a lineNum function here as the last argument so that we can track lines assigned to previously rendered features
+            // Otherwise, features often break between tiles which is ugly and misleading
+            // See function lineNum(d, set) above in the bed format
+            drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval);
+          }
+          callback(drawSpec);
+        }
+        
+        // TODO: Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
+        // estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
+        // TODO: cache results so we aren't refetching the same regions over and over again.
+        $.ajax(this.ajaxDir() + 'bigbed.php', {
+          data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
+          success: success
+        });
+      },
+    
+      render: function(canvas, start, end, density, callback) {
+        var self = this;
+        self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
+          self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+          if (_.isFunction(callback)) { callback(); }
+        });
+      },
+      
+      loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
+      
+      saveOpts: function() { return this.type('bed').saveOpts.apply(this, arguments); }
+    },
+    
+  
+    // ==============================================================
+    // = BAM format: https://samtools.github.io/hts-specs/SAMv1.pdf =
+    // ==============================================================
+  
+    bam: {
+      defaults: {
+        maxWindowToDraw: 0,
+        chromosomes: '',
+        itemRgb: 'off',
+        colorByStrand: '',
+        useScore: 0,
+        group: 'user',
+        priority: 'user',
+        offset: 0,
+        detail: false,
+        url: '',
+        htmlUrl: '',
+        drawLimit: {squish: 500, pack: 100}
+      },
+    
+      init: function() {
+        if (!this.opts.bigDataUrl) {
+          throw new Error("Required parameter bigDataUrl not found for bigBed track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
+        }
+      },
+      
+      parse: function(lines) {
+        var self = this,
+          middleishPos = self.browserOpts.genomeSize / 2,
+          cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'});
+        self.data = {cache: cache, mask: new IntervalMask(0, self.browserOpts.genomeSize), info: {}};
+        self.heights = {max: null, min: 15, start: 15};
+        self.sizes = ['dense', 'squish', 'pack'];
+        self.mapSizes = ['pack'];
+        
+        // TODO: Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence to estimate maxWindowToDraw)
+        // TODO: write bam.php, obviously
+        $.ajax(this.ajaxDir() + 'bam.php', {
           data: {url: this.opts.bigDataUrl},
           success: function(data) {
             
