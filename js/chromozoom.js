@@ -3789,7 +3789,8 @@
         e.data.self.fixClickAreas();
         // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
         // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoo
-        if ($canvas.hasClass('too-many') && $canvas.hasClass('dens-squish')) { $canvas.parent().addClass('too-many'); }
+        if ($canvas.hasClass('too-many') && d.density == 'squish') { $canvas.parent().addClass('too-many'); }
+        if ($canvas.hasClass('too-many') && d.density == 'dense') { $canvas.parent().addClass('too-many-for-dense'); }
         _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
         $canvas.data('rendering', false);
       });

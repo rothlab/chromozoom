@@ -677,6 +677,9 @@ body {
   font-size: 0.7em;
   text-align: center;
 }
+.browser-track .tile.too-many-for-dense::before, .browser-track .tile.too-many-for-dense::after {
+  top: 3px;
+}
 
 .browser-track .tile.too-many::before {
   left: 0;

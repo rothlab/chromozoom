@@ -329,7 +329,7 @@
         lineno = lineno || 0;
         
         if (_.isUndefined(chrPos)) { 
-          this.warn("Invalid chromosome at line " + (lineno + 1 + this.opts.lineNum));
+          this.warn("Invalid chromosome '"+feature.chrom+"' at line " + (lineno + 1 + this.opts.lineNum));
           return null;
         } else {
           feature.score = _.isUndefined(feature.score) ? '?' : feature.score;
@@ -1209,6 +1209,7 @@
     vcftabix: {
       defaults: {
         priority: 100,
+        drawLimit: {squish: 500, pack: 100},
         maxFetchWindow: 100000,
         chromosomes: ''
       },
@@ -1286,12 +1287,17 @@
           urlTemplate = this.opts.url ? this.opts.url : 'javascript:void("'+this.opts.name+':$$")',
           lineHeight = density == 'pack' ? 27 : 6,
           colors = {a:'255,0,0', t:'255,0,255', c:'0,0,255', g:'0,255,0'},
+          drawLimit = this.opts.drawLimit && this.opts.drawLimit[density],
           areas = null;
         if (!ctx) { throw "Canvas not supported"; }
         if (density == 'pack') { areas = this.areas[canvas.id] = []; }
         ctx.fillStyle = "rgb(0,0,0)";
         this.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
-          if (density == 'dense') {
+          if ((drawLimit && drawSpec.length > drawLimit) || drawSpec.tooMany) { 
+            canvas.height = 0;
+            // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
+            canvas.className = canvas.className + ' too-many';
+          } else if (density == 'dense') {
             canvas.height = 15;
             _.each(drawSpec, function(pInt) {
               ctx.fillRect(pInt.x, 1, pInt.w, 13);
