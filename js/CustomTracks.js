@@ -449,7 +449,7 @@
         areas.push([
           data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, //x1, x2, y1, y2
           data.d.name || data.d.id || '', // name
-          urlTemplate.replace('$$', _.isUndefined(data.d.id) ? data.d.id : data.d.name), // href
+          urlTemplate.replace('$$', _.isUndefined(data.d.id) ? data.d.name : data.d.id), // href
           data.pInt.o, // continuation from previous tile?
           null,
           null,
@@ -1209,7 +1209,7 @@
     vcftabix: {
       defaults: {
         priority: 100,
-        maxWindowToDraw: 0,
+        maxFetchWindow: 0,
         chromosomes: ''
       },
     
@@ -1328,7 +1328,6 @@
   
     bigbed: {
       defaults: {
-        maxWindowToDraw: 0,
         chromosomes: '',
         itemRgb: 'off',
         colorByStrand: '',
@@ -1339,7 +1338,8 @@
         detail: false,
         url: '',
         htmlUrl: '',
-        drawLimit: {squish: 500, pack: 100}
+        drawLimit: {squish: 500, pack: 100},
+        maxFetchWindow: 0
       },
     
       init: function() {
@@ -1357,11 +1357,16 @@
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
         
-        // TODO: Get general info on the bigBed (e.g. itemCount/genomeSize and set maxWindowToDraw to avoid overfetching)
+        // Get general info on the bigBed
         $.ajax(this.ajaxDir() + 'bigbed.php', {
           data: {url: this.opts.bigDataUrl},
           success: function(data) {
-            
+            // Set maxFetchWindow to avoid overfetching data.
+            if (!self.opts.maxFetchWindow) {
+              var meanItemsPerBp = data.itemCount / self.browserOpts.genomeSize,
+                maxItemsToDraw = _.max(_.values(self.opts.drawLimit));
+              self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
+            }
           }
         });
         
@@ -1409,13 +1414,17 @@
           callback(drawSpec);
         }
         
-        // TODO: Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
-        // estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
-        // TODO: cache results so we aren't refetching the same regions over and over again.
-        $.ajax(this.ajaxDir() + 'bigbed.php', {
-          data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
-          success: success
-        });
+        // Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
+        // estimate that we will fetch too many rows (>500 features), as this will only delay other requests.
+        if (density != 'dense' && (end - start) > self.opts.maxFetchWindow) {
+          callback({tooMany: true});
+        } else {
+          // TODO: cache results so we aren't refetching the same regions over and over again.
+          $.ajax(this.ajaxDir() + 'bigbed.php', {
+            data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
+            success: success
+          });
+        }
       },
     
       render: function(canvas, start, end, density, callback) {
@@ -1438,7 +1447,6 @@
   
     bam: {
       defaults: {
-        maxWindowToDraw: 0,
         chromosomes: '',
         itemRgb: 'off',
         colorByStrand: '',
@@ -1449,7 +1457,8 @@
         detail: false,
         url: '',
         htmlUrl: '',
-        drawLimit: {squish: 500, pack: 100}
+        drawLimit: {squish: 500, pack: 100},
+        maxFetchWindow: 0
       },
     
       init: function() {
@@ -1467,7 +1476,7 @@
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
         
-        // TODO: Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence to estimate maxWindowToDraw)
+        // TODO: Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence to estimate maxFetchWindow)
         // TODO: write bam.php, obviously
         $.ajax(this.ajaxDir() + 'bam.php', {
           data: {url: this.opts.bigDataUrl},
@@ -1523,7 +1532,7 @@
         // TODO: Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
         // estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
         // TODO: cache results so we aren't refetching the same regions over and over again.
-        $.ajax(this.ajaxDir() + 'bigbed.php', {
+        $.ajax(this.ajaxDir() + 'bam.php', {
           data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
           success: success
         });

@@ -2709,6 +2709,7 @@
         placeholder: 'side placeholder inset-shadow',
         forcePlaceholderSize: true,
         appendTo: '#' + o.browser.attr('id'),
+        handle: '.subtrack-cont',
         helper: 'clone',
         start: function() { 
           $('body').addClass('dragging');
@@ -2891,7 +2892,9 @@
     
     // Default options that can be overridden
     options: {
-      disabled: false
+      disabled: false,
+      line: null,       // must be specified on instantiation
+      side: null        // must be specified on instantiation
     },
     
     // Called automatically when widget is instantiated
@@ -2900,6 +2903,8 @@
         $elem = this.element, 
         o = this.options,
         bppps;
+      if (!o.line) { throw "Cannot instantiate ui.genotrack without specifying 'line' option"; }
+      if (!o.side) { throw "Cannot instantiate ui.genotrack without specifying 'side' option"; }
       self.ruler = o.track.n == 'ruler';
       self.sliderBppps = o.bppps.concat(o.overzoomBppps);
       self.tileLoadCounter = self.areaLoadCounter = 0;
@@ -2984,10 +2989,12 @@
     _fixSide: function(density, bppp) {
       var self = this,
         o = self.options,
+        $elem = self.element,
         n = o.track.n,
         $cont = self.$side.children('.subtrack-cont'),
         trackDesc = o.browser.genobrowser('option', 'trackDesc'), // always use the latest values from the browser
         densBpppMemo = [density, bppp].join('|'),
+        $tooManyDataWarning = self.$side.children('.too-many-warning'), 
         dens, text, h;
       if ($cont.data('densBppp') === densBpppMemo) { return; }
       $cont.empty();
@@ -2996,6 +3003,7 @@
           // Labels change for certain bppp levels
           dens = (dens[_.sortedIndex(dens, [bppp], function(v) { return v[0]; }) - 1] || dens[0]).slice(1);
         }
+        // Apply the appropriate subtrack labels for certain bppp levels
         _.each(dens, function(v) {
           v = _.isArray(v) ? v : [v];
           h = v[1] || 15;
@@ -3068,13 +3076,18 @@
         $elem = self.element,
         topBppp = self.bppps().top;
       var bestDensity = self._bestDensity(topBppp);
+      // Fix side labels (e.g. for subtracks) for the best density
       self._fixSide(bestDensity, topBppp);
+      // Set the best density and trigger events on these tiles
       $elem.find('.tile-full').children('.tdata,.area.label').each(function() {
         var $this = $(this),
           isBest = $this.hasClass('dens-'+bestDensity);
         $this.toggleClass('dens-best', isBest);
         if (isBest) { $this.trigger('bestDensity'); }
       });
+      // If the too-many class was set on tiles, we couldn't draw/load some custom data because there's too much of it.
+      // Add a class to this track to show warnings about this to the user.
+      // Finally, fix clipping indicators
       self.fixClipped();
     },
     
@@ -3216,6 +3229,7 @@
       return $d;
     },
     
+    // Shows orange clipping indicators if any of the best density tiles have data cut off at the bottom
     fixClipped: function() {
       var $elem = this.element,
         o = this.options,
@@ -3773,8 +3787,8 @@
         $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
         $canvas.removeClass('unrendered').addClass('no-areas');
         e.data.self.fixClickAreas();
-        // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it.
-        // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoom in to see more
+        // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
+        // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoo
         if ($canvas.hasClass('too-many') && $canvas.hasClass('dens-squish')) { $canvas.parent().addClass('too-many'); }
         _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
         $canvas.data('rendering', false);

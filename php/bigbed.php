@@ -12,11 +12,11 @@ define('RANGE_PATTERN', '/^(\\w+):(\\d+)-(\\d+)$/');
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 
-$INFO = FALSE;
+$INFO_ONLY = FALSE;
 
 if (!isset($_GET['url']) || !preg_match('#^(https?|cache)://#', $_GET['url'])) { bad_request(); }
 $_GET['url'] = preg_replace('#^cache://#', dirname(dirname(__FILE__)) . "/", $_GET['url']);
-if (!isset($_GET['range'])) { $INFO = TRUE; } 
+if (!isset($_GET['range'])) { $INFO_ONLY = TRUE; } 
 else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
 if (isset($_GET['range']) && !count($ranges)) { bad_request(); }
 $SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
@@ -47,7 +47,7 @@ function ranges_to_args(&$ranges) {
   }
 }
 
-if ($INFO) {
+if ($INFO_ONLY) {
   // Without the range and density parameters, return a JSON document containing info about the bigBed
   header('Content-type: application/json');
   $BOOL_VALS = array('yes'=> TRUE, 'no' => FALSE);
