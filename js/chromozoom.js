@@ -1451,10 +1451,10 @@
                 $chromSizesDialog.data('genomeMetadata', data);
                 $chromSizesDialog.find('[name=save]').trigger('click', [customGenomeSource]);
                 self._nextDirectives = params;
-                return;
               }
             }
           });
+          return;
         } else if ((/^custom[:|]/).test(params.db)) {   // It's a custom chrom.sizes
           chromSizes = params.db.replace(/^[^|]+\|/, '').replace(/:/g, "\t").replace(/\|/g, "\n");
           $chromSizesDialog.find('[name=chromsizes]').val(chromSizes);
