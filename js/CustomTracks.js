@@ -1271,7 +1271,6 @@
       
         // Don't even attempt to fetch the data if we can reasonably estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
         // TODO: cache results so we aren't refetching the same regions over and over again.
-        console.log(end - start);
         if ((end - start) > self.opts.maxFetchWindow) {
           callback({tooMany: true});
         } else {
