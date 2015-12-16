@@ -1209,7 +1209,7 @@
     vcftabix: {
       defaults: {
         priority: 100,
-        maxFetchWindow: 0,
+        maxFetchWindow: 100000,
         chromosomes: ''
       },
     
@@ -1224,6 +1224,7 @@
         self.heights = {max: null, min: 15, start: 15};
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
+        // TODO: Set maxFetchWindow using some heuristic based on how many items are in the tabix index
         return true;
       },
     
@@ -1268,13 +1269,17 @@
           callback(drawSpec);
         }
       
-        // TODO: Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
-        // estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
+        // Don't even attempt to fetch the data if we can reasonably estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
         // TODO: cache results so we aren't refetching the same regions over and over again.
-        $.ajax(this.ajaxDir() + 'tabix.php', {
-          data: {range: range, url: this.opts.bigDataUrl},
-          success: success
-        });
+        console.log(end - start);
+        if ((end - start) > self.opts.maxFetchWindow) {
+          callback({tooMany: true});
+        } else {
+          $.ajax(this.ajaxDir() + 'tabix.php', {
+            data: {range: range, url: this.opts.bigDataUrl},
+            success: success
+          });
+        }
       },
     
       render: function(canvas, start, end, density, callback) {
