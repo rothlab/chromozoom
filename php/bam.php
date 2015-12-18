@@ -32,8 +32,9 @@ chdir($tmp_dir);
 // cat regions.bed | samtools bedcov /dev/stdin path.to.bam
 // Although this is quite slow. It might be worth trying to convert the output of `samtools depth` to .bigwig
 // The following spits out bedGraph, minus the third column, which should just be the second column + 1
-// samtools depth [-r 1:1-20000] path.to.bam 
-// This could be shooped into bigWig perhaps with kent's bedGraphToBigWig...
+// samtools depth [-r chrX:1-20000] path.to.bam 
+// This could be shooped into bigWig with bedGraphToBigWig if the third column is added back with awk...
+// samtools depth [-r chrX:1-20000] path.to.bam | awk -F "\t" 'BEGIN {OFS = FS} {$4 = $3; $3 = $2; $2 = $2 - 1; print}' > out.bedgraph
 
 header('Content-type: text/plain');
 passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
