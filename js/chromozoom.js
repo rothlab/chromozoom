@@ -20,6 +20,8 @@
   }
   
   // A simplistic hash function for quickly turning strings into numbers
+  // Note that since the hash space is 2^32, collisions are practically guaranteed after 80k strings, 
+  // and there's a 5% chance at 20k: http://betterexplained.com/articles/understanding-the-birthday-paradox/
   function shortHash(str) {
     var hash = 0;
     if (str.length == 0) return hash;
