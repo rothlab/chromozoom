@@ -195,6 +195,8 @@
     // ====================================================================
     // = chrom.sizes format: http://www.broadinstitute.org/igv/chromSizes =
     // ====================================================================
+    // Note: we are expanding the general use of this to include data loaded from the genome.txt and annots.xml
+    // files of an IGB quickload directory,
     
     chromsizes: {
       init: function() {
@@ -256,9 +258,41 @@
     // ===========================================================
     
     fasta: {
-      // TODO
-      init: function() {},
-      parse: function(text) {}
+      init: function() {
+        var self = this,
+          m = self.metadata,
+          o = self.opts;
+          
+        self.data = {};
+      },
+      
+      parse: function(text) {
+        var lines = text.split("\n"),
+          self = this,
+          o = self.opts,
+          chr = null,
+          unnamedCounter = 1,
+          chrseq = [];
+          
+        self.data.sequence = [];
+        
+        _.each(lines, function(line, i) {
+          var chrLine = line.match(/^[>;](.+)/),
+            cleanedLine = line.replace(/\s+/g, '');
+          if (chrLine) {
+            chr = chrLine[1].replace(/^\s+|\s+$/g, '');
+            while (!chr.length || _.contains(o.chrOrder, chr)) { chr = "unnamedChr" + (unnamedCounter++); }
+            o.chrOrder.push(chr);
+          } else {
+            self.data.sequence.push(cleanedLine);
+            o.chrLengths[chr] = (o.chrLengths[chr] || 0) + cleanedLine.length;
+            o.genomeSize += cleanedLine.length;
+          }
+        });
+        
+        self.data.sequence = self.data.sequence.join('');
+        self.canGetSequence = true;
+      }
     },
     
     
