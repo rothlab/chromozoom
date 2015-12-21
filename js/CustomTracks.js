@@ -1410,7 +1410,7 @@
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
             intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
-            // add() these to an IntervalTree
+            // TODO: add() these to an IntervalTree cache
             // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
             // To dedupe, we may use use the Bio::DB:BigBed strategy:
             // "Because BED files don't actually use IDs, the ID is constructed from the feature's name (if any), chromosome coordinates, strand and block count."
@@ -1539,7 +1539,7 @@
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
             intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
-            // add() these to an IntervalTree
+            // TODO: add() these to an IntervalTree cache
             // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
             // Then search() for all the intervals in the range, iff we had some cached data already.
             
