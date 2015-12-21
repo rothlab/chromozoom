@@ -280,7 +280,7 @@
           var chrLine = line.match(/^[>;](.+)/),
             cleanedLine = line.replace(/\s+/g, '');
           if (chrLine) {
-            chr = chrLine[1].replace(/^\s+|\s+$/g, '').replace(/\|/g, '_');
+            chr = chrLine[1].replace(/^\s+|\s+$/g, '');
             if (!chr.length) { chr = "unnamedChr"; }
             chr = ensureUnique(chr, o.chrLengths);
             o.chrOrder.push(chr);

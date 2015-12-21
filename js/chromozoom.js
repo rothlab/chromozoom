@@ -1879,28 +1879,36 @@
       ret.pos = $.trim(_.isUndefined(pos) ? $(o.jump[0]).val() : pos);
       if (ret.pos === '') { this._searchFor(''); return null; }
       
-      matches = ret.pos.match(/^([a-z]+[a-z0-9_]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
+      matches = ret.pos.match(/^([a-z]+[^:]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
+      // Does the position string have a colon in it? If so, we try to parse it as a bp position
       if (matches && matches[1]) {
         var chr = _.find(o.chrLabels, function(v) { return v.n === matches[1]; });
         // If this didn't match a real chromosome name, use the first, by default.
         if (!chr) { chr = _.first(o.chrLabels); }
         this._searchFor('', forceful);
         ret.pos = chr.p + parseInt(matches[3] || '1', 10);
-          if (matches[5] == '-') {
-            // Allow ranges, e.g. chrX:12512-12630
-            end = chr.p + parseInt(matches[6], 10);
-            if (end > ret.pos) {
-              ret.bppp = (end - ret.pos) / (this.lineWidth() - o.sideBarWidth);
-              // Find the nearest optimal zoom level on the slider that fully encompasses the range.
-              ret.bppp = _.find(this.sliderBppps.reverse(), function(v) { return v >= ret.bppp; }) || _.last(this.sliderBppps);
-              this.sliderBppps.reverse(); // .reverse() is destructive in JS -_-
-              ret.pos += floorHack((end - ret.pos) / 2);
-            }
-          } else if (matches[5] == '@') {
-            // or specifying bppp directly, e.g. chrX:12512@100
-            ret.bppp = parseFloat(matches[6]);
+        if (matches[5] == '-') {
+          // Allow ranges, e.g. chrX:12512-12630
+          end = chr.p + parseInt(matches[6], 10);
+          if (end > ret.pos) {
+            ret.bppp = (end - ret.pos) / (this.lineWidth() - o.sideBarWidth);
+            // Find the nearest optimal zoom level on the slider that fully encompasses the range.
+            ret.bppp = _.find(this.sliderBppps.reverse(), function(v) { return v >= ret.bppp; }) || _.last(this.sliderBppps);
+            this.sliderBppps.reverse(); // .reverse() is destructive in JS -_-
+            ret.pos += floorHack((end - ret.pos) / 2);
           }
-      } else { ret.pos = parseInt(pos, 10); }
+        } else if (matches[5] == '@') {
+          // or specifying bppp directly, e.g. chrX:12512@100
+          ret.bppp = parseFloat(matches[6]);
+        }
+      } else { 
+        pos = parseInt(ret.pos, 10);
+        if (_.isNaN(pos)) {
+          this._searchFor(ret.pos, forceful);
+          return null;
+        }
+        ret.pos = pos;
+      }
       
       return ret;
     },

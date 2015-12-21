@@ -1493,7 +1493,19 @@
         $.ajax(this.ajaxDir() + 'bam.php', {
           data: {url: this.opts.bigDataUrl},
           success: function(data) {
+            var mappedReads = 0,
+              maxItemsToDraw = _.max(_.values(self.opts.drawLimit)),
+              meanItemsPerBp;
+            _.each(data.split("\n"), function(line) {
+              var fields = line.split("\t"),
+                readsMappedToContig = parseInt(fields[2], 10);
+                if (fields.length == 1 && fields[0] == '') { return; } // blank line
+              if (_.isNaN(readsMappedToContig)) { throw new Error("Invalid output for samtools idxstats on this BAM track."); }
+              mappedReads += readsMappedToContig;
+            });
             
+            meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
+            self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
           }
         });
         
