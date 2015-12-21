@@ -280,8 +280,9 @@
           var chrLine = line.match(/^[>;](.+)/),
             cleanedLine = line.replace(/\s+/g, '');
           if (chrLine) {
-            chr = chrLine[1].replace(/^\s+|\s+$/g, '');
-            while (!chr.length || _.contains(o.chrOrder, chr)) { chr = "unnamedChr" + (unnamedCounter++); }
+            chr = chrLine[1].replace(/^\s+|\s+$/g, '').replace(/\|/g, '_');
+            if (!chr.length) { chr = "unnamedChr"; }
+            chr = ensureUnique(chr, o.chrLengths);
             o.chrOrder.push(chr);
           } else {
             self.data.sequence.push(cleanedLine);
@@ -507,7 +508,7 @@
     },
     
     embl: {
-      // TODO
+      // TODO. Basically, GenBank with some extra columns.
     }
     
   };
