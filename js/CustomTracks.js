@@ -1511,6 +1511,39 @@
         
         return true;
       },
+      
+      parseCigar: function(cigar) {        
+        var operations, lengths;
+        
+        if (cigar == '*') { return null; }
+        
+        ops = cigar.split(/\d+/).slice(1);
+        lengths = cigar.split(/[A-Z=]/).slice(0, -1);
+      },
+      
+      parseLine: function(line, lineno) {
+        var cols = ['qname', 'flag', 'rname', 'pos', 'mapq', 'cigar', 'rnext', 'pnext', 'tlen', 'seq', 'qual'],
+          feature = {},
+          fields = line.split("\t"),
+          chrPos, blockSizes;
+        
+        _.each(fields, function(v, i) { feature[cols[i]] = v; });
+        // TODO: convert automatically from Ensembl style 1, 2, 3, X, MT --> chr1, chr2, chr3, chrX, chrM ?
+        // Useful, or too magical?
+        chrPos = this.browserOpts.chrPos[feature.rname];
+        lineno = lineno || 0;
+        
+        if (_.isUndefined(chrPos)) { 
+          this.warn("Invalid RNAME '"+feature.rname+"' at line " + (lineno + 1 + this.opts.lineNum));
+          return null;
+        } else {
+          feature.score = _.isUndefined(feature.score) ? '?' : feature.score;
+          feature.start = chrPos + parseInt10(feature.pos) + 1;
+          feature.end = feature.start;// TODO
+        }
+        
+        return feature;
+      },
     
       prerender: function(start, end, density, precalc, callback) {
         var self = this,
@@ -1532,13 +1565,15 @@
           var drawSpec = [], 
             lines, intervals, calcPixInterval;
           if (density == 'dense') {
-            lines = data.split(/\s+/g);
-            _.each(lines, function(line, x) { 
-              if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); } 
-            });
+            // TODO: use coverage data for 'dense'
+            // lines = data.split(/\s+/g);
+            // _.each(lines, function(line, x) {
+            //   if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); }
+            // });
+            
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
-            intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
+            intervals = _.map(lines, function(l) { return {data: self.parseLine.call(self, l)}; });
             // TODO: add() these to an IntervalTree cache
             // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
             // Then search() for all the intervals in the range, iff we had some cached data already.
