@@ -1475,7 +1475,8 @@
     
       init: function() {
         if (!this.opts.bigDataUrl) {
-          throw new Error("Required parameter bigDataUrl not found for bigBed track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
+          throw new Error("Required parameter bigDataUrl not found for BAM track at " +
+              JSON.stringify(this.opts) + (this.opts.lineNum + 1));
         }
       },
       
@@ -1526,6 +1527,7 @@
             });
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
+            // TODO: need to create a SAM parser for the next line.
             intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
             // add() these to an IntervalTree
             // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
