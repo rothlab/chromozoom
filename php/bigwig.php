@@ -8,7 +8,7 @@ function bad_request() {
   exit;
 }
 
-define('RANGE_PATTERN', '/^(\\w+):(\\d+)-(\\d+)$/');
+define('RANGE_PATTERN', '/^(\\w+[^:]+):(\\d+)-(\\d+)$/');
 $WINFUNCS = array('minimum'=>'min', 'maximum'=>'max', 'mean'=>'mean', 'min'=>'min', 'max'=>'max', 
   'std'=>'std', 'coverage'=>'coverage');
 

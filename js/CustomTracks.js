@@ -1410,7 +1410,7 @@
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
             intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
-            // add() these to an IntervalTree
+            // TODO: add() these to an IntervalTree cache
             // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
             // To dedupe, we may use use the Bio::DB:BigBed strategy:
             // "Because BED files don't actually use IDs, the ID is constructed from the feature's name (if any), chromosome coordinates, strand and block count."
@@ -1494,11 +1494,56 @@
         $.ajax(this.ajaxDir() + 'bam.php', {
           data: {url: this.opts.bigDataUrl},
           success: function(data) {
+            var mappedReads = 0,
+              maxItemsToDraw = _.max(_.values(self.opts.drawLimit)),
+              meanItemsPerBp;
+            _.each(data.split("\n"), function(line) {
+              var fields = line.split("\t"),
+                readsMappedToContig = parseInt(fields[2], 10);
+                if (fields.length == 1 && fields[0] == '') { return; } // blank line
+              if (_.isNaN(readsMappedToContig)) { throw new Error("Invalid output for samtools idxstats on this BAM track."); }
+              mappedReads += readsMappedToContig;
+            });
             
+            meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
+            self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
           }
         });
         
         return true;
+      },
+      
+      parseCigar: function(cigar) {        
+        var operations, lengths;
+        
+        if (cigar == '*') { return null; }
+        
+        ops = cigar.split(/\d+/).slice(1);
+        lengths = cigar.split(/[A-Z=]/).slice(0, -1);
+      },
+      
+      parseLine: function(line, lineno) {
+        var cols = ['qname', 'flag', 'rname', 'pos', 'mapq', 'cigar', 'rnext', 'pnext', 'tlen', 'seq', 'qual'],
+          feature = {},
+          fields = line.split("\t"),
+          chrPos, blockSizes;
+        
+        _.each(fields, function(v, i) { feature[cols[i]] = v; });
+        // TODO: convert automatically from Ensembl style 1, 2, 3, X, MT --> chr1, chr2, chr3, chrX, chrM ?
+        // Useful, or too magical?
+        chrPos = this.browserOpts.chrPos[feature.rname];
+        lineno = lineno || 0;
+        
+        if (_.isUndefined(chrPos)) { 
+          this.warn("Invalid RNAME '"+feature.rname+"' at line " + (lineno + 1 + this.opts.lineNum));
+          return null;
+        } else {
+          feature.score = _.isUndefined(feature.score) ? '?' : feature.score;
+          feature.start = chrPos + parseInt10(feature.pos) + 1;
+          feature.end = feature.start;// TODO
+        }
+        
+        return feature;
       },
     
       prerender: function(start, end, density, precalc, callback) {
@@ -1521,15 +1566,17 @@
           var drawSpec = [], 
             lines, intervals, calcPixInterval;
           if (density == 'dense') {
-            lines = data.split(/\s+/g);
-            _.each(lines, function(line, x) { 
-              if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); } 
-            });
+            // TODO: use coverage data for 'dense'
+            // lines = data.split(/\s+/g);
+            // _.each(lines, function(line, x) {
+            //   if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); }
+            // });
+            
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
             // TODO: need to create a SAM parser for the next line.
-            intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
-            // add() these to an IntervalTree
+            intervals = _.map(lines, function(l) { return {data: self.parseLine.call(self, l)}; });
+            // TODO: add() these to an IntervalTree cache
             // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
             // Then search() for all the intervals in the range, iff we had some cached data already.
             
