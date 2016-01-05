@@ -1409,7 +1409,7 @@
             });
           } else {
             lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
-            intervals = _.map(lines, function(l) { return {data: self.type('bed').parseLine.call(self, l)}; });
+            intervals = _.map(lines, function(l) { return { data: self.type('bed').parseLine.call(self, l)}; });
             // TODO: add() these to an IntervalTree cache
             // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
             // To dedupe, we may use use the Bio::DB:BigBed strategy:
@@ -1472,6 +1472,22 @@
         drawLimit: {squish: 500, pack: 100},
         maxFetchWindow: 0
       },
+      
+      // The FLAG column for BAM/SAM is a combination of bitwise flags
+      flags: {
+        isReadPaired: 0x1,
+        isReadProperlyAligned: 0x2,
+        isReadUnmapped: 0x4,
+        isMateUnmapped: 0x8,
+        readStrand: 0x10,
+        mateStrand: 0x20,
+        isReadFirstOfPair: 0x40,
+        isReadLastOfPair: 0x80,
+        isThisAlignmentPrimary: 0x100,
+        isReadFailingVendorQC: 0x200,
+        isDuplicateRead: 0x400,
+        isSupplementaryAlignment: 0x800
+      },
     
       init: function() {
         if (!this.opts.bigDataUrl) {
@@ -1512,13 +1528,60 @@
         return true;
       },
       
-      parseCigar: function(cigar) {        
-        var operations, lengths;
+      // Sets feature.flags[...] to a human interpretable version of feature.flag (expanding the bitwise flags)
+      parseFlags: function(feature, lineno) {
+        feature.flags = {};
+        _.each(this.flags, function(bit, flag) {
+          feature.flags[flag] = feature.flag & bit;
+        });
+      },
+      
+      // Sets feature.blocks and feature.end based on feature.cigar
+      // See section 1.4 of https://samtools.github.io/hts-specs/SAMv1.pdf for an explanation of CIGAR 
+      parseCigar: function(feature, lineno) {        
+        var cigar = feature.cigar,
+          refLen = 0,
+          seqPos = 0,
+          operations, lengths;
         
-        if (cigar == '*') { return null; }
+        feature.blocks = [];
+        feature.insertions = [];
+        if (!cigar || cigar == '*') { feature.end = feature.start; return; }
         
         ops = cigar.split(/\d+/).slice(1);
         lengths = cigar.split(/[A-Z=]/).slice(0, -1);
+        if (ops.length != lengths.length) { this.warn("Invalid CIGAR '" + cigar + "' for " + feature.desc); return; }
+        lengths = _.map(lengths, parseInt10);
+        
+        _.each(ops, function(op, i) {
+          var len = lengths[i],
+            block, insertion;
+          if (/^[MX=]$/.test(op)) {
+            // Alignment match, sequence match, sequence mismatch
+            block = {start: feature.start + refLen};
+            block.end = block.start + len;
+            block.type = op;
+            block.seq = feature.seq.slice(seqPos, seqPos + len);
+            feature.blocks.push(block);
+            refLen += len;
+            seqPos += len;
+          } else if (/^[ND]$/.test(op)) {
+            // Skipped reference region, deletion from reference
+            refLen += len;
+          } else if (op == 'I') {
+            // Insertion
+            insertion = {start: feature.start + refLen, end: feature.start + refLen};
+            insertion.seq = feature.seq.slice(seqPos, seqPos + len);
+            feature.insertions.push(insertion);
+            seqPos += len;
+          } else if (op == 'S') {
+            // Soft clipping; simply skip these bases in SEQ, position on reference is unchanged.
+            seqPos += len;
+          }
+          // The other two CIGAR ops, H and P, are not relevant to drawing alignments.
+        });
+        
+        feature.end = feature.start + refLen;
       },
       
       parseLine: function(line, lineno) {
@@ -1530,17 +1593,26 @@
         _.each(fields, function(v, i) { feature[cols[i]] = v; });
         // TODO: convert automatically from Ensembl style 1, 2, 3, X, MT --> chr1, chr2, chr3, chrX, chrM ?
         // Useful, or too magical?
+        feature.flag = parseInt10(feature.flag);
         chrPos = this.browserOpts.chrPos[feature.rname];
         lineno = lineno || 0;
         
         if (_.isUndefined(chrPos)) { 
           this.warn("Invalid RNAME '"+feature.rname+"' at line " + (lineno + 1 + this.opts.lineNum));
           return null;
+        } else if (feature.pos === '0') {
+          // Unmapped read. Since we can't draw these, we don't bother parsing them further.
+          return null;
         } else {
           feature.score = _.isUndefined(feature.score) ? '?' : feature.score;
-          feature.start = chrPos + parseInt10(feature.pos) + 1;
-          feature.end = feature.start;// TODO
+          feature.start = chrPos + parseInt10(feature.pos);  // POS is 1-based, hence no increment as for parsing BED
+          feature.desc = feature.qname + ' at ' + feature.rname + ':' + feature.pos;
+          this.type('bam').parseFlags.call(this, feature, lineno);
+          this.type('bam').parseCigar(this, feature, lineno);
         }
+        // We have to come up with something that is a unique label for every line.
+        // The following is technically not guaranteed by a valid BAM (even at GATK standards), but it's the best I got.
+        feature.id = [feature.qname, feature.flag, feature.rname, feature.pos, feature.cigar].join("\t");
         
         return feature;
       },
@@ -1550,7 +1622,8 @@
           width = precalc.width,
           data = self.data,
           bppp = (end - start) / width,
-          range = this.chrRange(start, end);
+          mustFetch = self.data.mask.subtractFrom(start, end), 
+          range = _.flatten(_.map(mustFetch, function(r) { return self.chrRange(r.start, r.end); }));
         
         function lineNum(d, set) {
           var key = bppp + '_' + density;
@@ -1565,20 +1638,32 @@
           var drawSpec = [], 
             lines, intervals, calcPixInterval;
           if (density == 'dense') {
-            // TODO: use coverage data for 'dense'
+            // TODO: use coverage data for 'dense', e.g.
             // lines = data.split(/\s+/g);
             // _.each(lines, function(line, x) {
             //   if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); }
             // });
-            
           } else {
-            lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
-            intervals = _.map(lines, function(l) { return {data: self.parseLine.call(self, l)}; });
-            // TODO: add() these to an IntervalTree cache
-            // CAUTION: we need to figure out how to dedupe things, as we may load the same features multiple times, unintentionally.
-            // Then search() for all the intervals in the range, iff we had some cached data already.
+            if (data) {
+              lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
             
-            calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, density=='pack');
+              // Parse the SAM format into intervals that can be inserted into the IntervalTree cache
+              intervals = _.map(lines, function(l) { return self.type('bam').parseLine.call(self, l); });
+            
+              // Add them to the IntervalTree cache
+              _.each(intervals, function(interval) {
+                if (!interval) { return; }
+                // The interval.id automatically dedupes intervals while adding them
+                self.data.cache.addIfNew(interval, interval.id);
+              });
+              
+              // OK, we've now merged the new data into the cache. Mark this region as already fetched.
+              self.data.mask.add(start, end);
+            }
+            
+            // Then search() for all the intervals in the range, iff we had some cached data already.
+            intervals = self.data.cache.search(start, end);
+            calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
             
             // TODO: we need to add a lineNum function here as the last argument so that we can track lines assigned to previously rendered features
             // Otherwise, features often break between tiles which is ugly and misleading
@@ -1588,19 +1673,35 @@
           callback(drawSpec);
         }
         
-        // TODO: Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
-        // estimate that we will fetch an insane amount of rows (>500 features), as this will only delay other requests.
-        // TODO: cache results so we aren't refetching the same regions over and over again.
-        $.ajax(this.ajaxDir() + 'bam.php', {
-          data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
-          success: success
-        });
+        // Don't even attempt to fetch the data if we can reasonably estimate that we will fetch an insane amount of rows 
+        // (>500 alignments), as this will only delay other requests.
+        if ((end - start) > self.opts.maxFetchWindow) {
+          callback({tooMany: true});
+        } else {
+          // Check if we've previously fetched all data for this range, based on our IntervalMask.
+          if (range.length == 0) {
+            // If yes, skip straight to fishing it out of the cache
+            success(null);
+          } else {
+            // We need to fetch some data remotely
+            console.log({
+              data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
+              success: success
+            });
+            // $.ajax(this.ajaxDir() + 'bam.php', {
+            //   data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
+            //   success: success
+            // });
+          }
+        }
       },
     
       render: function(canvas, start, end, density, callback) {
         var self = this;
         self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
-          self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+          console.log(drawSpec);
+          // TODO: implement drawSpec
+          // self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
           if (_.isFunction(callback)) { callback(); }
         });
       },

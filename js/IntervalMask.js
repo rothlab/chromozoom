@@ -46,7 +46,7 @@ IntervalMask.prototype.slice = function(startIndex, endIndex) {
   return ret;
 }
 
-// How many individual subintervals are stored in this IntervalMask.
+// How many individual subintervals are stored in this IntervalMask?
 IntervalMask.prototype.size = function() {
   return this.starts.size();
 }
@@ -54,6 +54,22 @@ IntervalMask.prototype.size = function() {
 // Convert to an array of intervals using .slice() conventions above.
 IntervalMask.prototype.toArray = function() {
   return this.slice();
+}
+
+// Subtracts the contents of the IntervalMask from the specified interval.
+//
+// Returns the parts of the interval that are not already in the IntervalMask, in the form of
+// an array of {start: start, end: end} objects.
+IntervalMask.prototype.subtractFrom = function(start, end) {
+  if (typeof start != 'number') { throw new Error('you must specify the start value as the 1st argument.'); }
+  if (typeof end != 'number') { throw new Error('you must specify the end value as the 2nd argument.'); }
+  start = Math.max(start, this.min);
+  end = Math.min(end, this.max);
+  
+  var indices = _search(this, start, end),
+    results = this.slice(indices.startIndex, indices.endIndex);
+  
+  return _subtract(results, {start: start, end: end});
 }
 
 // Add a new interval to the IntervalMask.
