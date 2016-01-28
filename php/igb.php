@@ -85,16 +85,16 @@ function guessTrackFormat($url) {
   $file_name = basename($path);
   $format = NULL;
   $extension_matchers = array(       # Searched in this order, first match wins.
-    '#\\.vcf(\\.\\w+)*\\.b?gz$#' => "vcftabix",
-    '#\\.bed\\.b?gz$#' => "bedgz",     # not yet implemented.
-    '#\\.bedgraph$#' => "bedgraph",
-    '#\\.(bigbed|bb)$#' => "bigbed",
-    '#\\.(bigwig|bw)$#' => "bigwig",
-    '#\\.wig$#' => "wiggle_0",
-    '#\\.sam$#' => "sam",            # not yet implemented.
-    '#\\.bam$#' => "bam",            # not yet implemented.
-    '#\\.(gff|gtf|gff3)$#' => "gff", # not yet implemented.
-    '#\\.(bed|txt)$#' => "bed"
+    '#\\.vcf(\\.\\w+)*\\.b?gz$#i' => "vcftabix",
+    '#\\.bed\\.b?gz$#i' => "bedgz",     # not yet implemented.
+    '#\\.bedgraph$#i' => "bedgraph",
+    '#\\.(bigbed|bb)$#i' => "bigbed",
+    '#\\.(bigwig|bw)$#i' => "bigwig",
+    '#\\.wig$#i' => "wiggle_0",
+    '#\\.sam$#i' => "sam",            # not yet implemented.
+    '#\\.bam$#i' => "bam",            # not yet implemented.
+    '#\\.(gff|gtf|gff3)$#i' => "gff", # not yet implemented.
+    '#\\.(bed|txt)$#i' => "bed"
   );
   foreach($extension_matchers as $matcher => $possible_format) {
     if (preg_match($matcher, $file_name)) { $format = $possible_format; break; }
@@ -131,7 +131,7 @@ function getAnnotsAsTracks($url) {
     }
     
     // Map certain annots.xml options that can override certain track definition options. Compare the following:
-    // https://wiki.transvar.org/display/igbman/Creating+QuickLoad+Sites#CreatingQuickLoadSites-Annots.xmloptions-specifytrackcolor,annotationstyle,andmore
+    // https://wiki.transvar.org/display/igbman/About+annots.xml
     // https://genome.ucsc.edu/goldenPath/help/customTrack.html#TRACK
     if ((string) $file['foreground']) { $track['opts']['color'] = hex2rgb((string) $file['foreground']); }
     if ((string) $file['max_depth']) { $track['opts']['maxItems'] = (string) $file['max_depth']; }
