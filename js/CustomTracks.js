@@ -1362,7 +1362,7 @@
         var self = this,
           middleishPos = self.browserOpts.genomeSize / 2,
           cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'});
-        self.data = {cache: cache, mask: new IntervalMask(0, self.browserOpts.genomeSize), info: {}};
+        self.data = {cache: cache, info: {}};
         self.heights = {max: null, min: 15, start: 15};
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
@@ -1470,6 +1470,7 @@
         url: '',
         htmlUrl: '',
         drawLimit: {squish: 500, pack: 100},
+        optimalFetchWindow: 0,
         maxFetchWindow: 0
       },
       
@@ -1498,16 +1499,33 @@
       parse: function(lines) {
         var self = this,
           middleishPos = self.browserOpts.genomeSize / 2,
-          cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'});
-        self.data = {cache: cache, mask: new IntervalMask(0, self.browserOpts.genomeSize), info: {}};
+          cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
+          ajaxUrl = self.ajaxDir() + 'bam.php',
+          remote;
+        
+        remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
+          range = self.chrRange(start, end);
+          $.ajax(ajaxUrl, {
+            data: {range: range, url: self.opts.bigDataUrl},
+            success: function(data) {
+              var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
+              
+              // Parse the SAM format into intervals that can be inserted into the IntervalTree cache
+              var intervals = _.map(lines, function(l) { return self.type('bam').parseLine.call(self, l); });
+              storeIntervals(intervals);
+            }
+          });
+        });
+        
+        self.data = {cache: cache, remote: remote, info: {}};
         self.heights = {max: null, min: 15, start: 15};
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
         
-        // TODO: Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence to estimate maxFetchWindow)
-        // TODO: write bam.php, obviously
-        $.ajax(this.ajaxDir() + 'bam.php', {
-          data: {url: this.opts.bigDataUrl},
+        // Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence
+        // to estimate maxFetchWindow and optimalFetchWindow, and set this on the RemoteTrack.
+        $.ajax(ajaxUrl, {
+          data: {url: self.opts.bigDataUrl},
           success: function(data) {
             var mappedReads = 0,
               maxItemsToDraw = _.max(_.values(self.opts.drawLimit)),
@@ -1522,6 +1540,8 @@
             
             meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
             self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
+            self.opts.optimalFetchWindow = Math.floor(self.opts.maxFetchWindow / 2);
+            remote.setupBins(self.browserOpts.genomeSize, self.opts.optimalFetchWindow, self.opts.maxFetchWindow);
           }
         });
         
@@ -1531,8 +1551,8 @@
       // Sets feature.flags[...] to a human interpretable version of feature.flag (expanding the bitwise flags)
       parseFlags: function(feature, lineno) {
         feature.flags = {};
-        _.each(this.flags, function(bit, flag) {
-          feature.flags[flag] = feature.flag & bit;
+        _.each(this.type('bam').flags, function(bit, flag) {
+          feature.flags[flag] = !!(feature.flag & bit);
         });
       },
       
@@ -1590,7 +1610,7 @@
           fields = line.split("\t"),
           chrPos, blockSizes;
         
-        _.each(fields, function(v, i) { feature[cols[i]] = v; });
+        _.each(_.first(fields, cols.length), function(v, i) { feature[cols[i]] = v; });
         // TODO: convert automatically from Ensembl style 1, 2, 3, X, MT --> chr1, chr2, chr3, chrX, chrM ?
         // Useful, or too magical?
         feature.flag = parseInt10(feature.flag);
@@ -1608,7 +1628,7 @@
           feature.start = chrPos + parseInt10(feature.pos);  // POS is 1-based, hence no increment as for parsing BED
           feature.desc = feature.qname + ' at ' + feature.rname + ':' + feature.pos;
           this.type('bam').parseFlags.call(this, feature, lineno);
-          this.type('bam').parseCigar(this, feature, lineno);
+          this.type('bam').parseCigar.call(this, feature, lineno);
         }
         // We have to come up with something that is a unique label for every line.
         // The following is technically not guaranteed by a valid BAM (even at GATK standards), but it's the best I got.
@@ -1621,87 +1641,47 @@
         var self = this,
           width = precalc.width,
           data = self.data,
-          bppp = (end - start) / width,
-          mustFetch = self.data.mask.subtractFrom(start, end), 
-          range = _.flatten(_.map(mustFetch, function(r) { return self.chrRange(r.start, r.end); }));
+          bppp = (end - start) / width;
         
-        function lineNum(d, set) {
+        function lineNum(d, setTo) {
           var key = bppp + '_' + density;
-          if (!_.isUndefined(set)) { 
+          if (!_.isUndefined(setTo)) { 
             if (!d.line) { d.line = {}; }
-            return (d.line[key] = set);
+            return (d.line[key] = setTo);
           }
           return d.line && d.line[key]; 
         }
         
-        function success(data) {
-          var drawSpec = [], 
-            lines, intervals, calcPixInterval;
-          if (density == 'dense') {
-            // TODO: use coverage data for 'dense', e.g.
-            // lines = data.split(/\s+/g);
-            // _.each(lines, function(line, x) {
-            //   if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); }
-            // });
-          } else {
-            if (data) {
-              lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
-            
-              // Parse the SAM format into intervals that can be inserted into the IntervalTree cache
-              intervals = _.map(lines, function(l) { return self.type('bam').parseLine.call(self, l); });
-            
-              // Add them to the IntervalTree cache
-              _.each(intervals, function(interval) {
-                if (!interval) { return; }
-                // The interval.id automatically dedupes intervals while adding them
-                self.data.cache.addIfNew(interval, interval.id);
-              });
-              
-              // OK, we've now merged the new data into the cache. Mark this region as already fetched.
-              self.data.mask.add(start, end);
-            }
-            
-            // Then search() for all the intervals in the range, iff we had some cached data already.
-            intervals = self.data.cache.search(start, end);
-            calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
+        // Don't even attempt to fetch the data if we can reasonably estimate that we will fetch an insane amount of rows 
+        // (>500 alignments), as this will only delay other requests.
+        if (self.opts.maxFetchWindow && (end - start) > self.opts.maxFetchWindow) {
+          callback({tooMany: true});
+        } else {
+          // TODO: consider separate logic for density == 'dense'? for example as coverage data:
+          // lines = data.split(/\s+/g);
+          // _.each(lines, function(line, x) {
+          //   if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); }
+          // });
+          
+          // Fetch from the RemoteTrack and call the above when the data is available.
+          self.data.remote.fetchAsync(start, end, function(intervals) {
+            if (intervals.tooMany) { return callback(intervals); }
+            var calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
             
             // TODO: we need to add a lineNum function here as the last argument so that we can track lines assigned to previously rendered features
             // Otherwise, features often break between tiles which is ugly and misleading
             // See function lineNum(d, set) above in the bed format
-            drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval);
-          }
-          callback(drawSpec);
-        }
-        
-        // Don't even attempt to fetch the data if we can reasonably estimate that we will fetch an insane amount of rows 
-        // (>500 alignments), as this will only delay other requests.
-        if ((end - start) > self.opts.maxFetchWindow) {
-          callback({tooMany: true});
-        } else {
-          // Check if we've previously fetched all data for this range, based on our IntervalMask.
-          if (range.length == 0) {
-            // If yes, skip straight to fishing it out of the cache
-            success(null);
-          } else {
-            // We need to fetch some data remotely
-            console.log({
-              data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
-              success: success
-            });
-            // $.ajax(this.ajaxDir() + 'bam.php', {
-            //   data: {range: range, url: this.opts.bigDataUrl, width: width, density: density},
-            //   success: success
-            // });
-          }
+            drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+            callback(drawSpec);
+          });
         }
       },
     
       render: function(canvas, start, end, density, callback) {
         var self = this;
         self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
-          console.log(drawSpec);
-          // TODO: implement drawSpec
-          // self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+          // TODO: implement drawSpec specifically for BAMs.
+          self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
           if (_.isFunction(callback)) { callback(); }
         });
       },

@@ -38,7 +38,7 @@ function IntervalTree(center, options) {
 
 
 /**
- * publid methods
+ * public methods
  **/
 
 
