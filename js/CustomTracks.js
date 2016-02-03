@@ -1440,7 +1440,7 @@
             self.data.remote.fetchAsync(start, end, function(intervals) {
               var calcPixInterval, drawSpec;
               if (intervals.tooMany) { return callback(intervals); }
-              calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
+              calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, density == 'pack');
               drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
               callback(drawSpec);
             });
