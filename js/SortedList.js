@@ -12,7 +12,7 @@
  *         (function) filter  : filter function called before inserting data.
  *                              This receives a value and returns true if the value is valid.
  *
- *         (function) compare : fucntion to compare two values, 
+ *         (function) compare : function to compare two values, 
  *                              which is used for sorting order.
  *                              the same signature as Array.prototype.sort(fn).
  *                              

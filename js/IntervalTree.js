@@ -38,7 +38,7 @@ function IntervalTree(center, options) {
 
 
 /**
- * publid methods
+ * public methods
  **/
 
 
@@ -47,7 +47,7 @@ function IntervalTree(center, options) {
  **/
 IntervalTree.prototype.add = function(data, id) {
   if (this.intervalHash[id]) {
-    throw new Error('id ' + id + ' is already registered.');
+    throw new DuplicateError('id ' + id + ' is already registered.');
   }
 
   if (id == undefined) {
@@ -68,6 +68,19 @@ IntervalTree.prototype.add = function(data, id) {
   //  if (e instanceof RangeError) { console.log (data); }
   //}
 };
+
+
+/**
+ * add new range only if it is new, based on whether the id was already registered
+ **/
+IntervalTree.prototype.addIfNew = function(data, id) {
+  try {
+    this.add(data, id);
+  } catch (e) {
+    if (e instanceof DuplicateError) { return; }
+    throw e;
+  }
+}
 
 
 /**
@@ -291,6 +304,13 @@ Interval.prototype.result = function(start, end) {
   }
   return ret;
 };
+
+function DuplicateError(message) {
+    this.name = 'DuplicateError';
+    this.message = message;
+    this.stack = (new Error()).stack;
+}
+DuplicateError.prototype = new Error;
 
 exports.IntervalTree = IntervalTree;
 

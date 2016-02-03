@@ -124,7 +124,7 @@ function getAnnotsAsTracks($url) {
     $track['type'] = $format;
     
     $force_inline = (string) $file['load_hint'] == 'Whole Sequence'; // We could use this as an option to forcibly inline track data
-    if (in_array($format, array('bed', 'bedgraph', 'wig'))) {
+    if (in_array($format, array('bed', 'bedgraph', 'wiggle_0'))) {
       $track['lines'] = explode("\n", file_get_contents($track_url));
     } else {
       $track['opts']['bigDataUrl'] = $track_url;
