@@ -1469,7 +1469,7 @@
         detail: false,
         url: '',
         htmlUrl: '',
-        drawLimit: {squish: 500, pack: 100},
+        drawLimit: {squish: 1000, pack: 200},
         optimalFetchWindow: 0,
         maxFetchWindow: 0
       },
