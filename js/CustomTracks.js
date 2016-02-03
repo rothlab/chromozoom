@@ -1478,7 +1478,9 @@
         detail: false,
         url: '',
         htmlUrl: '',
-        drawLimit: {squish: 1000, pack: 200},
+        drawLimit: {squish: 2000, pack: 2000},
+        // If a nucleotide differs from the reference sequence in greater than 20% of quality weighted reads, IGV colors the bar in proportion to the read count of each base 
+        alleleFreqThreshold: 0.2,
         optimalFetchWindow: 0,
         maxFetchWindow: 0
       },
@@ -1531,6 +1533,7 @@
         self.heights = {max: null, min: 15, start: 15};
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
+        self.noAreaLabels = true;
         
         // Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence
         // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
@@ -1548,7 +1551,7 @@
               mappedReads += readsMappedToContig;
             });
             
-            meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
+            self.data.info.meanItemsPerBp = meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
             self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
             self.opts.optimalFetchWindow = Math.floor(self.opts.maxFetchWindow / 2);
             remote.setupBins(self.browserOpts.genomeSize, self.opts.optimalFetchWindow, self.opts.maxFetchWindow);
@@ -1623,6 +1626,7 @@
         _.each(_.first(fields, cols.length), function(v, i) { feature[cols[i]] = v; });
         // TODO: convert automatically from Ensembl style 1, 2, 3, X, MT --> chr1, chr2, chr3, chrX, chrM ?
         // Useful, or too magical?
+        feature.name = feature.qname;
         feature.flag = parseInt10(feature.flag);
         chrPos = this.browserOpts.chrPos[feature.rname];
         lineno = lineno || 0;
@@ -1645,6 +1649,21 @@
         feature.id = [feature.qname, feature.flag, feature.rname, feature.pos, feature.cigar].join("\t");
         
         return feature;
+      },
+      
+      pileup: function(intervals, start, width, bppp) {
+        var drawSpec = {pileup: {}, coverage: []};
+        _.each(intervals, function(interval) {
+          _.each(interval.blocks, function(block) {
+            var nt;
+            for (var i = block.start; i < block.end; i++) {
+              nt = block.seq[i - block.start];
+              drawSpec.pileup[i] = drawSpec.pileup[i] || {};
+              drawSpec.pileup[i][nt] = (drawSpec.pileup[i][nt] || 0) + 1;
+            }
+          });
+        });
+        return drawSpec;
       },
     
       prerender: function(start, end, density, precalc, callback) {
@@ -1677,9 +1696,58 @@
           self.data.remote.fetchAsync(start, end, function(intervals) {
             var calcPixInterval, drawSpec;
             if (intervals.tooMany) { return callback(intervals); }
-            calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
-            drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+            if (density == 'dense') {
+              drawSpec = self.type('bam').pileup.call(self, intervals, start, width, bppp);
+            } else {
+              calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
+              drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+            }
             callback(drawSpec);
+          });
+        }
+      },
+      
+      // special formatter for content in tooltips for features
+      tipTipData: function(data) {
+        var qualifiersToAbbreviate = {translation: 1},
+          content = {
+            position: data.d.rname + ':' + data.d.pos, 
+            "read strand": data.d.flags.readStrand ? '(-)' : '(+)',
+            "map quality": data.d.mapq
+          };
+        return content;
+      },
+      
+      drawSpec: function(canvas, drawSpec, density) {
+        var self = this,
+          ctx = canvas.getContext && canvas.getContext('2d'),
+          urlTemplate = self.opts.url ? self.opts.url : 'javascript:void("'+self.opts.name+':$$")',
+          drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
+          lineHeight = density == 'pack' ? 15 : 6,
+          color = "#B9B9B9",
+          areas = null;
+                
+        if (!ctx) { throw "Canvas not supported"; }
+        if (density == 'pack') { areas = self.areas[canvas.id] = []; }
+        
+        if (density == 'dense') {
+          // TODO: we'll need to do some fancier drawing for coverage
+          // ideal is like this: https://www.broadinstitute.org/igv/AlignmentData#coverage
+          // self.type('wiggle_0').drawBars.call(self, ctx, drawSpec, height, width);
+        } else {
+          if ((drawLimit && drawSpec.length > drawLimit) || drawSpec.tooMany) { 
+            canvas.height = 0;
+            // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
+            canvas.className = canvas.className + ' too-many';
+            return;
+          }
+          canvas.height = drawSpec.length * lineHeight;
+          ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
+          _.each(drawSpec, function(l, i) {
+            _.each(l, function(data) {
+              self.type('bed').drawFeature.call(self, ctx, data, i, lineHeight);              
+              self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
+            });
           });
         }
       },
@@ -1688,7 +1756,7 @@
         var self = this;
         self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
           // TODO: implement customized drawSpec specifically for BAMs.
-          self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+          self.type('bam').drawSpec.call(self, canvas, drawSpec, density);
           if (_.isFunction(callback)) { callback(); }
         });
       },
