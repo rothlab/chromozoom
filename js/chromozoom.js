@@ -3434,7 +3434,9 @@
       function createAreas(e) {
         _.each($tdata.data('areas'), function(v, i) {
           // We have to make the label <a>'s for custom tracks
-          if (jqXHR._custom && !v[6]) { jqXHR._self.makeAnchor($tile, v, jqXHR._bppp, jqXHR._density, {label: true, i: i}); }
+          if (jqXHR._custom && !v[6]) {
+            jqXHR._self.makeAnchor($tile, v, jqXHR._bppp, jqXHR._density, {label: !jqXHR._custom.noAreaLabels, i: i}); 
+          }
         });
       };
       
