@@ -1631,7 +1631,7 @@
           this.type('bam').parseFlags.call(this, feature, lineno);
           this.type('bam').parseCigar.call(this, feature, lineno);
         }
-        // We have to come up with something that is a unique label for every line.
+        // We have to come up with something that is a unique label for every line to dedupe rows.
         // The following is technically not guaranteed by a valid BAM (even at GATK standards), but it's the best I got.
         feature.id = [feature.qname, feature.flag, feature.rname, feature.pos, feature.cigar].join("\t");
         
@@ -1666,12 +1666,9 @@
           
           // Fetch from the RemoteTrack and call the above when the data is available.
           self.data.remote.fetchAsync(start, end, function(intervals) {
+            var calcPixInterval, drawSpec;
             if (intervals.tooMany) { return callback(intervals); }
-            var calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
-            
-            // TODO: we need to add a lineNum function here as the last argument so that we can track lines assigned to previously rendered features
-            // Otherwise, features often break between tiles which is ugly and misleading
-            // See function lineNum(d, set) above in the bed format
+            calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
             drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
             callback(drawSpec);
           });
@@ -1681,7 +1678,7 @@
       render: function(canvas, start, end, density, callback) {
         var self = this;
         self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
-          // TODO: implement drawSpec specifically for BAMs.
+          // TODO: implement customized drawSpec specifically for BAMs.
           self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
           if (_.isFunction(callback)) { callback(); }
         });

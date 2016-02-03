@@ -19,10 +19,12 @@ var BIN_LOADING = 1,
   BIN_LOADED = 2;
 
 /**
-  * RemoteTrack constructor
+  * RemoteTrack constructor.
+  *
+  * Note you still must call `.setupBins(...)` before the RemoteTrack is ready to fetch data.
   *
   * @param (IntervalTree) cache: An cache store that will receive intervals fetched for each bin.
-  *                              Must be an IntervalTree or equivalent, with .addIfNew() and .search() methods.
+  *                              Must be an IntervalTree or equivalent, with `.addIfNew()` and `.search()` methods.
   * @param (function) fetcher: A function that will be called to fetch data for each bin.
   *                            This function should take three arguments, `start`, `end`, and `storeIntervals`.
   *                            `start` and `end` are 1-based genomic coordinates forming a right-open interval.
@@ -48,7 +50,8 @@ function RemoteTrack(cache, fetcher) {
 
 // Setup the binning scheme for this RemoteTrack. This can occur anytime after initialization, and in fact,
 // can occur after calls to `.fetchAsync()` have been made, in which case they will be waiting on this method
-// to be called to proceed.
+// to be called to proceed. But it MUST be called before data will be received by callbacks passed to 
+// `.fetchAsync()`.
 RemoteTrack.prototype.setupBins = function(genomeSize, optimalFetchWindow, maxFetchWindow) {
   var self = this;
   if (self.binsLoaded) { throw new Error('you cannot run setupBins more than once.'); }
@@ -70,7 +73,7 @@ RemoteTrack.prototype.setupBins = function(genomeSize, optimalFetchWindow, maxFe
 }
 
 
-// First, fetches data (if necessary) for unfetched bins overlapping with the interval from `start` to `end`.
+// Fetches data (if necessary) for unfetched bins overlapping with the interval from `start` to `end`.
 // Then, run `callback` on all stored subintervals that overlap with the interval from `start` to `end`.
 RemoteTrack.prototype.fetchAsync = function(start, end, callback) {
   var self = this;
