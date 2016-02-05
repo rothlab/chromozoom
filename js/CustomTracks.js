@@ -1772,23 +1772,25 @@
         
         if (!drawSpec.sequence) {
           // First drawing pass, with features that don't depend on sequence.
-          if (density == 'pack') { areas = self.areas[canvas.id] = []; }
           
+          // If necessary, indicate there was too much data to load/draw and that the user needs to zoom to see more
           if (drawSpec.tooMany || (drawLimit && drawSpec.lines.length > drawLimit)) { 
             canvas.height = 0;
-            // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
             canvas.className = canvas.className + ' too-many';
             return;
           }
           
+          // Only store areas for the "pack" density.
+          if (density == 'pack') { areas = self.areas[canvas.id] = []; }
+          // Set the expected height for the canvas (this also erases it).
           canvas.height = covHeight + ((density == 'dense') ? 0 : drawSpec.lines.length * lineHeight);
           
-          // First draw the coverage track
-          //console.log(drawSpec.coverage);
+          // First draw the coverage graph
           ctx.fillStyle = "rgb(159,159,159)";
           self.type('bam').drawCoverage.call(self, ctx, drawSpec.coverage, covHeight);
           ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
           
+          // Now, draw alignments below it
           if (density != 'dense') {
             _.each(drawSpec.lines, function(l, i) {
               i += (covHeight / lineHeight); // hackish method for leaving space at the top for the coverage graph
