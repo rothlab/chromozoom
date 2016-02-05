@@ -252,6 +252,9 @@
       + The type name must be lowercase, e.g. beddetail despite `track type=bedDetail`
     
       + .parse(), .prerender(), and .render() MUST be defined.
+    
+      + .renderWithSequence() SHOULD be defined for formats that draw things based on the nucleotide sequence, which may arrive
+        later than the initial render request.
       
       + .loadOpts() and .saveOpts() MAY be defined to handle dynamic updating of options via the Custom Track options dialog.
     
@@ -275,9 +278,15 @@
       
       + .render() will not have access to .data or the CustomTrack.prototype methods if Web Workers are in use.
         It will always, however, have access to DOM methods.
+
+      + .renderWithSequence() has access to the same object space as .render(), and MAY call .prerender() in the same fashion as
+        .render(). If it has to draw certain objects *after* .render() (i.e., on top of what .render() drew), it must use the state
+        of the canvas to check for this and register callbacks as necessary, since although .render() is guaranteed to be called
+        before .renderWithSequence(), it is asynchronous and may draw things on the canvas at any time afterward. See the "bam"
+        format for an example of how to do this.
       
-      + start and end, as passed to .render(), are 1-based positions from the start of the genome, following the genobrowser
-        convention.
+      + start and end, as passed to .render(), are 1-based from the start of the genome and right-open intervals, following the 
+        genobrowser convention.
     */
   
     // =================================================================
@@ -1648,6 +1657,7 @@
           feature.start = chrPos + parseInt10(feature.pos);  // POS is 1-based, hence no increment as for parsing BED
           feature.desc = feature.qname + ' at ' + feature.rname + ':' + feature.pos;
           this.type('bam').parseFlags.call(this, feature, lineno);
+          feature.strand = feature.flags.readStrand ? '+' : '-';
           this.type('bam').parseCigar.call(this, feature, lineno);
         }
         // We have to come up with something that is a unique label for every line to dedupe rows.
@@ -1691,8 +1701,12 @@
           next, bin;
         for (var i = 0; i < width; i++) {
           bin = curr && (j + 1 >= i * bppp + start) ? [curr.cov] : [];
-          while ((next = this.data.pileup[j + 1]) && j + 1 < (i + 1) * bppp + start && j + 2 >= i * bppp + start) { 
-            bin.push(next.cov); ++j; curr = next; 
+          next = this.data.pileup[j + 1];
+          while (j + 1 < (i + 1) * bppp + start && j + 2 >= i * bppp + start) { 
+            next && bin.push(next.cov);
+            ++j;
+            curr = next;
+            next = this.data.pileup[j + 1];
           }
           bars.push(CustomTrack.wigBinFunctions.maximum(bin) / vScale);
         }
@@ -1722,7 +1736,7 @@
         } else {
           // Fetch from the RemoteTrack and call the above when the data is available.
           self.data.remote.fetchAsync(start, end, function(intervals) {
-            var drawSpec = {sequence: sequence}, calcPixInterval;
+            var drawSpec = {sequence: sequence, width: width}, calcPixInterval;
             if (intervals.tooMany) { return callback(intervals); }
             if (!sequence) {
               // First drawing pass, with features that don't depend on sequence.
@@ -1758,13 +1772,39 @@
         });
       },
       
+      drawAlignment: function(ctx, data, i, lineHeight) {
+        var self = this,
+          color = self.opts.color,
+          lineGap = lineHeight > 6 ? 2 : 0,
+          deletionLineWidth = 2,
+          halfHeight = Math.round(0.5 * lineHeight) - deletionLineWidth * 0.5;
+        
+        // Draw the line that shows the full alignment, including deletions
+        ctx.fillStyle = ctx.strokeStyle = 'rgb(0,0,0)';
+        // Note that the "- 1" below fixes rounding issues but gambles on there never being a deletion at the right edge
+        ctx.fillRect(data.pInt.x, i * lineHeight + halfHeight, data.pInt.w - 1, deletionLineWidth);
+        
+        // First, determine and set the color we will be using
+        // Note that the default color was already set in drawSpec
+        if (self.opts.altColor && data.d.strand == '-') { color = self.opts.altColor; }
+        ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")";
+
+        _.each(data.blockInts, function(bInt) {
+          ctx.fillRect(bInt.x, i * lineHeight + lineGap/2, bInt.w, lineHeight - lineGap);
+        });
+        
+        // TODO draw strand indicator (arrowhead)
+        
+      },
+      
       drawSpec: function(canvas, drawSpec, density) {
         var self = this,
           ctx = canvas.getContext && canvas.getContext('2d'),
           urlTemplate = 'javascript:void("'+self.opts.name+':$$")',
           drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
-          lineHeight = density == 'pack' ? 15 : 6,
-          covHeight = density == 'dense' ? 15 : 30,
+          lineHeight = density == 'pack' ? 14 : 4,
+          covHeight = density == 'dense' ? 14 : 28,
+          covMargin = 7,
           color = self.opts.color,
           areas = null;
                 
@@ -1783,20 +1823,24 @@
           // Only store areas for the "pack" density.
           if (density == 'pack') { areas = self.areas[canvas.id] = []; }
           // Set the expected height for the canvas (this also erases it).
-          canvas.height = covHeight + ((density == 'dense') ? 0 : drawSpec.lines.length * lineHeight);
+          canvas.height = covHeight + covMargin + ((density == 'dense') ? 0 : drawSpec.lines.length * lineHeight);
           
           // First draw the coverage graph
           ctx.fillStyle = "rgb(159,159,159)";
           self.type('bam').drawCoverage.call(self, ctx, drawSpec.coverage, covHeight);
-          ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
-          
+                    
           // Now, draw alignments below it
           if (density != 'dense') {
+            // Border between coverage
+            ctx.fillStyle = "rgb(109,109,109)";
+            ctx.fillRect(0, covHeight + 1, drawSpec.width, 1); 
+            ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
+            
             _.each(drawSpec.lines, function(l, i) {
-              i += (covHeight / lineHeight); // hackish method for leaving space at the top for the coverage graph
+              i += ((covHeight + covMargin) / lineHeight); // hackish method for leaving space at the top for the coverage graph
               _.each(l, function(data) {
                 // TODO: implement special drawing of alignment features, for BAMs.
-                self.type('bed').drawFeature.call(self, ctx, data, i, lineHeight);              
+                self.type('bam').drawAlignment.call(self, ctx, data, i, lineHeight);              
                 self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
               });
             });
