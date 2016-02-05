@@ -188,7 +188,9 @@
       heights: {},
       sizes: ['dense'],
       mapSizes: [],
-      areas: {}
+      areas: {},
+      noAreaLabels: false,
+      expectsSequence: false
     });
     this.init();
   }
@@ -1470,6 +1472,7 @@
       defaults: {
         chromosomes: '',
         itemRgb: 'off',
+        color: '188,188,188',
         colorByStrand: '',
         useScore: 0,
         group: 'user',
@@ -1529,11 +1532,13 @@
           });
         });
         
-        self.data = {cache: cache, remote: remote, info: {}};
+        self.data = {cache: cache, remote: remote, pileup: {}, info: {}};
         self.heights = {max: null, min: 15, start: 15};
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
         self.noAreaLabels = true;
+        self.expectsSequence = true;
+        self.renderSequenceCallbacks = {};
         
         // Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence
         // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
@@ -1546,12 +1551,13 @@
             _.each(data.split("\n"), function(line) {
               var fields = line.split("\t"),
                 readsMappedToContig = parseInt(fields[2], 10);
-                if (fields.length == 1 && fields[0] == '') { return; } // blank line
+              if (fields.length == 1 && fields[0] == '') { return; } // blank line
               if (_.isNaN(readsMappedToContig)) { throw new Error("Invalid output for samtools idxstats on this BAM track."); }
               mappedReads += readsMappedToContig;
             });
             
             self.data.info.meanItemsPerBp = meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
+            self.data.info.meanItemLength = 100; // TODO: this is a total guess now, should grab this from some sampled reads.
             self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
             self.opts.optimalFetchWindow = Math.floor(self.opts.maxFetchWindow / 2);
             remote.setupBins(self.browserOpts.genomeSize, self.opts.optimalFetchWindow, self.opts.maxFetchWindow);
@@ -1651,24 +1657,52 @@
         return feature;
       },
       
-      pileup: function(intervals, start, width, bppp) {
-        var drawSpec = {pileup: {}, coverage: []};
+      pileup: function(intervals, start, end) {
+        var pileup = this.data.pileup,
+          positionsToCalculate = {},
+          numPositionsToCalculate = 0;
+        
+        for (var i = start; i < end; i++) {
+          // No need to pileup again on already-piled-up nucleotide positions
+          if (!pileup[i]) { positionsToCalculate[i] = true; numPositionsToCalculate++; }
+        }
+        if (numPositionsToCalculate === 0) { return; } // All positions already piled up!
+        
         _.each(intervals, function(interval) {
-          _.each(interval.blocks, function(block) {
+          _.each(interval.data.blocks, function(block) {
             var nt;
             for (var i = block.start; i < block.end; i++) {
-              nt = block.seq[i - block.start];
-              drawSpec.pileup[i] = drawSpec.pileup[i] || {};
-              drawSpec.pileup[i][nt] = (drawSpec.pileup[i][nt] || 0) + 1;
+              if (!positionsToCalculate[i]) { continue; }
+              nt = (block.seq[i - block.start] || '').toUpperCase();
+              pileup[i] = pileup[i] || {A: 0, C: 0, G: 0, T: 0, N: 0, cov: 0};
+              if (/[ACTGN]/.test(nt)) { pileup[i][nt] += 1; }
+              pileup[i].cov += 1;
             }
           });
         });
-        return drawSpec;
+      },
+      
+      coverage: function(start, width, bppp) {
+        // Compare with binning on the fly in .type('wiggle_0').prerender(...)
+        var j = start,
+          vScale = this.data.info.meanItemsPerBp * this.data.info.meanItemLength * 2,
+          curr = this.data.pileup[j],
+          bars = [],
+          next, bin;
+        for (var i = 0; i < width; i++) {
+          bin = curr && (j + 1 >= i * bppp + start) ? [curr.cov] : [];
+          while ((next = this.data.pileup[j + 1]) && j + 1 < (i + 1) * bppp + start && j + 2 >= i * bppp + start) { 
+            bin.push(next.cov); ++j; curr = next; 
+          }
+          bars.push(CustomTrack.wigBinFunctions.maximum(bin) / vScale);
+        }
+        return bars;
       },
     
       prerender: function(start, end, density, precalc, callback) {
         var self = this,
           width = precalc.width,
+          sequence = precalc.sequence,
           data = self.data,
           bppp = (end - start) / width;
         
@@ -1686,23 +1720,21 @@
         if (self.opts.maxFetchWindow && (end - start) > self.opts.maxFetchWindow) {
           callback({tooMany: true});
         } else {
-          // TODO: consider separate logic for density == 'dense'? for example as coverage data:
-          // lines = data.split(/\s+/g);
-          // _.each(lines, function(line, x) {
-          //   if (line != 'n/a' && line.length) { drawSpec.push({x: x, w: 1, v: parseFloat(line) * 1000}); }
-          // });
-          
           // Fetch from the RemoteTrack and call the above when the data is available.
           self.data.remote.fetchAsync(start, end, function(intervals) {
-            var calcPixInterval, drawSpec;
+            var drawSpec = {sequence: sequence}, calcPixInterval;
             if (intervals.tooMany) { return callback(intervals); }
-            if (density == 'dense') {
-              drawSpec = self.type('bam').pileup.call(self, intervals, start, width, bppp);
-            } else {
+            if (!sequence) {
+              // First drawing pass, with features that don't depend on sequence.
+              self.type('bam').pileup.call(self, intervals, start, end);
               calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
-              drawSpec = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+              drawSpec.lines = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+              drawSpec.coverage = self.type('bam').coverage.call(self, start, width, bppp);
+              callback(drawSpec);
+            } else {
+              // Second drawing pass, to draw things that are dependent on sequence, like SNPs.
+              
             }
-            callback(drawSpec);
           });
         }
       },
@@ -1718,47 +1750,94 @@
         return content;
       },
       
+      // See https://www.broadinstitute.org/igv/AlignmentData#coverage for an idea of what we're imitating
+      drawCoverage: function(ctx, coverage, height) {
+        _.each(coverage, function(d, x) {
+          if (d === null) { return; }
+          ctx.fillRect(x, Math.max(height - (d * height), 0), 1, Math.min(d * height, height));
+        });
+      },
+      
       drawSpec: function(canvas, drawSpec, density) {
         var self = this,
           ctx = canvas.getContext && canvas.getContext('2d'),
-          urlTemplate = self.opts.url ? self.opts.url : 'javascript:void("'+self.opts.name+':$$")',
+          urlTemplate = 'javascript:void("'+self.opts.name+':$$")',
           drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
           lineHeight = density == 'pack' ? 15 : 6,
-          color = "#B9B9B9",
+          covHeight = density == 'dense' ? 15 : 30,
+          color = self.opts.color,
           areas = null;
                 
         if (!ctx) { throw "Canvas not supported"; }
-        if (density == 'pack') { areas = self.areas[canvas.id] = []; }
         
-        if (density == 'dense') {
-          // TODO: we'll need to do some fancier drawing for coverage
-          // ideal is like this: https://www.broadinstitute.org/igv/AlignmentData#coverage
-          // self.type('wiggle_0').drawBars.call(self, ctx, drawSpec, height, width);
-        } else {
-          if ((drawLimit && drawSpec.length > drawLimit) || drawSpec.tooMany) { 
+        if (!drawSpec.sequence) {
+          // First drawing pass, with features that don't depend on sequence.
+          if (density == 'pack') { areas = self.areas[canvas.id] = []; }
+          
+          if (drawSpec.tooMany || (drawLimit && drawSpec.lines.length > drawLimit)) { 
             canvas.height = 0;
             // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
             canvas.className = canvas.className + ' too-many';
             return;
           }
-          canvas.height = drawSpec.length * lineHeight;
+          
+          canvas.height = covHeight + ((density == 'dense') ? 0 : drawSpec.lines.length * lineHeight);
+          
+          // First draw the coverage track
+          //console.log(drawSpec.coverage);
+          ctx.fillStyle = "rgb(159,159,159)";
+          self.type('bam').drawCoverage.call(self, ctx, drawSpec.coverage, covHeight);
           ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
-          _.each(drawSpec, function(l, i) {
-            _.each(l, function(data) {
-              self.type('bed').drawFeature.call(self, ctx, data, i, lineHeight);              
-              self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
+          
+          if (density != 'dense') {
+            _.each(drawSpec.lines, function(l, i) {
+              i += (covHeight / lineHeight); // hackish method for leaving space at the top for the coverage graph
+              _.each(l, function(data) {
+                // TODO: implement special drawing of alignment features, for BAMs.
+                self.type('bed').drawFeature.call(self, ctx, data, i, lineHeight);              
+                self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
+              });
             });
-          });
+          }
+        } else {
+          // Second drawing pass, to draw things that are dependent on sequence, like SNPs.
+          // TODO
         }
+
       },
     
       render: function(canvas, start, end, density, callback) {
         var self = this;
         self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
-          // TODO: implement customized drawSpec specifically for BAMs.
+          var callbackKey = start + '-' + end + '-' + density;
           self.type('bam').drawSpec.call(self, canvas, drawSpec, density);
+          
+          // Have we been waiting to draw sequence data too? If so, do that now, too.
+          if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
+            self.renderSequenceCallbacks[callbackKey]();
+            delete self.renderSequenceCallbacks[callbackKey];
+          }
+          
           if (_.isFunction(callback)) { callback(); }
         });
+      },
+      
+      renderSequenceData: function(canvas, start, end, density, sequence, callback) {
+        var self = this;
+
+        function renderSequenceCallback() {
+          self.prerender(start, end, density, {width: canvas.width, sequence: sequence}, function(drawSpec) {
+            
+          });
+        }
+        
+        // Check if the canvas was already rendered (by lack of the class 'unrendered').
+        // If yes, go ahead and execute renderSequenceCallback(); if not, save it for later.
+        if ((' ' + canvas.className + ' ').indexOf(' unrendered ') > -1) {
+          self.renderSequenceCallbacks[start + '-' + end + '-' + density] = renderSequenceCallback;
+        } else {
+          renderSequenceCallback();
+        }
       },
       
       loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
@@ -1865,7 +1944,7 @@
   CustomTrack.types.beddetail.defaults = _.extend({}, CustomTrack.types.beddetail.defaults, {detail: true});
 
   // These functions branch to different methods depending on the .type() of the track
-  _.each(['init', 'parse', 'render', 'prerender'], function(fn) {
+  _.each(['init', 'parse', 'render', 'renderSequenceData', 'prerender'], function(fn) {
     CustomTrack.prototype[fn] = function() {
       var args = _.toArray(arguments),
         type = this.type();
