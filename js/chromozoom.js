@@ -1357,6 +1357,7 @@
         $overlay.show();
         $overlayMessage.show().text('Loading custom genome...');
         $.ajax(url, {
+          dataType: "text",
           success: function(data) {
             CustomGenomes.parseAsync(data, {url: url}, function(genome) {
               self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
@@ -3679,8 +3680,6 @@
           function ghostify(text) {
             text = text.toString();
             return text;
-            if (!text.length) { return ''; }
-            return '<span class="ghost-' + text.split('').join('"></span><span class="ghost-') + '"></span>';
           }
           
           for (var t = start; t + chr.p < tileId + bppp * o.tileWidth; t += step) {

@@ -109,8 +109,6 @@
     if(top_compare || (t_class == "_bottom" && top_compare) || (t_class == "_top" && !bottom_compare)){
       if(t_class == "_top" || t_class == "_bottom"){
         t_class = "_top";
-        console.log('hi');
-        
       } else {
         t_class = t_class+"_top";
       }

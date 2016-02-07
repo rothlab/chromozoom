@@ -210,18 +210,19 @@
       var pInt = {
         x: Math.round((d[startkey] - start) / bppp),
         w: Math.round((d[endkey] - d[startkey]) / bppp) + 1,
-        t: 0,    // calculated width of text
-        o: false // overflows into previous tile?
+        t: 0,          // calculated width of text
+        oPrev: false,  // overflows into previous tile?
+        oNext: false   // overflows into next tile?
       };
       pInt.tx = pInt.x;
       pInt.tw = pInt.w;
-      if (pInt.x < 0) { pInt.w += pInt.x; pInt.x = 0; pInt.o = true; }
+      if (pInt.x < 0) { pInt.w += pInt.x; pInt.x = 0; pInt.oPrev = true; }
       else if (withText) { 
         pInt.t = Math.min(nameFunc(d).length * 10 + 2, pInt.x);
         pInt.tx -= pInt.t;
         pInt.tw += pInt.t;  
       }
-      pInt.w = Math.min(width - pInt.x, pInt.w);
+      if (pInt.x + pInt.w > width) { pInt.w = width - pInt.x; pInt.oNext = true; }
       return pInt;
     };
   };
@@ -458,10 +459,10 @@
           if (!_.isUndefined(data.d.id)) { tipTipData.id = data.d.id; }
         }
         areas.push([
-          data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, //x1, x2, y1, y2
-          data.d.name || data.d.id || '', // name
-          urlTemplate.replace('$$', _.isUndefined(data.d.id) ? data.d.name : data.d.id), // href
-          data.pInt.o, // continuation from previous tile?
+          data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, // x1, x2, y1, y2
+          data.d.name || data.d.id || '',                                                   // name
+          urlTemplate.replace('$$', _.isUndefined(data.d.id) ? data.d.name : data.d.id),    // href
+          data.pInt.oPrev,                                                                  // continuation from previous tile?
           null,
           null,
           tipTipData
@@ -567,7 +568,8 @@
           areas = null;
                 
         if (!ctx) { throw "Canvas not supported"; }
-        if (density == 'pack') { areas = self.areas[canvas.id] = []; }
+        // TODO: I disabled regenerating areas here, which assumes that lineNum remains stable across re-renders. Should check on this.
+        if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }
         
         if (density == 'dense') {
           canvas.height = 15;
@@ -1329,7 +1331,7 @@
                     data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, //x1, x2, y1, y2
                     data.d.ref + ' > ' + data.d.alt, // title
                     urlTemplate.replace('$$', data.d.id), // href
-                    data.pInt.o, // continuation from previous tile?
+                    data.pInt.oPrev, // continuation from previous tile?
                     altColor, // label color
                     '<span style="color: rgb(' + refColor + ')">' + data.d.ref + '</span><br/>' + data.d.alt, // label
                     data.d.info
@@ -1772,6 +1774,23 @@
         });
       },
       
+      drawStrandIndicator: function(ctx, x, blockY, blockHeight, xScale, bigStyle) {
+        var prevFillStyle = ctx.fillStyle;
+        if (bigStyle) {
+          ctx.beginPath();
+          ctx.moveTo(x - (2 * xScale), blockY);
+          ctx.lineTo(x + (3 * xScale), blockY + blockHeight/2);
+          ctx.lineTo(x - (2 * xScale), blockY + blockHeight);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.fillStyle = 'rgb(140,140,140)';
+          ctx.fillRect(x + (xScale > 0 ? -2 : 1), blockY, 1, blockHeight);
+          ctx.fillRect(x + (xScale > 0 ? -1 : 0), blockY + 1, 1, blockHeight - 2);
+          ctx.fillStyle = prevFillStyle;
+        }
+      },
+      
       drawAlignment: function(ctx, data, i, lineHeight) {
         var self = this,
           color = self.opts.color,
@@ -1789,11 +1808,19 @@
         if (self.opts.altColor && data.d.strand == '-') { color = self.opts.altColor; }
         ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")";
 
-        _.each(data.blockInts, function(bInt) {
-          ctx.fillRect(bInt.x, i * lineHeight + lineGap/2, bInt.w, lineHeight - lineGap);
+        _.each(data.blockInts, function(bInt, blockNum) {
+          var blockY = i * lineHeight + lineGap/2,
+            blockHeight = lineHeight - lineGap;
+          if (blockNum == 0 && data.d.strand == '-' && !bInt.oPrev) {
+            ctx.fillRect(bInt.x + 2, blockY, bInt.w - 2, blockHeight);
+            self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x, blockY, blockHeight, -1, lineHeight > 6);
+          } else if (blockNum == data.blockInts.length - 1 && data.d.strand == '+' && !bInt.oNext) {
+            ctx.fillRect(bInt.x, blockY, bInt.w - 2, blockHeight);
+            self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x + bInt.w, blockY, blockHeight, 1, lineHeight > 6);
+          } else {
+            ctx.fillRect(bInt.x, blockY, bInt.w, blockHeight);
+          }
         });
-        
-        // TODO draw strand indicator (arrowhead)
         
       },
       
@@ -1821,7 +1848,7 @@
           }
           
           // Only store areas for the "pack" density.
-          if (density == 'pack') { areas = self.areas[canvas.id] = []; }
+          if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }
           // Set the expected height for the canvas (this also erases it).
           canvas.height = covHeight + covMargin + ((density == 'dense') ? 0 : drawSpec.lines.length * lineHeight);
           
