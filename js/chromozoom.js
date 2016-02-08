@@ -3805,6 +3805,7 @@
         _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
         $canvas.data('rendering', false);
       });
+      // TODO: Add the .getDNA fetch in here too.
     },
     
     _customTile: function($t, tileId, bppp, bestDensity) {
