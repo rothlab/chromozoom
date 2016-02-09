@@ -1522,8 +1522,8 @@
         isReadProperlyAligned: 0x2,
         isReadUnmapped: 0x4,
         isMateUnmapped: 0x8,
-        readStrand: 0x10,
-        mateStrand: 0x20,
+        readStrandReverse: 0x10,
+        mateStrandReverse: 0x20,
         isReadFirstOfPair: 0x40,
         isReadLastOfPair: 0x80,
         isThisAlignmentPrimary: 0x100,
@@ -1561,7 +1561,7 @@
         });
         
         self.data = {cache: cache, remote: remote, pileup: {}, info: {}};
-        self.heights = {max: null, min: 15, start: 15};
+        self.heights = {max: null, min: 24, start: 24};
         self.sizes = ['dense', 'squish', 'pack'];
         self.mapSizes = ['pack'];
         self.noAreaLabels = true;
@@ -1676,7 +1676,7 @@
           feature.start = chrPos + parseInt10(feature.pos);  // POS is 1-based, hence no increment as for parsing BED
           feature.desc = feature.qname + ' at ' + feature.rname + ':' + feature.pos;
           this.type('bam').parseFlags.call(this, feature, lineno);
-          feature.strand = feature.flags.readStrand ? '+' : '-';
+          feature.strand = feature.flags.readStrandReverse ? '-' : '+';
           this.type('bam').parseCigar.call(this, feature, lineno);
         }
         // We have to come up with something that is a unique label for every line to dedupe rows.
@@ -1689,9 +1689,10 @@
       pileup: function(intervals, start, end) {
         var pileup = this.data.pileup,
           positionsToCalculate = {},
-          numPositionsToCalculate = 0;
+          numPositionsToCalculate = 0,
+          i;
         
-        for (var i = start; i < end; i++) {
+        for (i = start; i < end; i++) {
           // No need to pileup again on already-piled-up nucleotide positions
           if (!pileup[i]) { positionsToCalculate[i] = true; numPositionsToCalculate++; }
         }
@@ -1699,8 +1700,8 @@
         
         _.each(intervals, function(interval) {
           _.each(interval.data.blocks, function(block) {
-            var nt;
-            for (var i = block.start; i < block.end; i++) {
+            var nt, i;
+            for (i = Math.max(block.start, start); i < Math.min(block.end, end); i++) {
               if (!positionsToCalculate[i]) { continue; }
               nt = (block.seq[i - block.start] || '').toUpperCase();
               pileup[i] = pileup[i] || {A: 0, C: 0, G: 0, T: 0, N: 0, cov: 0};
@@ -1737,17 +1738,18 @@
           vScale = this.data.info.meanItemsPerBp * this.data.info.meanItemLength * 2,
           alleleFreqThreshold = this.opts.alleleFreqThreshold,
           alleleSplits = [],
-          split, refNt, i;
+          split, refNt, i, pileupAtPos;
           
         for (i = 0; i < sequence.length; i++) {
           refNt = sequence[i].toUpperCase();
-          if (pileup[start + i][refNt] / pileup[start + i].cov < (1 - alleleFreqThreshold)) {
+          pileupAtPos = pileup[start + i];
+          if (pileupAtPos && pileupAtPos.cov && pileupAtPos[refNt] / pileupAtPos.cov < (1 - alleleFreqThreshold)) {
             split = {
               x: i / bppp,
               splits: []
             };
             _.each(['A', 'C', 'G', 'T'], function(nt) {
-              if (pileup[start + i][nt] > 0) { split.splits.push({nt: nt, h: pileup[start + i][nt] / vScale}); }
+              if (pileupAtPos[nt] > 0) { split.splits.push({nt: nt, h: pileupAtPos[nt] / vScale}); }
             });
             alleleSplits.push(split);
           }
@@ -1756,9 +1758,20 @@
         return alleleSplits;
       },
       
-      mismatches: function(intervals, width, calcPixInterval, lineNum) {
+      mismatches: function(start, sequence, bppp, intervals, width, lineNum) {
         var mismatches = [];
         // TODO
+        _.each(intervals, function(interval) {
+          _.each(interval.data.blocks, function(block) {
+            var line = lineNum(interval.data),
+              nt, i, x;
+            for (i = Math.max(block.start, start); i < Math.min(block.end, start + width * bppp); i++) {
+              x = (i - start) / bppp;
+              nt = (block.seq[i - block.start] || '').toUpperCase();
+              if (nt && nt != sequence[i - start] && line) { mismatches.push({x: x, nt: nt, line: line}); }
+            }
+          });
+        });
         return mismatches;
       },
     
@@ -1801,12 +1814,12 @@
               });
               drawSpec.coverage = self.type('bam').coverage.call(self, start, width, bppp);
             } else {
-              // Second drawing pass, to draw things that are dependent on sequence, like SNPs.
-              // TODO: draw allele splits over coverage
-              drawSpec.bppp = bppp;       
+              // Second drawing pass, to draw things that are dependent on sequence, like mismatches (potential SNPs).
+              drawSpec.bppp = bppp;  
+              // Find allele splits within the coverage graph.
               drawSpec.alleles = self.type('bam').alleles.call(self, start, sequence, bppp);
-              // TODO: find and draw SNPs
-              drawSpec.mismatches = self.type('bam').mismatches.call(self, intervals, width, calcPixInterval, lineNum);
+              // Find mismatches within each aligned block.
+              drawSpec.mismatches = self.type('bam').mismatches.call(self, start, sequence, bppp, intervals, width, lineNum);              
             }
             
             callback(drawSpec);
@@ -1898,7 +1911,7 @@
       },
       
       drawAlleles: function(ctx, alleles, height, barWidth) {
-        // Same as $.ui.genotrack._ntSequenceLoad(...) but could be configurable?
+        // Same colors as $.ui.genotrack._ntSequenceLoad(...) but could be configurable?
         var colors = {A: '255,0,0', T: '255,0,255', C: '0,0,255', G: '0,180,0'},
           yPos;
         _.each(alleles, function(allelesForPosition) {
@@ -1910,14 +1923,30 @@
         });
       },
       
+      drawMismatch: function(ctx, mismatch, lineOffset, lineHeight, ppbp) {
+        // ppbp == pixels per base pair (inverse of bppp)
+        // Same colors as $.ui.genotrack._ntSequenceLoad(...) but could be configurable?
+        var colors = {A: '255,0,0', T: '255,0,255', C: '0,0,255', G: '0,180,0'},
+          lineGap = lineHeight > 6 ? 2 : 0,
+          yPos;
+        ctx.fillStyle = 'rgb('+colors[mismatch.nt]+')';
+        ctx.fillRect(mismatch.x, (mismatch.line + lineOffset) * lineHeight + lineGap / 2, Math.max(ppbp, 1), lineHeight - lineGap);
+        // Do we have room to print a whole letter?
+        if (ppbp > 7 && lineHeight > 10) {
+          ctx.fillStyle = 'rgb(255,255,255)';
+          ctx.fillText(mismatch.nt, mismatch.x + ppbp * 0.5, (mismatch.line + lineOffset + 1) * lineHeight - lineGap);
+        }
+      },
+      
       drawSpec: function(canvas, drawSpec, density) {
         var self = this,
           ctx = canvas.getContext && canvas.getContext('2d'),
           urlTemplate = 'javascript:void("'+self.opts.name+':$$")',
           drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
           lineHeight = density == 'pack' ? 14 : 4,
-          covHeight = density == 'dense' ? 14 : 28,
+          covHeight = density == 'dense' ? 24 : 38,
           covMargin = 7,
+          lineOffset = ((covHeight + covMargin) / lineHeight), 
           color = self.opts.color,
           areas = null;
                 
@@ -1950,7 +1979,7 @@
             ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
             
             _.each(drawSpec.layout, function(l, i) {
-              i += ((covHeight + covMargin) / lineHeight); // hackish method for leaving space at the top for the coverage graph
+              i += lineOffset; // hackish method for leaving space at the top for the coverage graph
               _.each(l, function(data) {
                 // TODO: implement special drawing of alignment features, for BAMs.
                 self.type('bam').drawAlignment.call(self, ctx, drawSpec.width, data, i, lineHeight);              
@@ -1963,7 +1992,12 @@
           // (1) allele splits over coverage
           self.type('bam').drawAlleles.call(self, ctx, drawSpec.alleles, covHeight, 1 / drawSpec.bppp);
           // (2) mismatches over the alignments
-          // TODO
+          ctx.font = "12px 'Menlo','Bitstream Vera Sans Mono','Consolas','Lucida Console',monospace";
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'baseline';
+          _.each(drawSpec.mismatches, function(mismatch) {
+            self.type('bam').drawMismatch.call(self, ctx, mismatch, lineOffset, lineHeight, 1 / drawSpec.bppp);
+          });
         }
 
       },

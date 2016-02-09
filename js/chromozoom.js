@@ -1727,7 +1727,7 @@
         if (url) { t.url = url; }
         // TODO: if the track is not new, inform that its data was replaced with the new track information
         self.availTracks[n] = {
-          fh: {},
+          fh: {"0.1": {dense: t.heights.start}},
           n: n,
           h: t.heights.start,
           s: t.sizes,
@@ -3806,11 +3806,10 @@
         _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
         $canvas.data('rendering', false);
       });
-      // TODO: Should guard against fetching way more than maxNtRequest
       if (d.custom.expectsSequence && (d.end - d.start) < browser.genobrowser('option', 'maxNtRequest')) {
         browser.genobrowser('getDNA', d.start, d.end, function(sequence) {
           d.custom.renderSequence(canvas, d.start, d.end, d.density, sequence, function() {
-            console.log('poof');
+            // TODO: may need to d.self.fixClickAreas() again if .renderSequence added areas?
           });
         });
       }
