@@ -55,11 +55,11 @@
     <div id="navbar" class="shadow">
       <div id="controls">
         <div class="control-seg">
-          <input type="button" id="tracks" name="tracks" value="show tracks&hellip;" />
+          <button id="tracks" name="tracks">show<span class="even-less"> tracks</span><span class="less">&hellip;</span></button>
           <div id="track-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow picker"></div>
         </div>
         <div class="control-seg">
-          <input type="button" id="custom-tracks" name="custom-tracks" value="custom tracks&hellip;" />
+          <button id="custom-tracks" name="custom-tracks">custom<span class="even-less"> tracks</span><span class="less">&hellip;</span></button>
           <div id="custom-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow picker">
             <div class="form-line"><div class="spinner"></div><strong>add file: </strong><label></label></div>
             <div class="help-line indented">
@@ -403,7 +403,7 @@
                 </div>
               </div>
             </div>
-            <h3>Or, enter chromosome names and sizes</h3>
+            <h3>Or, enter chromosome layout</h3>
             <div>
               <p>One chromosome per line, followed by whitespace, then the size in bp.</p>
               <textarea class="placeholder" name="chromsizes" rows="7" cols="80">chr1 1000000
@@ -416,7 +416,7 @@ chr3 2000000</textarea>
         </div>
         
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
-          <div class="left contigs-loading"><img src="css/loading-sm.gif" alt="loading"/> Loading contigs&hellip;</div>
+          <div class="left contigs-loading"><img src="css/loading-sm.gif" alt="loading"/><span> Loading contigs&hellip;</span></div>
           <button type="button" class="ui-state-default ui-corner-all right" name="save">Set chromosomes</button>
           <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
         </div>

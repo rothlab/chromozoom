@@ -931,17 +931,11 @@
       var self = this,
         o = self.options,
         $elems = self.element.add(o.navBar).add(o.footerBar);
+      
+      $(window).bind('orientationchange', function() { $(window).resize(); });
+      
       if (!$.support.touch) { return; }
       $elems.addClass('mobile');
-      
-      function setMobileClasses() {
-        var viewportWidth = $(window).width();
-        $elems.toggleClass('mobile-wide', viewportWidth <= 768 && viewportWidth > 500);
-        $elems.toggleClass('mobile-medium', viewportWidth <= 500 && viewportWidth > 320);
-        $elems.toggleClass('mobile-narrow', viewportWidth <= 320);
-        $(o.trackPicker[0]).val(viewportWidth <= 320 ? 'show' : 'show tracks');
-      }
-      setMobileClasses();
       
       var cachedPageXs = {}, prevPinchWidth = null, touchTarget, center, pinchWidth;
       function getPageX(e, identifier) {
@@ -980,7 +974,6 @@
       $(document).bind('touchend', function(e) { cachedPageXs = {}; prevPinchWidth = touchTarget = center = null; });
 
       $(o.lineMode).find('input[value=single]').attr('checked', true);
-      $(window).bind('orientationchange', function() { setMobileClasses(); $(window).resize(); });
     },
     
     _initIEFixes: function() {
@@ -2190,7 +2183,8 @@
       
       // mousewheeling is more performant (esp in Safari) if it all the events fire on a single element
       // which is why we throw a "shield" element in front of all the browser lines during zooms to capture the events
-      self.lines().genoline('toggleZoomShield', true);                
+      // FIXME: Is this still needed? Safari has possibly fixed this?
+      // self.lines().genoline('toggleZoomShield', true);                
       
       if (d && self.centeredOn !== null) {
         var value = self.$slider.slider('value'),
@@ -2843,18 +2837,22 @@
         bpWidth = o.browser.genobrowser('bpWidth'),
         zoom = o.browser.genobrowser('zoom'),
         elem = this.element.get(0),
+        multipleLines = o.browser.genobrowser('lines').length > 1,
         reticPos = this.centeredOn === null ? this.pos + 0.5 * (bpWidth - o.sideBarWidth * zoom) : this.centeredOn,
         chrStart, chrEnd, chrRetic;
+        
       if (elem == o.browser.genobrowser('lines').get(0)) {
         chrStart = o.browser.genobrowser('chrAt', pos) || o.chrLabels[0];
-        this.$indices.children('.start').text(chrStart.n + ':' + Math.floor(pos - chrStart.p));
+        this.$indices.children('.start').text((multipleLines ? chrStart.n + ':' : '') + Math.floor(pos - chrStart.p));
       } else { this.$indices.children('.start').empty(); }
+      
       if (elem == o.browser.genobrowser('lines').last().get(0)) {
         chrEnd = o.browser.genobrowser('chrAt', pos + bpWidth) || o.chrLabels[0];
-        this.$indices.children('.end').text(chrEnd.n + ':' + Math.ceil(pos + bpWidth - chrEnd.p));
+        this.$indices.children('.end').text((multipleLines ? chrEnd.n + ':' : '') + Math.ceil(pos + bpWidth - chrEnd.p));
       } else { this.$indices.children('.end').empty(); }
+      
       chrRetic = o.browser.genobrowser('chrAt', reticPos) || o.chrLabels[0];
-      this.$retic.children('.n').text(chrRetic.n + ':' + Math.floor(reticPos - chrRetic.p));
+      this.$retic.children('.n').text((multipleLines ? chrRetic.n + ':' : '') + Math.floor(reticPos - chrRetic.p));
     },
     
     setReticle: function(nextZooms, centeredOn) {

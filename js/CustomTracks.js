@@ -1760,7 +1760,7 @@
       
       mismatches: function(start, sequence, bppp, intervals, width, lineNum) {
         var mismatches = [];
-        // TODO
+        sequence = sequence.toUpperCase();
         _.each(intervals, function(interval) {
           _.each(interval.data.blocks, function(block) {
             var line = lineNum(interval.data),
@@ -1829,8 +1829,7 @@
       
       // special formatter for content in tooltips for features
       tipTipData: function(data) {
-        var qualifiersToAbbreviate = {translation: 1},
-          content = {
+        var content = {
             position: data.d.rname + ':' + data.d.pos, 
             "read strand": data.d.flags.readStrand ? '(-)' : '(+)',
             "map quality": data.d.mapq

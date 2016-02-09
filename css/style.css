@@ -18,7 +18,7 @@ body {
 }
 
 #wrapper button, #wrapper input[type="button"], #wrapper input[type="file"] {
-  font-size: 0.8em;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -508,8 +508,8 @@ body {
   border-right: 10px solid transparent;
 }
 .browser-line .retic .n {
-  height: 10px;
-  top: 0px;
+  height: 12px;
+  top: -2px;
   left: 50%;
   font-size: 0.5em;
   color: #0f0;
@@ -537,8 +537,8 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  top: -10px;
-  bottom: -10px;
+  top: -12px;
+  bottom: -12px;
   z-index: 0;
 }
 .browser-line .indices div {
@@ -1450,23 +1450,46 @@ body.row-resizing * {
 /* = Mobile-specific CSS = */
 /* ======================= */
 
-.mobile #line-mode { display: none; }
+@media all and (max-width: 768px) {
+  #line-mode, #linking { display: none; }
+  
+  #zoom-label, #zoom-out, #zoom-cont, #zoom-in { display: none; }
+  
+  #footerbar { bottom: -55px; }
+  #genome { top: -40px; }
+  #genome .title, #genome .description { color: #fcfcfc; text-shadow: 0 0px 3px rgba(0, 0, 0, 0.8); }
+}
 
-.mobile-wide #zoom-label, .mobile-wide #zoom-out, .mobile-wide #zoom-cont, .mobile-wide #zoom-in { display: none; }
+@media all and (max-width: 500px) {
+  #loc-picker { position: fixed; left: 0; top: 30px; width: 100%; }
+  .indices .end { display: none; }
+  #navbar .picker { max-width: 315px; }
+  #custom-picker { left: -53px; }
+  #custom-picker .form-line, #custom-picker .help-line { display: none; }
+  
+  #custom-dialog-cont { max-width: 314px; margin-left: -160px; }
+  #chrom-sizes-dialog-cont { max-width: 314px; margin-left: -160px; }
+  #custom-genome-dialog-cont { max-width: 314px; margin-left: -160px; }
+  
+  #chrom-sizes-dialog { height: 340px; }
+  #chrom-sizes-dialog .accordion { height: 340px; }
+  .contigs-loading span { display: none; }
+  #chrom-sizes-dialog .genome-list, #chrom-sizes-dialog .input-med { float: none; width: 100%; }
+  #chrom-sizes-dialog .second-col { float: none; margin-left: 0; width: 100%; min-height: 60px; }
+  #chrom-sizes-dialog .ui-state-error { margin-top: 0px; }
+  
+  #custom-genome-dialog { padding: .5em 0; }
+  #custom-genome-dialog strong { width: 23%; }
+  #custom-genome-dialog textarea, #custom-genome-dialog .url { width: 100%; }
+  
+  /* Shorter navbar button text */
+  #tracks .less, #custom-tracks .less { display: none; }
+}
 
-.mobile #genome .title { right: 45px; }
-
-.mobile-medium #logo, .mobile-narrow #logo { display: none; }
-
-.mobile-medium #zoom-label, .mobile-medium #zoom-out, .mobile-medium #zoom-cont, .mobile-medium #zoom-in, .mobile-medium #custom-tracks { display: none; }
-
-.mobile-narrow #zoom-label, .mobile-narrow #zoom-out, .mobile-narrow #zoom-cont, .mobile-narrow #zoom-in, .mobile-narrow #custom-tracks { display: none; }
-
-.mobile-narrow #loc { width: 130px; }
-.mobile-narrow #genome .title { font-size: 0.8em; line-height: 2.2em; }
-
-.mobile-narrow #loc-picker, .mobile-medium #loc-picker { position: fixed; left: 0; top: 30px; width: 100%; }
-
-.mobile-narrow #footerlinks { font-size: 0.4em; }
-.mobile-medium #footerlinks { font-size: 0.6em; }
-.mobile-narrow #footerlinks p, .mobile-medium #footerlinks p { text-align: left; padding: 0 130px 0 0; line-height: 1em; }
+@media all and (max-width: 376px) {
+  #loc { width: 130px; }
+  #genome .title { font-size: 0.8em; line-height: 2.2em; }
+  
+  /* Even shorter navbar button text */
+  #tracks .even-less, #custom-tracks .even-less { display: none; }
+}
