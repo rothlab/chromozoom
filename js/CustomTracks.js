@@ -280,10 +280,10 @@
       + .render() will not have access to .data or the CustomTrack.prototype methods if Web Workers are in use.
         It will always, however, have access to DOM methods.
 
-      + .renderWithSequence() has access to the same object space as .render(), and MAY call .prerender() in the same fashion as
+      + .renderSequence() has access to the same object space as .render(), and MAY call .prerender() in the same fashion as
         .render(). If it has to draw certain objects *after* .render() (i.e., on top of what .render() drew), it must use the state
         of the canvas to check for this and register callbacks as necessary, since although .render() is guaranteed to be called
-        before .renderWithSequence(), it is asynchronous and may draw things on the canvas at any time afterward. See the "bam"
+        before .renderSequence(), it is asynchronous and may draw things on the canvas at any time afterward. See the "bam"
         format for an example of how to do this.
       
       + start and end, as passed to .render(), are 1-based from the start of the genome and right-open intervals, following the 
@@ -1717,8 +1717,8 @@
           vScale = this.data.info.meanItemsPerBp * this.data.info.meanItemLength * 2,
           curr = this.data.pileup[j],
           bars = [],
-          next, bin;
-        for (var i = 0; i < width; i++) {
+          next, bin, i;
+        for (i = 0; i < width; i++) {
           bin = curr && (j + 1 >= i * bppp + start) ? [curr.cov] : [];
           next = this.data.pileup[j + 1];
           while (j + 1 < (i + 1) * bppp + start && j + 2 >= i * bppp + start) { 
@@ -1730,6 +1730,36 @@
           bars.push(CustomTrack.wigBinFunctions.maximum(bin) / vScale);
         }
         return bars;
+      },
+      
+      alleles: function(start, sequence, bppp) {
+        var pileup = this.data.pileup,
+          vScale = this.data.info.meanItemsPerBp * this.data.info.meanItemLength * 2,
+          alleleFreqThreshold = this.opts.alleleFreqThreshold,
+          alleleSplits = [],
+          split, refNt, i;
+          
+        for (i = 0; i < sequence.length; i++) {
+          refNt = sequence[i].toUpperCase();
+          if (pileup[start + i][refNt] / pileup[start + i].cov < (1 - alleleFreqThreshold)) {
+            split = {
+              x: i / bppp,
+              splits: []
+            };
+            _.each(['A', 'C', 'G', 'T'], function(nt) {
+              if (pileup[start + i][nt] > 0) { split.splits.push({nt: nt, h: pileup[start + i][nt] / vScale}); }
+            });
+            alleleSplits.push(split);
+          }
+        }
+        
+        return alleleSplits;
+      },
+      
+      mismatches: function(intervals, width, calcPixInterval, lineNum) {
+        var mismatches = [];
+        // TODO
+        return mismatches;
       },
     
       prerender: function(start, end, density, precalc, callback) {
@@ -1749,25 +1779,37 @@
         }
         
         // Don't even attempt to fetch the data if we can reasonably estimate that we will fetch an insane amount of rows 
-        // (>500 alignments), as this will only delay other requests.
+        // (>500 alignments), as this will only hold up other requests.
         if (self.opts.maxFetchWindow && (end - start) > self.opts.maxFetchWindow) {
           callback({tooMany: true});
         } else {
           // Fetch from the RemoteTrack and call the above when the data is available.
           self.data.remote.fetchAsync(start, end, function(intervals) {
-            var drawSpec = {sequence: sequence, width: width}, calcPixInterval;
+            var drawSpec = {sequence: !!sequence, width: width}, 
+              calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
+              
             if (intervals.tooMany) { return callback(intervals); }
+
             if (!sequence) {
               // First drawing pass, with features that don't depend on sequence.
               self.type('bam').pileup.call(self, intervals, start, end);
-              calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
               drawSpec.layout = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+              _.each(drawSpec.layout, function(lines) {
+                _.each(lines, function(interval) {
+                  interval.insertionPts = _.map(interval.d.insertions, calcPixInterval);
+                });
+              });
               drawSpec.coverage = self.type('bam').coverage.call(self, start, width, bppp);
-              callback(drawSpec);
             } else {
               // Second drawing pass, to draw things that are dependent on sequence, like SNPs.
-              
+              // TODO: draw allele splits over coverage
+              drawSpec.bppp = bppp;       
+              drawSpec.alleles = self.type('bam').alleles.call(self, start, sequence, bppp);
+              // TODO: find and draw SNPs
+              drawSpec.mismatches = self.type('bam').mismatches.call(self, intervals, width, calcPixInterval, lineNum);
             }
+            
+            callback(drawSpec);
           });
         }
       },
@@ -1808,11 +1850,12 @@
         }
       },
       
-      drawAlignment: function(ctx, data, i, lineHeight) {
+      drawAlignment: function(ctx, width, data, i, lineHeight) {
         var self = this,
           color = self.opts.color,
           lineGap = lineHeight > 6 ? 2 : 0,
           deletionLineWidth = 2,
+          insertionCaretLineWidth = lineHeight > 6 ? 2 : 1,
           halfHeight = Math.round(0.5 * lineHeight) - deletionLineWidth * 0.5;
         
         // Draw the line that shows the full alignment, including deletions
@@ -1824,10 +1867,15 @@
         // Note that the default color was already set in drawSpec
         if (self.opts.altColor && data.d.strand == '-') { color = self.opts.altColor; }
         ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")";
-
+        
+        // Draw the [mis]match (M/X/=) blocks
         _.each(data.blockInts, function(bInt, blockNum) {
           var blockY = i * lineHeight + lineGap/2,
             blockHeight = lineHeight - lineGap;
+          
+          // Skip drawing blocks that aren't inside the canvas
+          if (bInt.x + bInt.w < 0 || bInt.x > width) { return; }
+          
           if (blockNum == 0 && data.d.strand == '-' && !bInt.oPrev) {
             ctx.fillRect(bInt.x + 2, blockY, bInt.w - 2, blockHeight);
             self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x, blockY, blockHeight, -1, lineHeight > 6);
@@ -1839,6 +1887,27 @@
           }
         });
         
+        // Draw insertions
+        ctx.fillStyle = ctx.strokeStyle = "rgb(114,41,218)";
+        _.each(data.insertionPts, function(insert) {
+          if (insert.x + insert.w < 0 || insert.x > width) { return; }
+          ctx.fillRect(insert.x - 1, i * lineHeight, 2, lineHeight);
+          ctx.fillRect(insert.x - 2, i * lineHeight, 4, insertionCaretLineWidth);
+          ctx.fillRect(insert.x - 2, (i + 1) * lineHeight - insertionCaretLineWidth, 4, insertionCaretLineWidth);
+        });
+      },
+      
+      drawAlleles: function(ctx, alleles, height, barWidth) {
+        // Same as $.ui.genotrack._ntSequenceLoad(...) but could be configurable?
+        var colors = {A: '255,0,0', T: '255,0,255', C: '0,0,255', G: '0,180,0'},
+          yPos;
+        _.each(alleles, function(allelesForPosition) {
+          yPos = height;
+          _.each(allelesForPosition.splits, function(split) {
+            ctx.fillStyle = 'rgb('+colors[split.nt]+')';
+            ctx.fillRect(allelesForPosition.x, yPos -= (split.h * height), Math.max(barWidth, 1), split.h * height);
+          });
+        });
       },
       
       drawSpec: function(canvas, drawSpec, density) {
@@ -1867,7 +1936,7 @@
           // Only store areas for the "pack" density.
           if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }
           // Set the expected height for the canvas (this also erases it).
-          canvas.height = covHeight + covMargin + ((density == 'dense') ? 0 : drawSpec.layout.length * lineHeight);
+          canvas.height = covHeight + ((density == 'dense') ? 0 : covMargin + drawSpec.layout.length * lineHeight);
           
           // First draw the coverage graph
           ctx.fillStyle = "rgb(159,159,159)";
@@ -1884,13 +1953,16 @@
               i += ((covHeight + covMargin) / lineHeight); // hackish method for leaving space at the top for the coverage graph
               _.each(l, function(data) {
                 // TODO: implement special drawing of alignment features, for BAMs.
-                self.type('bam').drawAlignment.call(self, ctx, data, i, lineHeight);              
+                self.type('bam').drawAlignment.call(self, ctx, drawSpec.width, data, i, lineHeight);              
                 self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
               });
             });
           }
         } else {
-          // Second drawing pass, to draw things that are dependent on sequence, like SNPs.
+          // Second drawing pass, to draw things that are dependent on sequence:
+          // (1) allele splits over coverage
+          self.type('bam').drawAlleles.call(self, ctx, drawSpec.alleles, covHeight, 1 / drawSpec.bppp);
+          // (2) mismatches over the alignments
           // TODO
         }
 
@@ -1912,12 +1984,16 @@
         });
       },
       
-      renderSequenceData: function(canvas, start, end, density, sequence, callback) {
+      renderSequence: function(canvas, start, end, density, sequence, callback) {
         var self = this;
+        
+        // If we weren't able to fetch sequence for some reason, there is no reason to proceed.
+        if (!sequence) { return false; }
 
         function renderSequenceCallback() {
           self.prerender(start, end, density, {width: canvas.width, sequence: sequence}, function(drawSpec) {
-            
+            self.type('bam').drawSpec.call(self, canvas, drawSpec, density);
+            if (_.isFunction(callback)) { callback(); }
           });
         }
         
@@ -2034,7 +2110,7 @@
   CustomTrack.types.beddetail.defaults = _.extend({}, CustomTrack.types.beddetail.defaults, {detail: true});
 
   // These functions branch to different methods depending on the .type() of the track
-  _.each(['init', 'parse', 'render', 'renderSequenceData', 'prerender'], function(fn) {
+  _.each(['init', 'parse', 'render', 'renderSequence', 'prerender'], function(fn) {
     CustomTrack.prototype[fn] = function() {
       var args = _.toArray(arguments),
         type = this.type();

@@ -3787,17 +3787,18 @@
     _customTileRender: function(e, callback) {
       var canvas = this,
         $canvas = $(this),
-        d = e.data;
+        d = e.data,
+        browser = d.self.options.browser;
       function pushCallback() { _.isFunction(callback) && $canvas.data('renderingCallbacks').push(callback); }
       if ($canvas.data('rendering') === true) { pushCallback(); return; }
       $canvas.data('rendering', true);
       $canvas.data('renderingCallbacks', []);
       pushCallback();
-      d.custom.render(this, d.start, d.end, d.density, function() {
+      d.custom.render(canvas, d.start, d.end, d.density, function() {
         $canvas.css('width', '100%').css('height', d.custom.stretchHeight ? '100%' : canvas.height);
         $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
         $canvas.removeClass('unrendered').addClass('no-areas');
-        e.data.self.fixClickAreas();
+        d.self.fixClickAreas();
         // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
         // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoo
         if ($canvas.hasClass('too-many') && d.density == 'squish') { $canvas.parent().addClass('too-many'); }
@@ -3805,7 +3806,14 @@
         _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
         $canvas.data('rendering', false);
       });
-      // TODO: Add the .getDNA fetch in here too.
+      // TODO: Should guard against fetching way more than maxNtRequest
+      if (d.custom.expectsSequence && (d.end - d.start) < browser.genobrowser('option', 'maxNtRequest')) {
+        browser.genobrowser('getDNA', d.start, d.end, function(sequence) {
+          d.custom.renderSequence(canvas, d.start, d.end, d.density, sequence, function() {
+            console.log('poof');
+          });
+        });
+      }
     },
     
     _customTile: function($t, tileId, bppp, bestDensity) {
