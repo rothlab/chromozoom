@@ -1357,6 +1357,7 @@
         $overlay.show();
         $overlayMessage.show().text('Loading custom genome...');
         $.ajax(url, {
+          dataType: "text",
           success: function(data) {
             CustomGenomes.parseAsync(data, {url: url}, function(genome) {
               self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
@@ -1726,7 +1727,7 @@
         if (url) { t.url = url; }
         // TODO: if the track is not new, inform that its data was replaced with the new track information
         self.availTracks[n] = {
-          fh: {},
+          fh: {"0.1": {dense: t.heights.start}},
           n: n,
           h: t.heights.start,
           s: t.sizes,
@@ -3679,8 +3680,6 @@
           function ghostify(text) {
             text = text.toString();
             return text;
-            if (!text.length) { return ''; }
-            return '<span class="ghost-' + text.split('').join('"></span><span class="ghost-') + '"></span>';
           }
           
           for (var t = start; t + chr.p < tileId + bppp * o.tileWidth; t += step) {
@@ -3788,17 +3787,18 @@
     _customTileRender: function(e, callback) {
       var canvas = this,
         $canvas = $(this),
-        d = e.data;
+        d = e.data,
+        browser = d.self.options.browser;
       function pushCallback() { _.isFunction(callback) && $canvas.data('renderingCallbacks').push(callback); }
       if ($canvas.data('rendering') === true) { pushCallback(); return; }
       $canvas.data('rendering', true);
       $canvas.data('renderingCallbacks', []);
       pushCallback();
-      d.custom.render(this, d.start, d.end, d.density, function() {
+      d.custom.render(canvas, d.start, d.end, d.density, function() {
         $canvas.css('width', '100%').css('height', d.custom.stretchHeight ? '100%' : canvas.height);
         $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
         $canvas.removeClass('unrendered').addClass('no-areas');
-        e.data.self.fixClickAreas();
+        d.self.fixClickAreas();
         // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
         // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoo
         if ($canvas.hasClass('too-many') && d.density == 'squish') { $canvas.parent().addClass('too-many'); }
@@ -3806,6 +3806,13 @@
         _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
         $canvas.data('rendering', false);
       });
+      if (d.custom.expectsSequence && (d.end - d.start) < browser.genobrowser('option', 'maxNtRequest')) {
+        browser.genobrowser('getDNA', d.start, d.end, function(sequence) {
+          d.custom.renderSequence(canvas, d.start, d.end, d.density, sequence, function() {
+            // TODO: may need to d.self.fixClickAreas() again if .renderSequence added areas?
+          });
+        });
+      }
     },
     
     _customTile: function($t, tileId, bppp, bestDensity) {
