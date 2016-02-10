@@ -1640,7 +1640,6 @@
         
         feature.blocks = [];
         feature.insertions = [];
-        if (!cigar || cigar == '*') { feature.end = feature.start; return; }
         
         ops = cigar.split(/\d+/).slice(1);
         lengths = cigar.split(/[A-Z=]/).slice(0, -1);
@@ -1700,7 +1699,7 @@
         if (_.isUndefined(chrPos)) { 
           this.warn("Invalid RNAME '"+feature.rname+"' at line " + (lineno + 1 + this.opts.lineNum));
           return null;
-        } else if (feature.pos === '0') {
+        } else if (feature.pos === '0' || !feature.cigar || feature.cigar == '*') {
           // Unmapped read. Since we can't draw these at all, we don't bother parsing them further.
           return null;
         } else {
