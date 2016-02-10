@@ -8,7 +8,7 @@ function bad_request() {
   exit;
 }
 
-define('RANGE_PATTERN', '/^(\\w+[^:]+):(\\d+)-(\\d+)$/');
+define('RANGE_PATTERN', '/^(\\w+[^:]*):(\\d+)-(\\d+)$/');
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 
@@ -71,7 +71,7 @@ if ($INFO_ONLY) {
   foreach ($ranges as $range) {
     $CMD_SUFFIX = $SUMMARY ? ' 2>&1' : ' /dev/stdout';
     $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range)) . $CMD_SUFFIX);
-    if ($SUMMARY && preg_match('/^no data in region/', $out)) {
+    if ($SUMMARY && preg_match('/^no data in region|^needLargeMem/', $out)) {
       echo str_repeat("n/a\t", $range[3]);
     } else {
       echo $out;

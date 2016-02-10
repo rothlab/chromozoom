@@ -1510,10 +1510,15 @@
         url: '',
         htmlUrl: '',
         drawLimit: {squish: 2000, pack: 2000},
-        // If a nucleotide differs from the reference sequence in greater than 20% of quality weighted reads, IGV colors the bar in proportion to the read count of each base 
+        // If a nucleotide differs from the reference sequence in greater than 20% of quality weighted reads, 
+        // IGV colors the bar in proportion to the read count of each base; the following changes that threshold for chromozoom
         alleleFreqThreshold: 0.2,
         optimalFetchWindow: 0,
-        maxFetchWindow: 0
+        maxFetchWindow: 0,
+        // The following can be "ensembl_ucsc" or "ucsc_ensembl" to attempt auto-crossmapping of reference contig names
+        // between the two schemes, which IGV does, but is a perennial issue: https://www.biostars.org/p/10062/
+        // I hope not to need all the mappings in here https://github.com/dpryan79/ChromosomeMappings but it may be necessary
+        convertChrScheme: null
       },
       
       // The FLAG column for BAM/SAM is a combination of bitwise flags
@@ -1533,14 +1538,24 @@
       },
     
       init: function() {
+        var browserChrs = _.keys(this.browserOpts);
         if (!this.opts.bigDataUrl) {
           throw new Error("Required parameter bigDataUrl not found for BAM track at " +
               JSON.stringify(this.opts) + (this.opts.lineNum + 1));
         }
+        this.browserChrScheme = this.type("bam").guessChrScheme(_.keys(this.browserOpts.chrPos));
+      },
+      
+      guessChrScheme: function(chrs) {
+        limit = Math.min(chrs.length * 0.8, 20);
+        if (_.filter(chrs, function(chr) { return (/^chr/).test(chr); }).length > limit) { return 'ucsc'; }
+        if (_.filter(chrs, function(chr) { return (/^\d\d?$/).test(chr); }).length > limit) { return 'ensembl'; }
+        return null;
       },
       
       parse: function(lines) {
         var self = this,
+          o = self.opts,
           middleishPos = self.browserOpts.genomeSize / 2,
           cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
           ajaxUrl = self.ajaxDir() + 'bam.php',
@@ -1548,6 +1563,12 @@
         
         remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
           range = self.chrRange(start, end);
+          // Convert automatically between Ensembl style 1, 2, 3, X <--> UCSC style chr1, chr2, chr3, chrX as configured/autodetected
+          // Note that chrM is NOT equivalent to MT https://www.biostars.org/p/120042/#120058
+          switch (o.convertChrScheme) {
+            case 'ensembl_ucsc': range = _.map(range, function(r) { return r.replace(/^chr/, ''); }); break;
+            case 'ucsc_ensembl': range = _.map(range, function(r) { return r.replace(/^(\d\d?|X):/, 'chr$1:'); }); break;
+          }
           $.ajax(ajaxUrl, {
             data: {range: range, url: self.opts.bigDataUrl},
             success: function(data) {
@@ -1571,24 +1592,30 @@
         // Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence
         // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
         $.ajax(ajaxUrl, {
-          data: {url: self.opts.bigDataUrl},
+          data: {url: o.bigDataUrl},
           success: function(data) {
             var mappedReads = 0,
-              maxItemsToDraw = _.max(_.values(self.opts.drawLimit)),
-              meanItemsPerBp;
+              maxItemsToDraw = _.max(_.values(o.drawLimit)),
+              bamChrs = [],
+              chrScheme, meanItemsPerBp;
             _.each(data.split("\n"), function(line) {
               var fields = line.split("\t"),
                 readsMappedToContig = parseInt(fields[2], 10);
               if (fields.length == 1 && fields[0] == '') { return; } // blank line
+              bamChrs.push(fields[0]);
               if (_.isNaN(readsMappedToContig)) { throw new Error("Invalid output for samtools idxstats on this BAM track."); }
               mappedReads += readsMappedToContig;
             });
             
+            self.data.info.chrScheme = chrScheme = self.type("bam").guessChrScheme(bamChrs);
+            if (o.convertChrScheme !== false && chrScheme && self.browserChrScheme ) {
+              o.convertChrScheme = chrScheme != self.browserChrScheme ? chrScheme + '_' + self.browserChrScheme : null;
+            }
             self.data.info.meanItemsPerBp = meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
             self.data.info.meanItemLength = 100; // TODO: this is a total guess now, should grab this from some sampled reads.
-            self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
-            self.opts.optimalFetchWindow = Math.floor(self.opts.maxFetchWindow / 2);
-            remote.setupBins(self.browserOpts.genomeSize, self.opts.optimalFetchWindow, self.opts.maxFetchWindow);
+            o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
+            o.optimalFetchWindow = Math.floor(o.maxFetchWindow / 2);
+            remote.setupBins(self.browserOpts.genomeSize, o.optimalFetchWindow, o.maxFetchWindow);
           }
         });
         
@@ -1613,7 +1640,6 @@
         
         feature.blocks = [];
         feature.insertions = [];
-        if (!cigar || cigar == '*') { feature.end = feature.start; return; }
         
         ops = cigar.split(/\d+/).slice(1);
         lengths = cigar.split(/[A-Z=]/).slice(0, -1);
@@ -1652,14 +1678,19 @@
       },
       
       parseLine: function(line, lineno) {
-        var cols = ['qname', 'flag', 'rname', 'pos', 'mapq', 'cigar', 'rnext', 'pnext', 'tlen', 'seq', 'qual'],
+        var o = this.opts,
+          cols = ['qname', 'flag', 'rname', 'pos', 'mapq', 'cigar', 'rnext', 'pnext', 'tlen', 'seq', 'qual'],
           feature = {},
           fields = line.split("\t"),
           chrPos, blockSizes;
         
         _.each(_.first(fields, cols.length), function(v, i) { feature[cols[i]] = v; });
-        // TODO: convert automatically from Ensembl style 1, 2, 3, X, MT --> chr1, chr2, chr3, chrX, chrM ?
-        // Useful, or too magical?
+        // Convert automatically between Ensembl style 1, 2, 3, X <--> UCSC style chr1, chr2, chr3, chrX as configured/autodetected
+        // Note that chrM is NOT equivalent to MT https://www.biostars.org/p/120042/#120058
+        switch (o.convertChrScheme) {
+          case 'ucsc_ensembl': feature.rname = feature.rname.replace(/^chr/, ''); break;
+          case 'ensembl_ucsc': feature.rname = (/^(\d\d?|X)$/.test(feature.rname) ? 'chr' : '') + feature.rname; break;
+        }
         feature.name = feature.qname;
         feature.flag = parseInt10(feature.flag);
         chrPos = this.browserOpts.chrPos[feature.rname];
@@ -1668,8 +1699,8 @@
         if (_.isUndefined(chrPos)) { 
           this.warn("Invalid RNAME '"+feature.rname+"' at line " + (lineno + 1 + this.opts.lineNum));
           return null;
-        } else if (feature.pos === '0') {
-          // Unmapped read. Since we can't draw these, we don't bother parsing them further.
+        } else if (feature.pos === '0' || !feature.cigar || feature.cigar == '*') {
+          // Unmapped read. Since we can't draw these at all, we don't bother parsing them further.
           return null;
         } else {
           feature.score = _.isUndefined(feature.score) ? '?' : feature.score;
@@ -1723,7 +1754,7 @@
           bin = curr && (j + 1 >= i * bppp + start) ? [curr.cov] : [];
           next = this.data.pileup[j + 1];
           while (j + 1 < (i + 1) * bppp + start && j + 2 >= i * bppp + start) { 
-            next && bin.push(next.cov);
+            if (next) { bin.push(next.cov); }
             ++j;
             curr = next;
             next = this.data.pileup[j + 1];
@@ -1800,7 +1831,7 @@
           self.data.remote.fetchAsync(start, end, function(intervals) {
             var drawSpec = {sequence: !!sequence, width: width}, 
               calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
-              
+            
             if (intervals.tooMany) { return callback(intervals); }
 
             if (!sequence) {
