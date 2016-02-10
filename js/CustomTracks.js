@@ -1689,8 +1689,8 @@
         // Convert automatically between Ensembl style 1, 2, 3, X <--> UCSC style chr1, chr2, chr3, chrX as configured/autodetected
         // Note that chrM is NOT equivalent to MT https://www.biostars.org/p/120042/#120058
         switch (o.convertChrScheme) {
-          case 'ucsc_ensembl': feature.qname = feature.qname.replace(/^chr/, ''); break;
-          case 'ensembl_ucsc': feature.qname = (/^(\d\d?|X)$/.test(feature.qname) ? 'chr' : '') + feature.qname; break;
+          case 'ucsc_ensembl': feature.rname = feature.rname.replace(/^chr/, ''); break;
+          case 'ensembl_ucsc': feature.rname = (/^(\d\d?|X)$/.test(feature.rname) ? 'chr' : '') + feature.rname; break;
         }
         feature.name = feature.qname;
         feature.flag = parseInt10(feature.flag);
