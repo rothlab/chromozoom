@@ -1800,7 +1800,7 @@
           self.data.remote.fetchAsync(start, end, function(intervals) {
             var drawSpec = {sequence: !!sequence, width: width}, 
               calcPixInterval = new CustomTrack.pixIntervalCalculator(start, width, bppp, false);
-              
+            
             if (intervals.tooMany) { return callback(intervals); }
 
             if (!sequence) {

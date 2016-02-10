@@ -70,6 +70,7 @@ RemoteTrack.prototype.setupBins = function(genomeSize, optimalFetchWindow, maxFe
   _.each(this.afterBinSetup, function(range) {
     self.fetchAsync(range.start, range.end);
   });
+  _clearCallbacksForTooBigIntervals(self);
 }
 
 
@@ -160,6 +161,18 @@ function _fireCallbacks(remoteTrk) {
       return false;
     }
     return true;
+  });
+}
+
+// Runs through all saved callbacks and fires any callbacks for which we won't load data since the amount
+// requested is too large. Callbacks that are fired are removed from the queue.
+function _clearCallbacksForTooBigIntervals(remoteTrk) {
+  remoteTrk.callbacks = _.filter(remoteTrk.callbacks, function(afterLoad) {
+    var callback = afterLoad.callback;
+    if (afterLoad.end - afterLoad.start > remoteTrk.maxFetchWindow) {
+      callback({tooMany: true});
+      return false;
+    }
   });
 }
 
