@@ -2984,6 +2984,7 @@
         stop: function(e, ui) {
           $('body').removeClass('row-resizing');
           $(this).removeClass('resizing-side');
+          $(this).css('width', '');
           o.browser.genobrowser('recvTrackResize', o.line, o.track.n, self.$side.outerHeight()); 
         }
       };

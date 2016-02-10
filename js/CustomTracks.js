@@ -308,7 +308,7 @@
         detail: false,
         url: '',
         htmlUrl: '',
-        drawLimit: {squish: 500, pack: 100}
+        drawLimit: {squish: null, pack: null}
       },
       
       init: function() {
@@ -649,7 +649,7 @@
         offset: 0,
         url: '',
         htmlUrl: '',
-        drawLimit: {squish: 500, pack: 100}
+        drawLimit: {squish: null, pack: null}
       },
       
       init: function() {
