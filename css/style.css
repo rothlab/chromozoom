@@ -1457,7 +1457,12 @@ body.row-resizing * {
   
   #footerbar { bottom: -55px; }
   #genome { top: -40px; }
-  #genome .title, #genome .description { color: #fcfcfc; text-shadow: 0 0px 3px rgba(0, 0, 0, 0.8); }
+  #genome .title, #genome .description { 
+    color: #fcfcfc;
+    padding-right: 2px;
+    padding-bottom: 2px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 -1px 3px rgba(0, 0, 0, 0.8), 1px 0 3px rgba(0, 0, 0, 0.8), -1px 0 3px rgba(0, 0, 0, 0.8);
+  }
 }
 
 @media all and (max-width: 500px) {
@@ -1465,7 +1470,10 @@ body.row-resizing * {
   .indices .end { display: none; }
   #navbar .picker { max-width: 315px; }
   #custom-picker { left: -53px; }
-  #custom-picker .form-line, #custom-picker .help-line { display: none; }
+  
+  .browser-line { padding-left: 60px; }
+  .browser-line .side-cont { width: 60px; }
+  .browser-line .indices .start, .browser-line .first-label { left: 60px; }
   
   #custom-dialog-cont { max-width: 314px; margin-left: -160px; }
   #chrom-sizes-dialog-cont { max-width: 314px; margin-left: -160px; }
@@ -1484,6 +1492,10 @@ body.row-resizing * {
   
   /* Shorter navbar button text */
   #tracks .less, #custom-tracks .less { display: none; }
+}
+
+@media all and (max-width: 500px), all and (max-height: 420px) {
+  #custom-picker .form-line, #custom-picker .help-line { display: none; }
 }
 
 @media all and (max-width: 376px) {
