@@ -173,6 +173,7 @@ function _clearCallbacksForTooBigIntervals(remoteTrk) {
       callback({tooMany: true});
       return false;
     }
+    return true;
   });
 }
 
