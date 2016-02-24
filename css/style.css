@@ -1453,7 +1453,7 @@ body.row-resizing * {
 @media all and (max-width: 768px) {
   #line-mode, #linking { display: none; }
   
-  #zoom-label, #zoom-out, #zoom-cont, #zoom-in { display: none; }
+  #zoom-label, #zoom-cont { display: none; }
   
   #footerbar { bottom: -55px; }
   #genome { top: -40px; }
@@ -1468,13 +1468,14 @@ body.row-resizing * {
 @media all and (max-width: 500px) {
   #loc-picker { position: fixed; left: 0; top: 30px; width: 100%; }
   .indices .end { display: none; }
+  #zoom-out, #zoom-in { display: none; }
   #navbar .picker { max-width: 315px; }
   #custom-picker { left: -53px; }
   
   .browser-line { padding-left: 60px; }
   .browser-line .side-cont { width: 60px; }
   .browser-line .indices .start, .browser-line .first-label { left: 60px; }
-  
+    
   #custom-dialog-cont { max-width: 314px; margin-left: -160px; }
   #chrom-sizes-dialog-cont { max-width: 314px; margin-left: -160px; }
   #custom-genome-dialog-cont { max-width: 314px; margin-left: -160px; }
