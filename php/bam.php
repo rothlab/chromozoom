@@ -33,13 +33,16 @@ if (!file_exists($tmp_dir)) { mkdir($tmp_dir); }
 chmod($tmp_dir, 0755);
 chdir($tmp_dir);
 
-//TODO: For the `dense` density, we can plot a wiggle of the coverage, using `samtools bedcov`
+// Note: For the `dense` density, we could simply plot a wiggle of the coverage, using `samtools bedcov`
 // cat regions.bed | samtools bedcov /dev/stdin path.to.bam
 // Although this is quite slow. It might be worth trying to convert the output of `samtools depth` to .bigwig
 // The following spits out bedGraph, minus the third column, which should just be the second column + 1
 // samtools depth [-r chrX:1-20000] path.to.bam 
 // This could be shooped into bigWig with bedGraphToBigWig if the third column is added back with awk...
 // samtools depth [-r chrX:1-20000] path.to.bam | awk -F "\t" 'BEGIN {OFS = FS} {$4 = $3; $3 = $2; $2 = $2 - 1; print}' > out.bedgraph
+// Of course, all of this would have to be done in the background *after* a BAM is loaded and would be
+// caching a lot of data the user may not want to see.
+// It's possible to take the IGV approach and tell the user to specially request this or do it themselves if they really care.
 
 header('Content-type: text/plain');
 passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
