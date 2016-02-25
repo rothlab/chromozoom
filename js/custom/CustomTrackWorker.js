@@ -1,5 +1,7 @@
-importScripts('jquery.nodom.min.js', 'underscore.min.js', 'SortedList.js', 'RemoteTrack.js', 'IntervalTree.js', 'CustomTracks.js');
-var global = this;
+var global = self;  // grab global scole for Web Workers
+require('./jquery.nodom.min.js')(global);
+global._ = require('../underscore.min.js');
+require('./CustomTracks.js')(global);
 
 if (!global.console || !global.console.log) {
   global.console = global.console || {};
@@ -45,7 +47,7 @@ global.addEventListener('message', function(e) {
     callback = function(r) { global.postMessage({id: data.id, ret: JSON.stringify(r || null)}); },
     ret;
 
-  if (CustomTrackWorker._throwErrors) {
+  if (CustomTrackWorker._throwErrors || true) {
     ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback));
   } else {
     try { ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback)); } 

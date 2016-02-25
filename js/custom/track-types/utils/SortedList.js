@@ -153,4 +153,4 @@ SortedList.prototype.compare = SortedList.compare["number"];
 
 exports.SortedList = SortedList;
 
-})(this);
+})(module && module.exports || this);

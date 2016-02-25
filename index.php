@@ -32,18 +32,7 @@
   <meta name="keywords" content="ChromoZoom, genome, genome browser, human genome, yeast genome, html5" />
   <meta name="description" content="ChromoZoom is the most interactive, easy-to-use online genome browser for both curated and custom data." />
   <title>ChromoZoom, the interactive genome browser</title>
-  <script src="js/jquery.min.js"></script>
-  <script src="js/jquery-ui.min.js"></script>
-  <script src="js/jquery.ui.touch-punch.js"></script>
-  <script src="js/underscore.min.js"></script>
-  <script src="js/jquery.tiptip.js"></script>
-  <script src="js/SortedList.js"></script>
-  <script src="js/RemoteTrack.js"></script>
-  <script src="js/IntervalTree.js"></script>
-  <script src="js/CustomTracks.js"></script>
-  <script src="js/CustomGenomes.js"></script>
-  <script src="js/farbtastic.js"></script>
-  <script src="js/chromozoom.js"></script>
+  <script src="build/chromozoom.js"></script>
   <link rel="stylesheet" type="text/css" href="css/syngrey/jquery-ui-1.8.6.custom.css" />
   <link rel="stylesheet" type="text/css" href="css/style.css" />
   <!--[if lte IE 8]><link rel="stylesheet" type="text/css" href="css/iehax.css" /><![endif]-->

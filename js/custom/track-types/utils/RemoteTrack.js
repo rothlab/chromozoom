@@ -180,4 +180,4 @@ function _clearCallbacksForTooBigIntervals(remoteTrk) {
 
 exports.RemoteTrack = RemoteTrack;
 
-})(this);
+})(module && module.exports || this);

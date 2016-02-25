@@ -17,6 +17,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+module.exports = function(jQuery) {
+
 jQuery.fn.farbtastic = function (callback) {
   $.farbtastic(this, callback);
   return this;
@@ -353,3 +355,5 @@ jQuery._farbtastic = function (container, callback) {
     fb.linkTo(callback);
   }
 }
+
+};

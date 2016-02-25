@@ -1,4 +1,7 @@
 (function(exports){
+  
+var SortedList = require('./SortedList.js').SortedList;  
+
 // TODO: backport this code for JavaScript 1.5? using underscore.js
 /**
  * By Shin Suzuki, MIT license
@@ -314,4 +317,4 @@ DuplicateError.prototype = new Error;
 
 exports.IntervalTree = IntervalTree;
 
-})(this);
+})(module && module.exports || this);

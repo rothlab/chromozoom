@@ -8,7 +8,7 @@
  *  jquery.ui.widget.js
  *  jquery.ui.mouse.js
  */
-(function ($) {
+module.exports = function ($) {
 
   // Detect touch support
   $.support.touch = 'ontouchend' in document;
@@ -158,4 +158,4 @@
     _mouseInit.call(self);
   };
 
-})(jQuery);
+};

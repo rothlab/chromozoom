@@ -14,7 +14,7 @@ REQUIRED_LINKS = {
   "bigWigSummary" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "bigWigInfo" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
   "twoBitToFa" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
-  "tabix" => "http://www.htslib.org/download/"
+  "tabix" => "http://www.htslib.org/download/",
   "samtools" => "http://www.htslib.org/download/"
 }
 REQUIRED_LINK_WARN = <<-EOS
@@ -37,8 +37,24 @@ file "ucsc.yaml" do
   cp "ucsc.dist.yaml", "ucsc.yaml"
 end
 
+directory "build"
+JAVASCRIPTS = ["build/chromozoom.js", "build/CustomGenomeWorker.js", "build/CustomTrackWorker.js"]
+def sources_for_javascript(js)
+  Dir.glob('js/**/*.js').sort_by{ |src| src.match(/#{File.basename js}$/) ? -1 : 1 }
+end
+rule /^build\/.+\.js$/ => proc { |js| sources_for_javascript js } do |t|
+  sh "browserify #{t.sources.first} | uglifyjs > #{t.name}"
+end
+
+task :browserify, [:watch] => JAVASCRIPTS do |t, args|
+  if args.watch   # Useful for development. Compiles in debug mode (with source maps) while you edit the source.
+    cmds = JAVASCRIPTS.map{ |js| "watchify -d #{sources_for_javascript(js).first} -o #{js} -v"}
+    Subscreens.split(JAVASCRIPTS.size, cmds)
+  end
+end
+
 desc "Checks that all requirements for ChromoZoom are in place"
-task :check => ["ucsc.yaml", "bin"] + REQUIRED_LINKS.keys.map{|l| "bin/#{l}" } do |t|
+task :check => [:browserify, "ucsc.yaml", "bin"] + REQUIRED_LINKS.keys.map{|l| "bin/#{l}" } do |t|
   if missing = REQUIRED_BINS.keys.find{|b| `which #{b}`.strip.size == 0 }
     fail "FAIL: Could not find \`#{missing}\` in your $PATH; please ensure #{REQUIRED_BINS[missing]} is installed."
   end

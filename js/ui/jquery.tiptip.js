@@ -19,7 +19,10 @@
  *   http://www.gnu.org/licenses/gpl.html
  */
 
-(function($){
+var _ = require('../underscore.min.js');
+
+module.exports = function($){
+    
   var defaults = { 
     activation: "hover",
     keepAlive: false,
@@ -213,4 +216,4 @@
       }
     });
   }
-})(jQuery);
+};

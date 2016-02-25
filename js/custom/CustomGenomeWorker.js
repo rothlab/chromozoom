@@ -1,5 +1,7 @@
-importScripts('jquery.nodom.min.js', 'underscore.min.js', 'CustomTracks.js', 'CustomGenomes.js');
-var global = this;
+var global = self;  // grab global scole for Web Workers
+require('./jquery.nodom.min.js')(global);
+global._ = require('../underscore.min.js');
+require('./CustomGenomes.js')(global);
 
 if (!global.console || !global.console.log) {
   global.console = global.console || {};
