@@ -1,5 +1,7 @@
 (function(exports){
 
+var _ = require('../../../underscore.min.js');
+
 /**
   * RemoteTrack
   *
@@ -23,8 +25,9 @@ var BIN_LOADING = 1,
   *
   * Note you still must call `.setupBins(...)` before the RemoteTrack is ready to fetch data.
   *
-  * @param (IntervalTree) cache: An cache store that will receive intervals fetched for each bin.
-  *                              Must be an IntervalTree or equivalent, with `.addIfNew()` and `.search()` methods.
+  * @param (IntervalTree, Object) cache: An cache store that will receive intervals fetched for each bin.
+  *                                      Should be an IntervalTree or equivalent, with `.addIfNew()` and `.search()` 
+  *                                      methods, or an object or array containing IntervalTrees.
   * @param (function) fetcher: A function that will be called to fetch data for each bin.
   *                            This function should take three arguments, `start`, `end`, and `storeIntervals`.
   *                            `start` and `end` are 1-based genomic coordinates forming a right-open interval.
@@ -33,7 +36,9 @@ var BIN_LOADING = 1,
   * @see _fetchBin for how `fetcher` is utilized.
   **/
 function RemoteTrack(cache, fetcher) {
-  if (typeof cache != 'object' || !cache.addIfNew) { throw new Error('you must specify an IntervalTree cache as the 1st argument.'); }
+  if (typeof cache != 'object' || (!cache.addIfNew && (!_.keys(cache).length || cache[_.keys(cache)[0]].addIfNew))) { 
+    throw new Error('you must specify an IntervalTree cache, or an object/array containing IntervalTrees, as the 1st argument.'); 
+  }
   if (typeof fetcher != 'function') { throw new Error('you must specify a fetcher function as the 2nd argument.'); }
   
   this.cache = cache;
@@ -127,17 +132,23 @@ function _binOverlap(remoteTrk, start, end) {
 }
 
 // Runs the fetcher function on a given bin.
-// The fetcher function is obligated to run a success callback function, passed as its third argument,
-//    on a set of intervals that will be inserted into the remoteTrk.cache IntervalTree.
+// The fetcher function is obligated to run a callback function `storeIntervals`, 
+//    passed as its third argument, on a set of intervals that will be inserted into the 
+//    remoteTrk.cache IntervalTree.
+// The `storeIntervals` function may accept a second argument called `cacheIndex`, in case
+//    remoteTrk.cache is actually a container for multiple IntervalTrees, indicating which 
+//    one to store it in.
 // We then call the `callback` given here after that is complete.
 function _fetchBin(remoteTrk, binIndex, callback) {
   var start = binIndex * remoteTrk.optimalFetchWindow + 1,
     end = (binIndex + 1) * remoteTrk.optimalFetchWindow + 1;
   remoteTrk.binsLoaded[binIndex] = BIN_LOADING;
-  remoteTrk.fetcher(start, end, function storeIntervals(intervals) {
+  remoteTrk.fetcher(start, end, function storeIntervals(intervals, cacheIndex) {
     _.each(intervals, function(interval) {
       if (!interval) { return; }
-      remoteTrk.cache.addIfNew(interval, interval.id);
+      var cache = remoteTrk.cache;
+      if (!_.isUndefined(cacheIndex)) { cache = cache[cacheIndex]; }
+      cache.addIfNew(interval, interval.id);
     });
     remoteTrk.binsLoaded[binIndex] = BIN_LOADED;
     _.isFunction(callback) && callback();

@@ -3,7 +3,9 @@
 // ================================================================================================
 
 module.exports = function(global) {
-  
+
+var _ = require('../underscore.min.js');
+
 var utils = require('./genome-formats/utils/utils.js'),
   deepClone = utils.deepClone,
   log10 = utils.log10,

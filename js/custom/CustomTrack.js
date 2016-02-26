@@ -7,6 +7,8 @@
 
 module.exports = function(global) {
 
+var _ = require('../underscore.min.js');
+
 var utils = require('./track-types/utils/utils.js'),
   parseInt10 = utils.parseInt10;
 

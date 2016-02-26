@@ -45,4 +45,11 @@ chdir($tmp_dir);
 // It's possible to take the IGV approach and tell the user to specially request this or do it themselves if they really care.
 
 header('Content-type: text/plain');
-passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
+
+if ($SUMMARY) {
+  // This gets the first 100 reads, which we can do read length and insert size statistics on
+  // `samtools view https://pakt01.u.hpc.mssm.edu/BSR6402-15-17.final.bam 2>/dev/null | head -n 100`
+  passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
+} else {
+  passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
+}

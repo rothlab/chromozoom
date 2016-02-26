@@ -1,5 +1,7 @@
 module.exports = (function(global){
   
+  var _ = require('../underscore.min.js');
+  
   // Some utility functions.
   var utils = require('./track-types/utils/utils.js'),
     parseDeclarationLine = utils.parseDeclarationLine;

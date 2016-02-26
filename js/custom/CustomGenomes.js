@@ -1,5 +1,6 @@
 module.exports = (function(global){
   
+  var _ = require('../underscore.min.js');
   if (!global.CustomTracks) { require('./CustomTracks.js')(global); }
   
   // The class that represents a singular custom genome object
