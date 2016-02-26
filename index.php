@@ -1,5 +1,6 @@
 <?php
-  $REQUIRED_BINARIES = array('tabix', 'bigBedInfo', 'bigBedSummary' ,'bigBedToBed', 'bigWigSummary', 'bigWigInfo');
+  $REQUIRED_BINARIES = array('tabix', 'samtools', 'bigBedInfo', 'bigBedSummary' ,'bigBedToBed', 
+      'bigWigSummary', 'bigWigInfo', 'twoBitToFa');
   include('lib/setup.php');
   $MISSING_BINARIES = find_and_link_binaries($REQUIRED_BINARIES);
     
