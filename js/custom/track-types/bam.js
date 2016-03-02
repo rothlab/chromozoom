@@ -133,6 +133,8 @@ var BamFormat = {
         
         // TODO: We can deactivate the pairing functionality of the PairedIntervalTree 
         //       if we don't see any paired reads in this BAM.
+        //       If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes
+        //       should trigger pairing.
         remote.setupBins(self.browserOpts.genomeSize, o.optimalFetchWindow, o.maxFetchWindow);
       }
     });

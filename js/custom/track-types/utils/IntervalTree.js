@@ -49,7 +49,7 @@ function IntervalTree(center, options) {
  * add new range
  **/
 IntervalTree.prototype.add = function(data, id) {
-  if (this.intervalHash[id]) {
+  if (this.contains(id)) {
     throw new DuplicateError('id ' + id + ' is already registered.');
   }
 
@@ -71,6 +71,14 @@ IntervalTree.prototype.add = function(data, id) {
   //  if (e instanceof RangeError) { console.log (data); }
   //}
 };
+
+
+/**
+ * check if range is already present, based on its id
+ **/
+IntervalTree.prototype.contains = function(id) {
+  return !!this.intervalHash[id];
+}
 
 
 /**
