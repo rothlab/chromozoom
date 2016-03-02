@@ -115,6 +115,7 @@ IntervalTree.prototype.search = function(val1, val2) {
  * remove: 
  **/
 IntervalTree.prototype.remove = function(interval_id) {
+  throw ".remove() is currently unimplemented";
 };
 
 

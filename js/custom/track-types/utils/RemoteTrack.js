@@ -12,6 +12,7 @@ var _ = require('../../../underscore.min.js');
   * There is one main public method for this class: .fetchAsync(start, end, callback)
   * (For consistency with CustomTracks.js, all `start` and `end` positions are 1-based, oriented to
   * the start of the genome, and intervals are right-open.)
+  *
   * This method will request and cache data for the given interval that is not already cached, and call 
   * callback(intervals) as soon as data for all intervals is available. (If the data is already available, 
   * it will call the callback immediately.)
@@ -25,9 +26,11 @@ var BIN_LOADING = 1,
   *
   * Note you still must call `.setupBins(...)` before the RemoteTrack is ready to fetch data.
   *
-  * @param (IntervalTree, Object) cache: An cache store that will receive intervals fetched for each bin.
-  *                                      Should be an IntervalTree or equivalent, with `.addIfNew()` and `.search()` 
-  *                                      methods, or an object or array containing IntervalTrees.
+  * @param (IntervalTree) cache: An cache store that will receive intervals fetched for each bin.
+  *                              Should be an IntervalTree or equivalent, that implements `.addIfNew(...)` and 
+  *                              `.search(start, end)` methods. If it is an *extension* of an IntervalTree, note 
+  *                              the `extraArgs` param permitted for `.fetchAsync()`, which are passed along as 
+  *                              extra arguments to `.search()`.
   * @param (function) fetcher: A function that will be called to fetch data for each bin.
   *                            This function should take three arguments, `start`, `end`, and `storeIntervals`.
   *                            `start` and `end` are 1-based genomic coordinates forming a right-open interval.
@@ -73,7 +76,7 @@ RemoteTrack.prototype.setupBins = function(genomeSize, optimalFetchWindow, maxFe
   
   // Fire off ranges saved to afterBinSetup
   _.each(this.afterBinSetup, function(range) {
-    self.fetchAsync(range.start, range.end);
+    self.fetchAsync(range.start, range.end, range.extraArgs);
   });
   _clearCallbacksForTooBigIntervals(self);
 }
@@ -81,15 +84,27 @@ RemoteTrack.prototype.setupBins = function(genomeSize, optimalFetchWindow, maxFe
 
 // Fetches data (if necessary) for unfetched bins overlapping with the interval from `start` to `end`.
 // Then, run `callback` on all stored subintervals that overlap with the interval from `start` to `end`.
-RemoteTrack.prototype.fetchAsync = function(start, end, callback) {
+// `extraArgs` is an *optional* parameter that can contain arguments passed to the `.search()` function of the cache.
+//
+// @param (number) start:       1-based genomic coordinate to start fetching from
+// @param (number) end:         1-based genomic coordinate (right-open) to start fetching *until*
+// @param (Array) [extraArgs]:  optional, passed along to the `.search()` calls on the .cache as arguments 3 and up; 
+//                              perhaps useful if the .cache has overridden this method
+// @param (function) callback:  A function that will be called once data is ready for this interval. Will be passed
+//                              all interval features that have been fetched for this interval, or {tooMany: true}
+//                              if more data was requested than could be reasonably fetched.
+RemoteTrack.prototype.fetchAsync = function(start, end, extraArgs, callback) {
   var self = this;
+  if (_.isFunction(extraArgs) && _.isUndefined(callback)) { callback = extraArgs; extraArgs = undefined; }
   if (!self.binsLoaded) {
     // If bins *aren't* setup yet:
     // Save the callback onto the queue
-    if (_.isFunction(callback)) { self.callbacks.push({start: start, end: end, callback: callback}); }
+    if (_.isFunction(callback)) { 
+      self.callbacks.push({start: start, end: end, extraArgs: extraArgs, callback: callback}); 
+    }
     
     // Save this fetch for when the bins are loaded
-    self.afterBinSetup.push({start: start, end: end});
+    self.afterBinSetup.push({start: start, end: end, extraArgs: extraArgs});
   } else {
     // If bins *are* setup, first calculate which bins correspond to this interval, 
     // and what state those bins are in
@@ -99,14 +114,17 @@ RemoteTrack.prototype.fetchAsync = function(start, end, callback) {
     
     if (loadedBins.length == bins.length) {
       // If we've already loaded data for all the bins in question, short-circuit and run the callback now
-      return _.isFunction(callback) && callback(self.cache.search(start, end));
+      extraArgs = _.isUndefined(extraArgs) ? [] : extraArgs;
+      return _.isFunction(callback) && callback(self.cache.search.apply(self.cache, [start, end].concat(extraArgs)));
     } else if (end - start > self.maxFetchWindow) {
       // else, if this interval is too big (> maxFetchWindow), fire the callback right away with {tooMany: true}
       return _.isFunction(callback) && callback({tooMany: true});
     }
     
     // else, push the callback onto the queue
-    if (_.isFunction(callback)) { self.callbacks.push({start: start, end: end, callback: callback}); }
+    if (_.isFunction(callback)) { 
+      self.callbacks.push({start: start, end: end, extraArgs: extraArgs, callback: callback}); 
+    }
     
     // then run fetches for the unfetched bins, which should call _fireCallbacks after they complete,
     // which will automatically fire callbacks from the above queue as they acquire all needed data.
@@ -143,12 +161,10 @@ function _fetchBin(remoteTrk, binIndex, callback) {
   var start = binIndex * remoteTrk.optimalFetchWindow + 1,
     end = (binIndex + 1) * remoteTrk.optimalFetchWindow + 1;
   remoteTrk.binsLoaded[binIndex] = BIN_LOADING;
-  remoteTrk.fetcher(start, end, function storeIntervals(intervals, cacheIndex) {
+  remoteTrk.fetcher(start, end, function storeIntervals(intervals) {
     _.each(intervals, function(interval) {
       if (!interval) { return; }
-      var cache = remoteTrk.cache;
-      if (!_.isUndefined(cacheIndex)) { cache = cache[cacheIndex]; }
-      cache.addIfNew(interval, interval.id);
+      remoteTrk.cache.addIfNew(interval, interval.id);
     });
     remoteTrk.binsLoaded[binIndex] = BIN_LOADED;
     _.isFunction(callback) && callback();
@@ -159,7 +175,10 @@ function _fetchBin(remoteTrk, binIndex, callback) {
 // Callbacks that are fired are removed from the queue.
 function _fireCallbacks(remoteTrk) {
   remoteTrk.callbacks = _.filter(remoteTrk.callbacks, function(afterLoad) {
-    var callback = afterLoad.callback, bins, stillLoadingBins;
+    var callback = afterLoad.callback,
+      extraArgs = _.isUndefined(afterLoad.extraArgs) ? [] : afterLoad.extraArgs,
+      bins, stillLoadingBins;
+        
     if (afterLoad.end - afterLoad.start > remoteTrk.maxFetchWindow) {
       callback({tooMany: true});
       return false;
@@ -168,7 +187,7 @@ function _fireCallbacks(remoteTrk) {
     bins = _binOverlap(remoteTrk, afterLoad.start, afterLoad.end);
     stillLoadingBins = _.filter(bins, function(i) { return remoteTrk.binsLoaded[i] !== BIN_LOADED; }).length > 0;
     if (!stillLoadingBins) {
-      callback(remoteTrk.cache.search(afterLoad.start, afterLoad.end));
+      callback(remoteTrk.cache.search.apply(remoteTrk.cache, [afterLoad.start, afterLoad.end].concat(extraArgs)));
       return false;
     }
     return true;

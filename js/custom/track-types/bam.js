@@ -5,7 +5,7 @@
 var utils = require('./utils/utils.js'),
   floorHack = utils.floorHack,
   parseInt10 = utils.parseInt10;
-var IntervalTree = require('./utils/IntervalTree.js').IntervalTree;
+var PairedIntervalTree = require('./utils/PairedIntervalTree.js').PairedIntervalTree;
 var RemoteTrack = require('./utils/RemoteTrack.js').RemoteTrack;
 
 var BamFormat = {
@@ -30,7 +30,10 @@ var BamFormat = {
     // The following can be "ensembl_ucsc" or "ucsc_ensembl" to attempt auto-crossmapping of reference contig names
     // between the two schemes, which IGV does, but is a perennial issue: https://www.biostars.org/p/10062/
     // I hope not to need all the mappings in here https://github.com/dpryan79/ChromosomeMappings but it may be necessary
-    convertChrScheme: null
+    convertChrScheme: null,
+    // Draw paired ends within a range of expected insert sizes as a continuous feature?
+    // See https://www.broadinstitute.org/igv/AlignmentData#paired for how this works
+    viewAsPairs: false
   },
   
   // The FLAG column for BAM/SAM is a combination of bitwise flags
@@ -69,7 +72,7 @@ var BamFormat = {
     var self = this,
       o = self.opts,
       middleishPos = self.browserOpts.genomeSize / 2,
-      cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
+      cache = new PairedIntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
       ajaxUrl = self.ajaxDir() + 'bam.php',
       remote;
     
@@ -127,6 +130,9 @@ var BamFormat = {
         self.data.info.meanItemLength = 100; // TODO: this is a total guess now, should grab this from some sampled reads.
         o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
         o.optimalFetchWindow = Math.floor(o.maxFetchWindow / 2);
+        
+        // TODO: We can deactivate the pairing functionality of the PairedIntervalTree 
+        //       if we don't see any paired reads in this BAM.
         remote.setupBins(self.browserOpts.genomeSize, o.optimalFetchWindow, o.maxFetchWindow);
       }
     });
@@ -323,6 +329,7 @@ var BamFormat = {
       width = precalc.width,
       sequence = precalc.sequence,
       data = self.data,
+      viewAsPairs = self.opts.viewAsPairs,
       bppp = (end - start) / width;
     
     function lineNum(d, setTo) {
@@ -340,7 +347,7 @@ var BamFormat = {
       callback({tooMany: true});
     } else {
       // Fetch from the RemoteTrack and call the above when the data is available.
-      self.data.remote.fetchAsync(start, end, function(intervals) {
+      self.data.remote.fetchAsync(start, end, viewAsPairs, function(intervals) {
         var drawSpec = {sequence: !!sequence, width: width}, 
           calcPixInterval = new utils.pixIntervalCalculator(start, width, bppp, false);
         
