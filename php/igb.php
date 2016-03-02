@@ -122,6 +122,7 @@ function getAnnotsAsTracks($url) {
     $format = guessTrackFormat($track_url);
     if ($format === NULL) { continue; }
     $track['type'] = $format;
+    $track['name'] = preg_replace('/[^_a-zA-Z0-9-]/', '-', $track['name']);
     
     $force_inline = (string) $file['load_hint'] == 'Whole Sequence'; // We could use this as an option to forcibly inline track data
     if (in_array($format, array('bed', 'bedgraph', 'wiggle_0'))) {
