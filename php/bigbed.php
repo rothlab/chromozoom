@@ -52,6 +52,7 @@ if ($INFO_ONLY) {
   header('Content-type: application/json');
   $BOOL_VALS = array('yes'=> TRUE, 'no' => FALSE);
   
+  $output = array();
   exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . ' 2>&1', $output, $retval);
   if ($retval) { echo json_encode(array("error" => $output)); }
   else {
