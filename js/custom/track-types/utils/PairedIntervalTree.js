@@ -12,12 +12,23 @@ var IntervalTree = require('./IntervalTree.js').IntervalTree;
 function PairedIntervalTree(center, options) {
   this.unpaired = new IntervalTree(center, options);
   this.paired = new IntervalTree(center, options);
+  this.pairingDisabled = false;
 }
 
 
 /**
  * public methods
  **/
+
+
+/**
+ * Disables pairing. Effectively makes this equivalent, externally, to an IntervalTree.
+ * This is useful if we discover that this data source doesn't contain paired reads.
+ **/
+PairedIntervalTree.prototype.disablePairing = function() {
+  this.pairingDisabled = true;
+  this.paired = this.unpaired;
+};
 
 
 /**
@@ -32,8 +43,13 @@ PairedIntervalTree.prototype.add = function(data, id) {
  * add new range only if it is new, based on whether the id was already registered
  **/
 PairedIntervalTree.prototype.addIfNew = function(data, id) {
-  // TODO: add to each of this.paired and this.unpaired.
+  // .unpaired contains every alignment, separately.
   this.unpaired.addIfNew(data, id);
+  
+  if (!this.pairingDisabled) {
+    // 
+    
+  }
 }
 
 
