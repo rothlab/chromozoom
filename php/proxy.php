@@ -38,6 +38,7 @@ $FORMAT_BINS = array(
   "bigwig" => escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigWigInfo')
 );
 foreach ($FORMAT_BINS as $type=>$FORMAT_BIN) {
+  $output = array();
   exec("$FORMAT_BIN " . escapeshellarg($_GET['url']), $output, $exit_code);
   if ($exit_code === 0) { bigformat_track_def($_GET['url'], $type); }
 }

@@ -48,6 +48,7 @@ if ($SUMMARY) {
   ranges_to_args($ranges);
   foreach ($ranges as $range) {
     $cmd = "$BIGWIG_BIN $WINFUNC " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range));
+    $output = array();
     exec($cmd, $output, $retval);
     if ($retval) { echo implode("\t", array_fill(0, $range[3], "n/a")) . "\n"; }
     else { echo implode("\n", $output); }
