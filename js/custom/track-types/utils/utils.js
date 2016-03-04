@@ -1,3 +1,5 @@
+var _ = require('../../../underscore.min.js');
+
 // Parse a track declaration line, which is in the format of:
 // track name="blah" optname1="value1" optname2="value2" ...
 // into a hash of options

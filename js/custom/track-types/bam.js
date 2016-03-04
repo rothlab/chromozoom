@@ -46,7 +46,7 @@ var BamFormat = {
     mateStrandReverse: 0x20,
     isReadFirstOfPair: 0x40,
     isReadLastOfPair: 0x80,
-    isThisAlignmentPrimary: 0x100,
+    isSecondaryAlignment: 0x100,
     isReadFailingVendorQC: 0x200,
     isDuplicateRead: 0x400,
     isSupplementaryAlignment: 0x800
@@ -72,7 +72,8 @@ var BamFormat = {
     var self = this,
       o = self.opts,
       middleishPos = self.browserOpts.genomeSize / 2,
-      cache = new PairedIntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
+      cache = new PairedIntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}, 
+          {startKey: 'templateStart', endKey: 'templateEnd', pairedLengthKey: 'tlen', pairingKey: 'qname'}),
       ajaxUrl = self.ajaxDir() + 'bam.php',
       remote;
     
@@ -224,11 +225,12 @@ var BamFormat = {
       return null;
     } else {
       feature.score = _.isUndefined(feature.score) ? '?' : feature.score;
-      feature.start = chrPos + parseInt10(feature.pos);  // POS is 1-based, hence no increment as for parsing BED
+      feature.start = chrPos + parseInt10(feature.pos);        // POS is 1-based, hence no increment as for parsing BED
       feature.desc = feature.qname + ' at ' + feature.rname + ':' + feature.pos;
+      feature.tlen = parseInt10(feature.tlen);
       this.type('bam').parseFlags.call(this, feature, lineno);
       feature.strand = feature.flags.readStrandReverse ? '-' : '+';
-      this.type('bam').parseCigar.call(this, feature, lineno);
+      this.type('bam').parseCigar.call(this, feature, lineno); // This also sets .end appropriately
     }
     // We have to come up with something that is a unique label for every line to dedupe rows.
     // The following is technically not guaranteed by a valid BAM (even at GATK standards), but it's the best I got.

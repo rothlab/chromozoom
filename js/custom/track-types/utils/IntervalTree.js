@@ -65,11 +65,8 @@ IntervalTree.prototype.add = function(data, id) {
   this.pointTree.insert([itvl.end,   id]);
   this.intervalHash[id] = itvl;
   this._autoIncrement++;
-  //try {
-    _insert.call(this, this.root, itvl);
-  //} catch (e) {
-  //  if (e instanceof RangeError) { console.log (data); }
-  //}
+  
+  _insert.call(this, this.root, itvl);
 };
 
 
@@ -77,7 +74,15 @@ IntervalTree.prototype.add = function(data, id) {
  * check if range is already present, based on its id
  **/
 IntervalTree.prototype.contains = function(id) {
-  return !!this.intervalHash[id];
+  return !!this.get(id);
+}
+
+
+/**
+ * retrieve an interval by its id; returns null if it does not exist
+ **/
+IntervalTree.prototype.get = function(id) {
+  return this.intervalHash[id] || null;
 }
 
 
