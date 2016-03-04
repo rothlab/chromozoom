@@ -73,7 +73,6 @@ PairedIntervalTree.prototype.addIfNew = function(data, id) {
     pairedEnd = this.pairedOptions.endKey,
     pairedLength = data[this.pairedOptions.pairedLengthKey],
     newId, potentialMate;
-  if (this.pairingMinDistance === null) { throw new Error('Can only add data after the pairing interval has been set!'); }
   
   // .unpaired contains every alignment as a separate interval.
   // If it already contains this id, we've seen this read before and should disregard.
@@ -82,6 +81,9 @@ PairedIntervalTree.prototype.addIfNew = function(data, id) {
   
   // .paired contains alignments that may be mated into one interval if they are within the pairing range
   if (!this.pairingDisabled && _eligibleForPairing(this, data)) {
+    if (this.pairingMinDistance === null) { 
+      throw new Error('Can only add paired data after the pairing interval has been set!');
+    }
     
     // instead of storing them with the given id, the pairingKey (for BAM, QNAME) is used as the id.
     // As intervals are added, we check if a read with the same pairingKey already exists in the .paired IntervalTree.
@@ -125,7 +127,7 @@ PairedIntervalTree.prototype.addIfNew = function(data, id) {
     }
   }
 
-}
+};
 
 
 /**

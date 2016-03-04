@@ -61,6 +61,12 @@ var BamFormat = {
     this.browserChrScheme = this.type("bam").guessChrScheme(_.keys(this.browserOpts.chrPos));
   },
   
+  // TODO: We must note that when we change opts.viewAsPairs, we *need* to throw out this.data.pileup
+  // TODO: If the pairing interval changed, we should toss the entire cache and reset the RemoteTrack bins.
+  applyOpts: function() {
+    
+  },
+  
   guessChrScheme: function(chrs) {
     limit = Math.min(chrs.length * 0.8, 20);
     if (_.filter(chrs, function(chr) { return (/^chr/).test(chr); }).length > limit) { return 'ucsc'; }
@@ -132,10 +138,11 @@ var BamFormat = {
         o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
         o.optimalFetchWindow = Math.floor(o.maxFetchWindow / 2);
         
-        // TODO: We can deactivate the pairing functionality of the PairedIntervalTree 
+        // TODO: We should deactivate the pairing functionality of the PairedIntervalTree 
         //       if we don't see any paired reads in this BAM.
         //       If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes
         //       should trigger pairing.
+        self.data.cache.setPairingInterval(10, 5000);
         remote.setupBins(self.browserOpts.genomeSize, o.optimalFetchWindow, o.maxFetchWindow);
       }
     });
