@@ -46,11 +46,11 @@ rule /^build\/.+\.js$/ => proc { |js| sources_for_javascript js } do |t|
   sh "browserify #{t.sources.first} | uglifyjs > #{t.name}"
 end
 
-task :browserify, [:watch] => JAVASCRIPTS do |t, args|
-  if args.watch   # Useful for development. Compiles in debug mode (with source maps) while you edit the source.
-    cmds = JAVASCRIPTS.map{ |js| "watchify -d #{sources_for_javascript(js).first} -o #{js} -v"}
-    Subscreens.split(JAVASCRIPTS.size, cmds)
-  end
+task :browserify => JAVASCRIPTS
+task :watchify do
+  # Useful for development. Compiles in debug mode (with source maps) while you edit the source.
+  cmds = JAVASCRIPTS.map{ |js| "watchify -d #{sources_for_javascript(js).first} -o #{js} -v"}
+  Subscreens.split(JAVASCRIPTS.size, cmds)
 end
 
 desc "Checks that all requirements for ChromoZoom are in place"

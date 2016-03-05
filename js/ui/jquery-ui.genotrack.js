@@ -463,7 +463,9 @@ $.widget('ui.genotrack', {
       oldTitle = $(this).data('title');
     if ($('body').hasClass('dragging')) { return callback(false); }
     function createTipTipHtml(data) {
-      var $table = $('<table/>'),
+      var $tipTipDiv = $('<div/>'),
+        $name = $('<div class="name"/>').appendTo($tipTipDiv),
+        $table = $('<table/>').appendTo($tipTipDiv),
         $tbody = $('<tbody/>').appendTo($table),
         $prevDescTr;
       _.each(data, function(v, k) {
@@ -480,10 +482,8 @@ $.widget('ui.genotrack', {
           $('<td class="value" width="55%"/>').text(v).appendTo($tr);
         }
       });
-      if (oldTitle) {
-        $('<td colspan="2"/>').text(oldTitle).appendTo($('<tr class="name"/>').prependTo($tbody));
-      }
-      callback($table);
+      if (oldTitle) { $name.text(oldTitle); }
+      callback($tipTipDiv);
     }
     if (tiptipData) {
       createTipTipHtml(tiptipData);

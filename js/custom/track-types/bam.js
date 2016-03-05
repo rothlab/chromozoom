@@ -62,9 +62,11 @@ var BamFormat = {
   },
   
   // TODO: We must note that when we change opts.viewAsPairs, we *need* to throw out this.data.pileup
-  // TODO: If the pairing interval changed, we should toss the entire cache and reset the RemoteTrack bins.
+  //         and blow up the areaIndex
+  // TODO: If the pairing interval changed, we should toss the entire cache and reset the RemoteTrack bins,
+  //         and blow up the areaIndex.
   applyOpts: function() {
-    
+
   },
   
   guessChrScheme: function(chrs) {
@@ -259,15 +261,19 @@ var BamFormat = {
     if (numPositionsToCalculate === 0) { return; } // All positions already piled up!
     
     _.each(intervals, function(interval) {
-      _.each(interval.data.blocks, function(block) {
-        var nt, i;
-        for (i = Math.max(block.start, start); i < Math.min(block.end, end); i++) {
-          if (!positionsToCalculate[i]) { continue; }
-          nt = (block.seq[i - block.start] || '').toUpperCase();
-          pileup[i] = pileup[i] || {A: 0, C: 0, G: 0, T: 0, N: 0, cov: 0};
-          if (/[ACTGN]/.test(nt)) { pileup[i][nt] += 1; }
-          pileup[i].cov += 1;
-        }
+      var blockSets = [interval.data.blocks];
+      if (interval.data.drawAsMates && interval.data.mate) { blockSets.push(interval.data.mate.blocks); }
+      _.each(blockSets, function(blocks) {
+        _.each(blocks, function(block) {
+          var nt, i;
+          for (i = Math.max(block.start, start); i < Math.min(block.end, end); i++) {
+            if (!positionsToCalculate[i]) { continue; }
+            nt = (block.seq[i - block.start] || '').toUpperCase();
+            pileup[i] = pileup[i] || {A: 0, C: 0, G: 0, T: 0, N: 0, cov: 0};
+            if (/[ACTGN]/.test(nt)) { pileup[i][nt] += 1; }
+            pileup[i].cov += 1;
+          }
+        });
       });
     });
   },
@@ -322,14 +328,18 @@ var BamFormat = {
     var mismatches = [];
     sequence = sequence.toUpperCase();
     _.each(intervals, function(interval) {
-      _.each(interval.data.blocks, function(block) {
-        var line = lineNum(interval.data),
-          nt, i, x;
-        for (i = Math.max(block.start, start); i < Math.min(block.end, start + width * bppp); i++) {
-          x = (i - start) / bppp;
-          nt = (block.seq[i - block.start] || '').toUpperCase();
-          if (nt && nt != sequence[i - start] && line) { mismatches.push({x: x, nt: nt, line: line}); }
-        }
+      var blockSets = [interval.data.blocks];
+      if (interval.data.drawAsMates && interval.data.mate) { blockSets.push(interval.data.mate.blocks); }
+      _.each(blockSets, function(blocks) {
+        _.each(blocks, function(block) {
+          var line = lineNum(interval.data),
+            nt, i, x;
+          for (i = Math.max(block.start, start); i < Math.min(block.end, start + width * bppp); i++) {
+            x = (i - start) / bppp;
+            nt = (block.seq[i - block.start] || '').toUpperCase();
+            if (nt && nt != sequence[i - start] && line) { mismatches.push({x: x, nt: nt, line: line}); }
+          }
+        });
       });
     });
     return mismatches;
@@ -341,10 +351,12 @@ var BamFormat = {
       sequence = precalc.sequence,
       data = self.data,
       viewAsPairs = self.opts.viewAsPairs,
+      startKey = viewAsPairs ? 'templateStart' : 'start',
+      endKey = viewAsPairs ? 'templateEnd' : 'end',
       bppp = (end - start) / width;
     
     function lineNum(d, setTo) {
-      var key = bppp + '_' + density;
+      var key = bppp + '_' + density + '_' + (viewAsPairs ? 'p' : 'u');
       if (!_.isUndefined(setTo)) { 
         if (!d.line) { d.line = {}; }
         return (d.line[key] = setTo);
@@ -359,7 +371,8 @@ var BamFormat = {
     } else {
       // Fetch from the RemoteTrack and call the above when the data is available.
       self.data.remote.fetchAsync(start, end, viewAsPairs, function(intervals) {
-        var drawSpec = {sequence: !!sequence, width: width}, 
+        var drawSpec = {sequence: !!sequence, width: width},
+          calcPixIntervalMated = new utils.pixIntervalCalculator(start, width, bppp, false, false, startKey, endKey),
           calcPixInterval = new utils.pixIntervalCalculator(start, width, bppp, false);
         
         if (intervals.tooMany) { return callback(intervals); }
@@ -367,10 +380,19 @@ var BamFormat = {
         if (!sequence) {
           // First drawing pass, with features that don't depend on sequence.
           self.type('bam').pileup.call(self, intervals, start, end);
-          drawSpec.layout = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+          drawSpec.layout = self.type('bed').stackedLayout.call(self, intervals, width, calcPixIntervalMated, lineNum);
           _.each(drawSpec.layout, function(lines) {
             _.each(lines, function(interval) {
               interval.insertionPts = _.map(interval.d.insertions, calcPixInterval);
+              if (interval.d.drawAsMates && interval.d.mate) {
+                interval.mateInts = _.map([interval.d, interval.d.mate], calcPixInterval);
+                interval.mateBlockInts = _.map(interval.d.mate.blocks, calcPixInterval);
+                interval.mateInsertionPts = _.map(interval.d.mate.insertionPts, calcPixInterval);
+              } else if (interval.d.mateExpected) {
+                interval.mateInts = [calcPixInterval(interval)];
+                interval.mateBlockInts = [];
+                interval.mateInsertionPts = [];
+              }
             });
           });
           drawSpec.coverage = self.type('bam').coverage.call(self, start, width, bppp);
@@ -380,7 +402,7 @@ var BamFormat = {
           // Find allele splits within the coverage graph.
           drawSpec.alleles = self.type('bam').alleles.call(self, start, sequence, bppp);
           // Find mismatches within each aligned block.
-          drawSpec.mismatches = self.type('bam').mismatches.call(self, start, sequence, bppp, intervals, width, lineNum);              
+          drawSpec.mismatches = self.type('bam').mismatches.call(self, start, sequence, bppp, intervals, width, lineNum);
         }
         
         callback(drawSpec);
@@ -390,10 +412,17 @@ var BamFormat = {
   
   // special formatter for content in tooltips for features
   tipTipData: function(data) {
+    function yesNo(bool) { return bool ? "yes" : "no"; }
     var content = {
-        position: data.d.rname + ':' + data.d.pos, 
+        "position": data.d.rname + ':' + data.d.pos,
+        "cigar": data.d.cigar,
         "read strand": data.d.flags.readStrand ? '(-)' : '(+)',
-        "map quality": data.d.mapq
+        "mapped": yesNo(data.d.flags.isReadMapped),
+        "map quality": data.d.mapq,
+        "secondary": yesNo(data.d.flags.isSecondaryAlignment),
+        "supplementary": yesNo(data.d.flags.isSupplementaryAlignment),
+        "duplicate": yesNo(data.d.flags.isDuplicateRead),
+        "failed QC": yesNo(data.d.flags.isReadFailingVendorQC)
       };
     return content;
   },
@@ -425,16 +454,29 @@ var BamFormat = {
   
   drawAlignment: function(ctx, width, data, i, lineHeight) {
     var self = this,
+      drawMates = data.mateInts,
       color = self.opts.color,
       lineGap = lineHeight > 6 ? 2 : 0,
+      blockY = i * lineHeight + lineGap/2,
+      blockHeight = lineHeight - lineGap,
       deletionLineWidth = 2,
       insertionCaretLineWidth = lineHeight > 6 ? 2 : 1,
-      halfHeight = Math.round(0.5 * lineHeight) - deletionLineWidth * 0.5;
+      halfHeight = Math.round(0.5 * lineHeight) - deletionLineWidth * 0.5,
+      blockSets = [{blockInts: data.blockInts, strand: data.d.strand}];
     
-    // Draw the line that shows the full alignment, including deletions
+    // For mate pairs, the full pixel interval represents the line linking the mates
+    if (drawMates) {
+      ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")";
+      ctx.fillRect(data.pInt.x, i * lineHeight + halfHeight, data.pInt.w, deletionLineWidth);
+    }
+    
+    // Draw the lines that show the full alignment for each segment, including deletions
     ctx.fillStyle = ctx.strokeStyle = 'rgb(0,0,0)';
-    // Note that the "- 1" below fixes rounding issues but gambles on there never being a deletion at the right edge
-    ctx.fillRect(data.pInt.x, i * lineHeight + halfHeight, data.pInt.w - 1, deletionLineWidth);
+    _.each(drawMates || [data.pInt], function(pInt) {
+      if (pInt.w <= 0) { return; }
+      // Note that the "- 1" below fixes rounding issues but gambles on there never being a deletion at the right edge
+      ctx.fillRect(pInt.x, i * lineHeight + halfHeight, pInt.w - 1, deletionLineWidth);
+    });
     
     // First, determine and set the color we will be using
     // Note that the default color was already set in drawSpec
@@ -442,31 +484,35 @@ var BamFormat = {
     ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")";
     
     // Draw the [mis]match (M/X/=) blocks
-    _.each(data.blockInts, function(bInt, blockNum) {
-      var blockY = i * lineHeight + lineGap/2,
-        blockHeight = lineHeight - lineGap;
+    if (drawMates && data.d.mate) { blockSets.push({blockInts: data.mateBlockInts, strand: data.d.mate.strand}); }
+    _.each(blockSets, function(blockSet) {
+      var strand = blockSet.strand;
+      _.each(blockSet.blockInts, function(bInt, blockNum) {
       
-      // Skip drawing blocks that aren't inside the canvas
-      if (bInt.x + bInt.w < 0 || bInt.x > width) { return; }
+        // Skip drawing blocks that aren't inside the canvas
+        if (bInt.x + bInt.w < 0 || bInt.x > width) { return; }
       
-      if (blockNum == 0 && data.d.strand == '-' && !bInt.oPrev) {
-        ctx.fillRect(bInt.x + 2, blockY, bInt.w - 2, blockHeight);
-        self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x, blockY, blockHeight, -1, lineHeight > 6);
-      } else if (blockNum == data.blockInts.length - 1 && data.d.strand == '+' && !bInt.oNext) {
-        ctx.fillRect(bInt.x, blockY, bInt.w - 2, blockHeight);
-        self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x + bInt.w, blockY, blockHeight, 1, lineHeight > 6);
-      } else {
-        ctx.fillRect(bInt.x, blockY, bInt.w, blockHeight);
-      }
+        if (blockNum == 0 && blockSet.strand == '-' && !bInt.oPrev) {
+          ctx.fillRect(bInt.x + 2, blockY, bInt.w - 2, blockHeight);
+          self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x, blockY, blockHeight, -1, lineHeight > 6);
+        } else if (blockNum == blockSet.blockInts.length - 1 && blockSet.strand == '+' && !bInt.oNext) {
+          ctx.fillRect(bInt.x, blockY, bInt.w - 2, blockHeight);
+          self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x + bInt.w, blockY, blockHeight, 1, lineHeight > 6);
+        } else {
+          ctx.fillRect(bInt.x, blockY, bInt.w, blockHeight);
+        }
+      });
     });
     
     // Draw insertions
     ctx.fillStyle = ctx.strokeStyle = "rgb(114,41,218)";
-    _.each(data.insertionPts, function(insert) {
-      if (insert.x + insert.w < 0 || insert.x > width) { return; }
-      ctx.fillRect(insert.x - 1, i * lineHeight, 2, lineHeight);
-      ctx.fillRect(insert.x - 2, i * lineHeight, 4, insertionCaretLineWidth);
-      ctx.fillRect(insert.x - 2, (i + 1) * lineHeight - insertionCaretLineWidth, 4, insertionCaretLineWidth);
+    _.each(drawMates ? [data.insertionPts, data.mateInsertionPts] : [data.insertionPts], function(insertionPts) {
+      _.each(insertionPts, function(insert) {
+        if (insert.x + insert.w < 0 || insert.x > width) { return; }
+        ctx.fillRect(insert.x - 1, i * lineHeight, 2, lineHeight);
+        ctx.fillRect(insert.x - 2, i * lineHeight, 4, insertionCaretLineWidth);
+        ctx.fillRect(insert.x - 2, (i + 1) * lineHeight - insertionCaretLineWidth, 4, insertionCaretLineWidth);
+      });
     });
   },
   
@@ -541,7 +587,6 @@ var BamFormat = {
         _.each(drawSpec.layout, function(l, i) {
           i += lineOffset; // hackish method for leaving space at the top for the coverage graph
           _.each(l, function(data) {
-            // TODO: implement special drawing of alignment features, for BAMs.
             self.type('bam').drawAlignment.call(self, ctx, drawSpec.width, data, i, lineHeight);              
             self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
           });
@@ -600,9 +645,16 @@ var BamFormat = {
     }
   },
   
-  loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
+  loadOpts: function($dialog) {
+    var o = this.opts;
+    $dialog.find('[name=viewAsPairs]').attr('checked', !!o.viewAsPairs);
+  },
   
-  saveOpts: function() { return this.type('bed').saveOpts.apply(this, arguments); }
+  saveOpts: function($dialog) {
+    var o = this.opts;
+    o.viewAsPairs = $dialog.find('[name=viewAsPairs]').is(':checked');
+  }
+  
 };
 
 module.exports = BamFormat;

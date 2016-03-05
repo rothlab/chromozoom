@@ -1394,10 +1394,11 @@ body.row-resizing * {
   width: 300px;
 }
 
-#tiptip_content table tr.name {
+#tiptip_content .name {
   font-family: "helvetica neue", "helvetica", "arial", sans-serif;
   font-weight: bold;
   font-size: 1.5em;
+  word-wrap: break-word;
 }
 
 #tiptip_content table tr.desc td {

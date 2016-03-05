@@ -3,6 +3,10 @@
 var IntervalTree = require('./IntervalTree.js').IntervalTree;  
 var _ = require('../../../underscore.min.js');
 
+var PAIRING_CANNOT_MATE = 0,
+  PAIRING_MATE_ONLY = 1,
+  PAIRING_DRAW_AS_MATES = 2;
+
 // TODO: backport this code for JavaScript 1.5? using underscore.js
 /**
  * Wraps two of Shin Suzuki's IntervalTrees to store intervals that *may*
@@ -72,6 +76,7 @@ PairedIntervalTree.prototype.addIfNew = function(data, id) {
     pairedStart = this.pairedOptions.startKey,
     pairedEnd = this.pairedOptions.endKey,
     pairedLength = data[this.pairedOptions.pairedLengthKey],
+    pairingState = PAIRING_CANNOT_MATE,
     newId, potentialMate;
   
   // .unpaired contains every alignment as a separate interval.
@@ -91,34 +96,38 @@ PairedIntervalTree.prototype.addIfNew = function(data, id) {
     potentialMate = this.paired.get(newId);
     
     if (potentialMate !== null) {
-      // If yes: is this read within the acceptable range of the other to mate?  Are they facing each other?
-      if (_acceptablePairingRange(this, data, potentialMate)) {
-        // If yes: mate the reads 
-        data.mate = potentialMate;
+      potentialMate = potentialMate.data;
+      pairingState = _pairingState(this, data, potentialMate);
+      // Are the reads suitable for mating?
+      if (pairingState === PAIRING_DRAW_AS_MATES || pairingState === PAIRING_MATE_ONLY) {
+        // If yes: mate the reads
         potentialMate.mate = data;
-        mated = true;  // No need to insert as a second interval, both will be drawn simultaneously.
-      } else {
-        // Could still assign (append to?) mate property, but should flag that they shouldn't be drawn together
+        // Has to be by id, to avoid circular references (prevents serialization). This is the id used by this.unpaired.
+        data.mate = potentialMate.id;
       }
     }
     
-    // If we *didn't* mate, need to insert into this.paired as individual read
-    if (!mated) {
+    // Are the mated reads within drawable range? If so, simply flag that they should be drawn together, and they will
+    if (pairingState === PAIRING_DRAW_AS_MATES) {
+      data.drawAsMates = potentialMate.drawAsMates = true;
+    } else {
+      // Otherwise, need to insert this read into this.paired as a separate read.
       // Ensure the id is unique first.
       while (this.paired.contains(newId)) {
         newId = newId.replace(/\t.*/, '') + "\t" + (++increment);
       }
       
-      // (The following is perhaps a bit too specific to how TLEN for BAM files works; could generalize later)
+      data.mateExpected = _pairingState(this, data) === PAIRING_DRAW_AS_MATES;
+      // FIXME: The following is perhaps a bit too specific to how TLEN for BAM files works; could generalize later
       // When inserting into .paired, the interval's .start and .end shouldn't be based on POS and the CIGAR string;
       // we must adjust them for TLEN, if it is nonzero, depending on its sign, and set new bounds for the interval.
-      if (pairedLength > 0) {
+      if (data.mateExpected && pairedLength > 0) {
         data[pairedStart] = data[unpairedStart];
         data[pairedEnd] = data[unpairedStart] + pairedLength;
-      } else if (pairedLength < 0) {
+      } else if (data.mateExpected && pairedLength < 0) {
         data[pairedEnd] = data[unpairedEnd];
         data[pairedStart] = data[unpairedEnd] + pairedLength;
-      } else { // pairedLength == 0
+      } else { // !data.mateExpected || pairedLength == 0
         data[pairedStart] = data[unpairedStart];
         data[pairedEnd] = data[unpairedEnd];
       }
@@ -139,13 +148,15 @@ PairedIntervalTree.prototype.add = PairedIntervalTree.prototype.addIfNew;
 /**
  * search
  *
- * @param (integer) val:
+ * @param (number) val:
  * @return (array)
  **/
 PairedIntervalTree.prototype.search = function(val1, val2, paired) {
-  console.log(paired);
-  // TODO based on `paired`, search this.unpaired vs. this.paired
-  return this.unpaired.search(val1, val2);
+  if (paired && !this.pairingDisabled) {
+    return this.paired.search(val1, val2);
+  } else {
+    return this.unpaired.search(val1, val2);
+  }
 };
 
 
@@ -175,39 +186,76 @@ function _eligibleForPairing(pairedItvlTree, itvl) {
 }
 
 // Check if an itvl and its potentialMate are within the right distance, and orientation, to be mated.
+// If potentialMate isn't given, takes a best guess if a mate is expected, given the information in itvl alone.
 // FIXME: The following is entangled with bam.js internals; perhaps allow this to be generalized, overridden,
 //        or set alongside .setPairingInterval()
 // 
-// @return (boolean)
-function _acceptablePairingRange(pairedItvlTree, itvl, potentialMate) {
-  var itvlIsLater = itvl.start > potentialMate.start,
-    inferredInsertSize = itvlIsLater ? itvl.start - potentialMate.end : potentialMate.start - itvl.end;
-  
-  // Check that the alignments are on the same reference sequence
-  if (itvl.rnext != '=' || potentialMate.rnext != '=') { return false; }
-  
+// @return (number)
+function _pairingState(pairedItvlTree, itvl, potentialMate) {
+  var tlen = itvl[pairedItvlTree.pairedOptions.pairedLengthKey],
+    itvlLength = itvl.end - itvl.start,
+    itvlIsLater, inferredInsertSize;
+
+  if (_.isUndefined(potentialMate)) {
+    // Create the most receptive hypothetical mate, given the information in itvl.
+    potentialMate = {
+      _mocked: true,
+      flags: {
+        isReadPaired: true,
+        isReadProperlyAligned: true,
+        isReadFirstOfPair: itvl.flags.isReadLastOfPair,
+        isReadLastOfPair: itvl.flags.isReadFirstOfPair
+      }
+    };
+  }
+
   // First check a whole host of FLAG's. To make a long story short, we expect paired ends to be either
   // 99-147 or 163-83, depending on whether the rightmost or leftmost segment is primary.
-  if (!itvl.isReadPaired || !potentialMate.isReadPaired) { return false; }
-  if (!itvl.isReadProperlyAligned || !potentialMate.isReadProperlyAligned) { return false; }
-  if (itvl.isReadUnmapped || potentialMate.isReadUnmapped) { return false; }
-  if (itvl.isMateUnmapped || potentialMate.isMateUnmapped) { return false; }
-  if (itvl.isReadFirstOfPair && !potentialMate.isReadLastOfPair) { return false; }
-  if (itvl.isReadLastOfPair && !potentialMate.isReadFirstOfPair) { return false; }
+  if (!itvl.flags.isReadPaired || !potentialMate.flags.isReadPaired) { return PAIRING_CANNOT_MATE; }
+  if (!itvl.flags.isReadProperlyAligned || !potentialMate.flags.isReadProperlyAligned) { return PAIRING_CANNOT_MATE; }
+  if (itvl.flags.isReadUnmapped || potentialMate.flags.isReadUnmapped) { return PAIRING_CANNOT_MATE; }
+  if (itvl.flags.isMateUnmapped || potentialMate.flags.isMateUnmapped) { return PAIRING_CANNOT_MATE; }
+  if (itvl.flags.isReadFirstOfPair && !potentialMate.flags.isReadLastOfPair) { return PAIRING_CANNOT_MATE; }
+  if (itvl.flags.isReadLastOfPair && !potentialMate.flags.isReadFirstOfPair) { return PAIRING_CANNOT_MATE; }
+    
+  potentialMate._mocked && _.extend(potentialMate, {
+    rname: itvl.rnext == '=' ? itvl.rname : itvl.rnext,
+    pos: itvl.pnext,
+    start: itvl.pnext,
+    end: tlen > 0 ? itvl.start + tlen : (tlen < 0 ? itvl.end + tlen + itvlLength : itvl.pnext + itvlLength),
+    rnext: itvl.rnext == '=' ? '=' : itvl.rname,
+    pnext: itvl.pos
+  });
+  
+  // Check that the alignments are on the same reference sequence
+  if (itvl.rnext != '=' || potentialMate.rnext != '=') { 
+    // and if not, do the coordinates match at all?
+    if (itvl.rnext != potentialMate.rname || itvl.rnext != potentialMate.rname) { return PAIRING_CANNOT_MATE; }
+    if (itvl.pnext != potentialMate.pos || itvl.pos != potentialMate.pnext) { return PAIRING_CANNOT_MATE; }
+    return PAIRING_MATE_ONLY;
+  }
+  
+  potentialMate._mocked && _.extend(potentialMate.flags, {
+    readStrandReverse: itvl.flags.mateStrandReverse,
+    mateStrandReverse: itvl.flags.readStrandReverse
+  });
+  
+  itvlIsLater = itvl.start > potentialMate.start;
+  inferredInsertSize = itvlIsLater ? itvl.start - potentialMate.end : potentialMate.start - itvl.end;
   
   // Check that the alignments are --> <--
   if (itvlIsLater) {
-    if (!itvl.readStrandReverse || itvl.mateStrandReverse) { return false; }
-    if (potentialMate.readStrandReverse || !potentialMate.mateStrandReverse) { return false; }
+    if (!itvl.flags.readStrandReverse || itvl.flags.mateStrandReverse) { return PAIRING_MATE_ONLY; }
+    if (potentialMate.flags.readStrandReverse || !potentialMate.flags.mateStrandReverse) { return PAIRING_MATE_ONLY; }
   } else {
-    if (itvl.readStrandReverse || !itvl.mateStrandReverse) { return false; }
-    if (!potentialMate.readStrandReverse || potentialMate.mateStrandReverse) { return false; }
+    if (itvl.flags.readStrandReverse || !itvl.flags.mateStrandReverse) { return PAIRING_MATE_ONLY; }
+    if (!potentialMate.flags.readStrandReverse || potentialMate.flags.mateStrandReverse) { return PAIRING_MATE_ONLY; }
   }
   
   // Check that the inferredInsertSize is within the acceptable range.
-  if (inferredInsertSize > this.pairingMaxDistance || inferredInsertSize < this.pairingMinDistance) { return false; }
+  if (inferredInsertSize > this.pairingMaxDistance || inferredInsertSize < this.pairingMinDistance) { return PAIRING_MATE_ONLY; }
   
-  return true;
+  return PAIRING_DRAW_AS_MATES;
 }
 
 exports.PairedIntervalTree = PairedIntervalTree;

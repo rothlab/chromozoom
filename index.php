@@ -228,6 +228,12 @@
             <label>color:</label>
             <div class="inputs"><input type="text" name="color" value="0,0,0" class="color mono" /></div>
           </div>
+          <div class="custom-opts-form bam">
+            <div class="form-line">
+              <label>view as pairs:</label>
+              <div class="inputs"><input type="checkbox" class="chk" name="viewAsPairs" value="1" /></div>
+            </div>
+          </div>
           <div class="custom-opts-form bed bigbed">
             <div class="form-line">
               <label>alt color:</label>

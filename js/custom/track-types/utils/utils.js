@@ -37,9 +37,11 @@ module.exports.pixIntervalCalculator = function(start, width, bppp, withText, na
   if (_.isUndefined(startkey)) { startkey = 'start'; }
   if (_.isUndefined(endkey)) { endkey = 'end'; }
   return function(d) {
+    var itvlStart = _.isUndefined(d[startkey]) ? d.start : d[startkey],
+      itvlEnd = _.isUndefined(d[endkey]) ? d.end : d[endkey];
     var pInt = {
-      x: Math.round((d[startkey] - start) / bppp),
-      w: Math.round((d[endkey] - d[startkey]) / bppp) + 1,
+      x: Math.round((itvlStart - start) / bppp),
+      w: Math.round((itvlEnd - itvlStart) / bppp) + 1,
       t: 0,          // calculated width of text
       oPrev: false,  // overflows into previous tile?
       oNext: false   // overflows into next tile?
