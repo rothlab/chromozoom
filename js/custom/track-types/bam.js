@@ -416,7 +416,7 @@ var BamFormat = {
     var content = {
         "position": data.d.rname + ':' + data.d.pos,
         "cigar": data.d.cigar,
-        "read strand": data.d.flags.readStrand ? '(-)' : '(+)',
+        "read strand": data.d.flags.readStrandReverse ? '(-)' : '(+)',
         "mapped": yesNo(data.d.flags.isReadMapped),
         "map quality": data.d.mapq,
         "secondary": yesNo(data.d.flags.isSecondaryAlignment),
