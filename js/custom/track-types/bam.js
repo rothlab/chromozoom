@@ -419,6 +419,7 @@ var BamFormat = {
   // special formatter for content in tooltips for features
   tipTipData: function(data) {
     function yesNo(bool) { return bool ? "yes" : "no"; }
+    // TODO: if this.opts.viewAsPairs is true, show information for left and right mates for pairs
     var content = {
         "position": data.d.rname + ':' + data.d.pos,
         "cigar": data.d.cigar,
@@ -428,11 +429,7 @@ var BamFormat = {
         "secondary": yesNo(data.d.flags.isSecondaryAlignment),
         "supplementary": yesNo(data.d.flags.isSupplementaryAlignment),
         "duplicate": yesNo(data.d.flags.isDuplicateRead),
-        "failed QC": yesNo(data.d.flags.isReadFailingVendorQC),
-        "tlen": data.d.tlen,
-        "drawAsMates": data.d.drawAsMates || 'false',
-        "mateExpected": data.d.mateExpected || 'false', 
-        "mate": data.d.mate && data.d.mate.pos || 'null'
+        "failed QC": yesNo(data.d.flags.isReadFailingVendorQC)
       };
     return content;
   },

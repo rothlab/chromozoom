@@ -164,7 +164,7 @@ var BedFormat = {
       tipTipDataCallback = this.type().tipTipData;
     if (!areas) { return; }
     if (_.isFunction(tipTipDataCallback)) {
-      tipTipData = tipTipDataCallback(data);
+      tipTipData = tipTipDataCallback.call(this, data);
     } else {
       if (!_.isUndefined(data.d.description)) { tipTipData.description = data.d.description; }
       if (!_.isUndefined(data.d.score)) { tipTipData.score = data.d.score; }
