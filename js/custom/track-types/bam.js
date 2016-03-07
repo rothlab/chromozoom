@@ -440,14 +440,13 @@ var BamFormat = {
       }, function(v, k) { content[prefix + k] = v; });
     }
     
-    if (data.d.mate) {
+    if (data.d.mate && data.d.mate.flags) {
       leftMate = data.d.start < data.d.mate.start ? data.d : data.d.mate;
       rightMate = data.d.start < data.d.mate.start ? data.d.mate : data.d;
       pairOrientation = (leftMate.flags.readStrandReverse ? "R" : "F") + (leftMate.flags.isReadFirstOfPair ? "1" : "2");
       pairOrientation += (rightMate.flags.readStrandReverse ? "R" : "F") + (rightMate.flags.isReadLastOfPair ? "2" : "1");
     }
     
-    // TODO: o.viewAsPairs is true, show information for left and right mates for pairs
     if (o.viewAsPairs && data.d.drawAsMates && data.d.mate) {
       firstMate = leftMate;
       secondMate = rightMate;
