@@ -384,6 +384,8 @@ module.exports = (function($){
         $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div);
       _.each(self.availTracks, function(t, n) {
+        // TODO: This needs to distinguish between traditional image tracks and custom tracks brought in
+        //       by custom genomes. The latter should have an options dialog and download links instead of "more info".
         var $l = $('<label class="clickable"/>').appendTo($('<li class="choice"/>').appendTo($ul)),
           $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
           $d = $('<div class="desc"></div>').appendTo($l),
@@ -773,6 +775,7 @@ module.exports = (function($){
         o = self.options,
         $dialog = $(o.dialogs[0]).closest('.ui-dialog');
       
+      $dialog.data('genobrowser', self.element);
       $dialog.find('.hidden').hide();
       $dialog.find('.show').show();
       

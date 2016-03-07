@@ -49,8 +49,8 @@ module.exports.pixIntervalCalculator = function(start, width, bppp, withText, na
     pInt.tx = pInt.x;
     pInt.tw = pInt.w;
     if (pInt.x < 0) { pInt.w += pInt.x; pInt.x = 0; pInt.oPrev = true; }
-    else if (withText) { 
-      pInt.t = Math.min(nameFunc(d).length * 10 + 2, pInt.x);
+    else if (withText) {
+      pInt.t = _.isNumber(withText) ? withText : Math.min(nameFunc(d).length * 10 + 2, pInt.x);
       pInt.tx -= pInt.t;
       pInt.tw += pInt.t;  
     }
@@ -84,3 +84,4 @@ module.exports.floorHack = function(num) { return (num << 0) - (num < 0 ? 1 : 0)
 // Other tiny functions that we need for odds and ends...
 module.exports.strip = function(str) { return str.replace(/^\s+|\s+$/g, ''); }
 module.exports.parseInt10 = function(val) { return parseInt(val, 10); }
+module.exports.deepClone = function(obj) { return JSON.parse(JSON.stringify(obj)); }

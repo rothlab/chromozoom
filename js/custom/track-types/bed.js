@@ -118,7 +118,7 @@ var BedFormat = {
         i = 0,
         l = lines.length;
       if (!_.isUndefined(ln)) {
-        if (lines[ln].conflict(pInt.tx, pInt.tw)) { /*throw "Unresolvable LineMask conflict!";*/ }
+        if (lines[ln].conflict(pInt.tx, pInt.tw)) { console.log("Unresolvable LineMask conflict!"); }
         lines[ln].add(pInt.tx, pInt.tw, {pInt: pInt, thickInt: thickInt, blockInts: blockInts, d: d});
       } else {
         while (i < l && lines[i].conflict(pInt.tx, pInt.tw)) { ++i; }

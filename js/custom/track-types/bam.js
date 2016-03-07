@@ -4,7 +4,8 @@
 
 var utils = require('./utils/utils.js'),
   floorHack = utils.floorHack,
-  parseInt10 = utils.parseInt10;
+  parseInt10 = utils.parseInt10,
+  deepClone = utils.deepClone;
 var PairedIntervalTree = require('./utils/PairedIntervalTree.js').PairedIntervalTree;
 var RemoteTrack = require('./utils/RemoteTrack.js').RemoteTrack;
 
@@ -30,7 +31,7 @@ var BamFormat = {
     // The following can be "ensembl_ucsc" or "ucsc_ensembl" to attempt auto-crossmapping of reference contig names
     // between the two schemes, which IGV does, but is a perennial issue: https://www.biostars.org/p/10062/
     // I hope not to need all the mappings in here https://github.com/dpryan79/ChromosomeMappings but it may be necessary
-    convertChrScheme: null,
+    convertChrScheme: "auto",
     // Draw paired ends within a range of expected insert sizes as a continuous feature?
     // See https://www.broadinstitute.org/igv/AlignmentData#paired for how this works
     viewAsPairs: false
@@ -61,12 +62,11 @@ var BamFormat = {
     this.browserChrScheme = this.type("bam").guessChrScheme(_.keys(this.browserOpts.chrPos));
   },
   
-  // TODO: We must note that when we change opts.viewAsPairs, we *need* to throw out this.data.pileup
-  //         and blow up the areaIndex
+  // TODO: We must note that when we change opts.viewAsPairs, we *need* to throw out this.data.pileup.
   // TODO: If the pairing interval changed, we should toss the entire cache and reset the RemoteTrack bins,
   //         and blow up the areaIndex.
   applyOpts: function() {
-
+    this.prevOpts = deepClone(this.opts);
   },
   
   guessChrScheme: function(chrs) {
@@ -89,7 +89,7 @@ var BamFormat = {
       range = self.chrRange(start, end);
       // Convert automatically between Ensembl style 1, 2, 3, X <--> UCSC style chr1, chr2, chr3, chrX as configured/autodetected
       // Note that chrM is NOT equivalent to MT https://www.biostars.org/p/120042/#120058
-      switch (o.convertChrScheme) {
+      switch (o.convertChrScheme == "auto" ? self.data.info.convertChrScheme : o.convertChrScheme) {
         case 'ensembl_ucsc': range = _.map(range, function(r) { return r.replace(/^chr/, ''); }); break;
         case 'ucsc_ensembl': range = _.map(range, function(r) { return r.replace(/^(\d\d?|X):/, 'chr$1:'); }); break;
       }
@@ -112,6 +112,7 @@ var BamFormat = {
     self.noAreaLabels = true;
     self.expectsSequence = true;
     self.renderSequenceCallbacks = {};
+    self.prevOpts = deepClone(o);  // used to detect which drawing options have been changed by the user
     
     // Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence
     // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
@@ -132,8 +133,8 @@ var BamFormat = {
         });
         
         self.data.info.chrScheme = chrScheme = self.type("bam").guessChrScheme(bamChrs);
-        if (o.convertChrScheme !== false && chrScheme && self.browserChrScheme ) {
-          o.convertChrScheme = chrScheme != self.browserChrScheme ? chrScheme + '_' + self.browserChrScheme : null;
+        if (chrScheme && self.browserChrScheme) {
+          self.data.info.convertChrScheme = chrScheme != self.browserChrScheme ? chrScheme + '_' + self.browserChrScheme : null;
         }
         self.data.info.meanItemsPerBp = meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
         self.data.info.meanItemLength = 100; // TODO: this is a total guess now, should grab this from some sampled reads.
@@ -212,12 +213,13 @@ var BamFormat = {
       cols = ['qname', 'flag', 'rname', 'pos', 'mapq', 'cigar', 'rnext', 'pnext', 'tlen', 'seq', 'qual'],
       feature = {},
       fields = line.split("\t"),
+      availFlags = this.type('bam').flags,
       chrPos, blockSizes;
     
     _.each(_.first(fields, cols.length), function(v, i) { feature[cols[i]] = v; });
     // Convert automatically between Ensembl style 1, 2, 3, X <--> UCSC style chr1, chr2, chr3, chrX as configured/autodetected
     // Note that chrM is NOT equivalent to MT https://www.biostars.org/p/120042/#120058
-    switch (o.convertChrScheme) {
+    switch (o.convertChrScheme == "auto" ? this.data.info.convertChrScheme : o.convertChrScheme) {
       case 'ucsc_ensembl': feature.rname = feature.rname.replace(/^chr/, ''); break;
       case 'ensembl_ucsc': feature.rname = (/^(\d\d?|X)$/.test(feature.rname) ? 'chr' : '') + feature.rname; break;
     }
@@ -226,10 +228,10 @@ var BamFormat = {
     chrPos = this.browserOpts.chrPos[feature.rname];
     lineno = lineno || 0;
     
-    if (_.isUndefined(chrPos)) { 
+    if (_.isUndefined(chrPos)) {
       this.warn("Invalid RNAME '"+feature.rname+"' at line " + (lineno + 1 + this.opts.lineNum));
       return null;
-    } else if (feature.pos === '0' || !feature.cigar || feature.cigar == '*') {
+    } else if (feature.pos === '0' || !feature.cigar || feature.cigar == '*' || feature.flag & availFlags.isReadUnmapped) {
       // Unmapped read. Since we can't draw these at all, we don't bother parsing them further.
       return null;
     } else {
@@ -324,12 +326,15 @@ var BamFormat = {
     return alleleSplits;
   },
   
-  mismatches: function(start, sequence, bppp, intervals, width, lineNum) {
-    var mismatches = [];
+  mismatches: function(start, sequence, bppp, intervals, width, lineNum, viewAsPairs) {
+    var mismatches = [],
+      viewAsPairs = this.opts.viewAsPairs;
     sequence = sequence.toUpperCase();
     _.each(intervals, function(interval) {
       var blockSets = [interval.data.blocks];
-      if (interval.data.drawAsMates && interval.data.mate) { blockSets.push(interval.data.mate.blocks); }
+      if (viewAsPairs && interval.data.drawAsMates && interval.data.mate) { 
+        blockSets.push(interval.data.mate.blocks);
+      }
       _.each(blockSets, function(blocks) {
         _.each(blocks, function(block) {
           var line = lineNum(interval.data),
@@ -372,8 +377,8 @@ var BamFormat = {
       // Fetch from the RemoteTrack and call the above when the data is available.
       self.data.remote.fetchAsync(start, end, viewAsPairs, function(intervals) {
         var drawSpec = {sequence: !!sequence, width: width},
-          calcPixIntervalMated = new utils.pixIntervalCalculator(start, width, bppp, false, false, startKey, endKey),
-          calcPixInterval = new utils.pixIntervalCalculator(start, width, bppp, false);
+          calcPixIntervalMated = new utils.pixIntervalCalculator(start, width, bppp, 4, false, startKey, endKey),
+          calcPixInterval = new utils.pixIntervalCalculator(start, width, bppp, 4);
         
         if (intervals.tooMany) { return callback(intervals); }
 
@@ -384,6 +389,7 @@ var BamFormat = {
           _.each(drawSpec.layout, function(lines) {
             _.each(lines, function(interval) {
               interval.insertionPts = _.map(interval.d.insertions, calcPixInterval);
+              if (!viewAsPairs) { return; }
               if (interval.d.drawAsMates && interval.d.mate) {
                 interval.mateInts = _.map([interval.d, interval.d.mate], calcPixInterval);
                 interval.mateBlockInts = _.map(interval.d.mate.blocks, calcPixInterval);
@@ -417,12 +423,16 @@ var BamFormat = {
         "position": data.d.rname + ':' + data.d.pos,
         "cigar": data.d.cigar,
         "read strand": data.d.flags.readStrandReverse ? '(-)' : '(+)',
-        "mapped": yesNo(data.d.flags.isReadMapped),
+        "mapped": yesNo(!data.d.flags.isReadUnmapped),
         "map quality": data.d.mapq,
         "secondary": yesNo(data.d.flags.isSecondaryAlignment),
         "supplementary": yesNo(data.d.flags.isSupplementaryAlignment),
         "duplicate": yesNo(data.d.flags.isDuplicateRead),
-        "failed QC": yesNo(data.d.flags.isReadFailingVendorQC)
+        "failed QC": yesNo(data.d.flags.isReadFailingVendorQC),
+        "tlen": data.d.tlen,
+        "drawAsMates": data.d.drawAsMates || 'false',
+        "mateExpected": data.d.mateExpected || 'false', 
+        "mate": data.d.mate && data.d.mate.pos || 'null'
       };
     return content;
   },
@@ -569,6 +579,7 @@ var BamFormat = {
       }
       
       // Only store areas for the "pack" density.
+      // We have to empty this for every render, because areas can change if BAM display options change.
       if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }
       // Set the expected height for the canvas (this also erases it).
       canvas.height = covHeight + ((density == 'dense') ? 0 : covMargin + drawSpec.layout.length * lineHeight);
@@ -587,7 +598,7 @@ var BamFormat = {
         _.each(drawSpec.layout, function(l, i) {
           i += lineOffset; // hackish method for leaving space at the top for the coverage graph
           _.each(l, function(data) {
-            self.type('bam').drawAlignment.call(self, ctx, drawSpec.width, data, i, lineHeight);              
+            self.type('bam').drawAlignment.call(self, ctx, drawSpec.width, data, i, lineHeight, drawSpec.viewAsPairs);
             self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
           });
         });
@@ -648,11 +659,20 @@ var BamFormat = {
   loadOpts: function($dialog) {
     var o = this.opts;
     $dialog.find('[name=viewAsPairs]').attr('checked', !!o.viewAsPairs);
+    $dialog.find('[name=convertChrScheme]').val(o.convertChrScheme).change();
   },
-  
+
   saveOpts: function($dialog) {
     var o = this.opts;
     o.viewAsPairs = $dialog.find('[name=viewAsPairs]').is(':checked');
+    o.convertChrScheme = $dialog.find('[name=convertChrScheme]').val();
+    
+    // If o.viewAsPairs was changed, we *need* to blow away the genobrowser's areaIndex 
+    // and our locally cached areas, as all the areas will change.
+    if (o.viewAsPairs != this.prevOpts.viewAsPairs) {
+      this.areas = {};
+      delete $dialog.data('genobrowser').genobrowser('areaIndex')[$dialog.data('track').n];
+    }
   }
   
 };

@@ -2,6 +2,7 @@
   
 var IntervalTree = require('./IntervalTree.js').IntervalTree;  
 var _ = require('../../../underscore.min.js');
+var parseInt10 = require('./utils.js').parseInt10;
 
 var PAIRING_CANNOT_MATE = 0,
   PAIRING_MATE_ONLY = 1,
@@ -179,7 +180,8 @@ PairedIntervalTree.prototype.remove = function(interval_id) {
 //
 // @return (boolean)
 function _eligibleForPairing(pairedItvlTree, itvl) {
-  if (itvl.isSecondaryAlignment || itvl.isReadFailingVendorQC || itvl.isDuplicateRead || itvl.isSupplementaryAlignment) {
+  var flags = itvl.flags;
+  if (flags.isSecondaryAlignment || flags.isReadFailingVendorQC || flags.isDuplicateRead || flags.isSupplementaryAlignment) {
     return false;
   }
   return true;
@@ -218,14 +220,16 @@ function _pairingState(pairedItvlTree, itvl, potentialMate) {
   if (itvl.flags.isReadFirstOfPair && !potentialMate.flags.isReadLastOfPair) { return PAIRING_CANNOT_MATE; }
   if (itvl.flags.isReadLastOfPair && !potentialMate.flags.isReadFirstOfPair) { return PAIRING_CANNOT_MATE; }
     
-  potentialMate._mocked && _.extend(potentialMate, {
-    rname: itvl.rnext == '=' ? itvl.rname : itvl.rnext,
-    pos: itvl.pnext,
-    start: itvl.pnext,
-    end: tlen > 0 ? itvl.start + tlen : (tlen < 0 ? itvl.end + tlen + itvlLength : itvl.pnext + itvlLength),
-    rnext: itvl.rnext == '=' ? '=' : itvl.rname,
-    pnext: itvl.pos
-  });
+  if (potentialMate._mocked) {
+    _.extend(potentialMate, {
+      rname: itvl.rnext == '=' ? itvl.rname : itvl.rnext,
+      pos: itvl.pnext,
+      start: itvl.rnext == '=' ? parseInt10(itvl.pnext) + (itvl.start - parseInt10(itvl.pos)) : 0,
+      end: tlen > 0 ? itvl.start + tlen : (tlen < 0 ? itvl.end + tlen + itvlLength : 0),
+      rnext: itvl.rnext == '=' ? '=' : itvl.rname,
+      pnext: itvl.pos
+    });
+  }
   
   // Check that the alignments are on the same reference sequence
   if (itvl.rnext != '=' || potentialMate.rnext != '=') { 
@@ -235,10 +239,12 @@ function _pairingState(pairedItvlTree, itvl, potentialMate) {
     return PAIRING_MATE_ONLY;
   }
   
-  potentialMate._mocked && _.extend(potentialMate.flags, {
-    readStrandReverse: itvl.flags.mateStrandReverse,
-    mateStrandReverse: itvl.flags.readStrandReverse
-  });
+  if (potentialMate._mocked) {
+    _.extend(potentialMate.flags, {
+      readStrandReverse: itvl.flags.mateStrandReverse,
+      mateStrandReverse: itvl.flags.readStrandReverse
+    });
+  } 
   
   itvlIsLater = itvl.start > potentialMate.start;
   inferredInsertSize = itvlIsLater ? itvl.start - potentialMate.end : potentialMate.start - itvl.end;

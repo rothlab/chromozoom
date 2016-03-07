@@ -553,8 +553,11 @@ $.widget('ui.genotrack', {
       });
     };
     
+    // Areas are stored in a global index, so that mousing over an area in one tile can retrieve
+    // areas with a similar name/hrefHash that must also be highlighted. 
+    // See $.ui.genobrowser's .areaHover() for how it is traversed during mouseover.
     // Add to global area index: areaIndex[track][bppp][density]["hrefHash"|"name"][hrefHash|name][tileId][i] = true
-    // FIXME: the global area index can get very big over time.
+    // FIXME: the global area index can get very big over time; as of now, it is never pruned.
     _.each(data, function(v, i) {
       var index = jqXHR._areaIndex,
         keys = [o.track.n, jqXHR._bppp, jqXHR._density],
