@@ -478,8 +478,12 @@ $.widget('ui.genotrack', {
           $('<td colspan="2"/>').text(v).appendTo($tr);
         } else {
           $tr = $('<tr/>').appendTo($tbody);
-          $('<td class="field" width="45%"/>').text(k).appendTo($tr);
-          $('<td class="value" width="55%"/>').text(v).appendTo($tr);
+          if (v == '---') {
+            $('<td colspan="2" class="fields-header"/>').text(k).appendTo($tr);
+          } else {
+            $('<td class="field" width="45%"/>').text(k).appendTo($tr);
+            $('<td class="value" width="55%"/>').text(v).appendTo($tr);
+          }
         }
       });
       if (oldTitle) { $name.text(oldTitle); }

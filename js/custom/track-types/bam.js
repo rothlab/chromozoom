@@ -418,19 +418,52 @@ var BamFormat = {
   
   // special formatter for content in tooltips for features
   tipTipData: function(data) {
+    var o = this.opts,
+      content = {},
+      firstMate = data.d,
+      secondMate = data.d.mate,
+      mateHeaders = ["this alignment", "mate pair alignment"],
+      leftMate, rightMate, pairOrientation;
     function yesNo(bool) { return bool ? "yes" : "no"; }
-    // TODO: if this.opts.viewAsPairs is true, show information for left and right mates for pairs
-    var content = {
-        "position": data.d.rname + ':' + data.d.pos,
-        "cigar": data.d.cigar,
-        "read strand": data.d.flags.readStrandReverse ? '(-)' : '(+)',
-        "mapped": yesNo(!data.d.flags.isReadUnmapped),
-        "map quality": data.d.mapq,
-        "secondary": yesNo(data.d.flags.isSecondaryAlignment),
-        "supplementary": yesNo(data.d.flags.isSupplementaryAlignment),
-        "duplicate": yesNo(data.d.flags.isDuplicateRead),
-        "failed QC": yesNo(data.d.flags.isReadFailingVendorQC)
-      };
+    function addAlignedSegmentInfo(content, seg, prefix) {
+      prefix = prefix || "";
+      _.each({
+        "position": seg.rname + ':' + seg.pos,
+        "cigar": seg.cigar,
+        "read strand": seg.flags.readStrandReverse ? '(-)' : '(+)',
+        "mapped": yesNo(!seg.flags.isReadUnmapped),
+        "map quality": seg.mapq,
+        "secondary": yesNo(seg.flags.isSecondaryAlignment),
+        "supplementary": yesNo(seg.flags.isSupplementaryAlignment),
+        "duplicate": yesNo(seg.flags.isDuplicateRead),
+        "failed QC": yesNo(seg.flags.isReadFailingVendorQC)
+      }, function(v, k) { content[prefix + k] = v; });
+    }
+    
+    if (data.d.mate) {
+      leftMate = data.d.start < data.d.mate.start ? data.d : data.d.mate;
+      rightMate = data.d.start < data.d.mate.start ? data.d.mate : data.d;
+      pairOrientation = (leftMate.flags.readStrandReverse ? "R" : "F") + (leftMate.flags.isReadFirstOfPair ? "1" : "2");
+      pairOrientation += (rightMate.flags.readStrandReverse ? "R" : "F") + (rightMate.flags.isReadLastOfPair ? "2" : "1");
+    }
+    
+    // TODO: o.viewAsPairs is true, show information for left and right mates for pairs
+    if (o.viewAsPairs && data.d.drawAsMates && data.d.mate) {
+      firstMate = leftMate;
+      secondMate = rightMate;
+      mateHeaders = ["left alignment", "right alignment"];
+    }
+    if (secondMate) {
+      if (!_.isUndefined(data.d.insertSize)) { content["insert size"] = data.d.insertSize; }
+      if (!_.isUndefined(pairOrientation)) { content["pair orientation"] = pairOrientation; }
+      content[mateHeaders[0]] = "---";
+      addAlignedSegmentInfo(content, firstMate);
+      content[mateHeaders[1]] = "---";
+      addAlignedSegmentInfo(content, secondMate, " ");
+    } else {
+      addAlignedSegmentInfo(content, data.d);
+    }
+    
     return content;
   },
   

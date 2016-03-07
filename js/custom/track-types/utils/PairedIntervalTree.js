@@ -103,13 +103,16 @@ PairedIntervalTree.prototype.addIfNew = function(data, id) {
       if (pairingState === PAIRING_DRAW_AS_MATES || pairingState === PAIRING_MATE_ONLY) {
         // If yes: mate the reads
         potentialMate.mate = data;
-        // Has to be by id, to avoid circular references (prevents serialization). This is the id used by this.unpaired.
-        data.mate = potentialMate.id;
+        // In the other direction, has to be a selective shallow copy to avoid circular references.
+        data.mate = _.extend({}, _.omit(potentialMate, function(v, k) { return _.isObject(v)}));
+        data.mate.flags = _.clone(potentialMate.flags);
       }
     }
     
-    // Are the mated reads within drawable range? If so, simply flag that they should be drawn together, and they will
-    if (pairingState === PAIRING_DRAW_AS_MATES) {
+    // Are the mated reads within drawable range? If so, simply flag that they should be drawn together, and they will.
+    // Alternatively, if the potentialMate expected a mate, we should mate them anyway.
+    // The only reason we wouldn't get .drawAsMates is if the mate was on the threshold of the insert size range.
+    if (pairingState === PAIRING_DRAW_AS_MATES || (pairingState === PAIRING_MATE_ONLY && potentialMate.mateExpected)) {
       data.drawAsMates = potentialMate.drawAsMates = true;
     } else {
       // Otherwise, need to insert this read into this.paired as a separate read.
@@ -259,6 +262,7 @@ function _pairingState(pairedItvlTree, itvl, potentialMate) {
   }
   
   // Check that the inferredInsertSize is within the acceptable range.
+  itvl.insertSize = potentialMate.insertSize = inferredInsertSize;
   if (inferredInsertSize > this.pairingMaxDistance || inferredInsertSize < this.pairingMinDistance) { return PAIRING_MATE_ONLY; }
   
   return PAIRING_DRAW_AS_MATES;

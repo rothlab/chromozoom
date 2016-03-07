@@ -1165,7 +1165,8 @@ module.exports = (function($){
           igb: { url: 'igb.php', messageText: 'via IGB Quickload' }
         },
         sessionVars = {},
-        customGenomePieces, customGenomeSource, customGenomeName, chromSizes, trackSpec, remote, remoteParams;
+        customTracksArray, customGenomePieces, customGenomeSource, customGenomeName, chromSizes, trackSpec, 
+          remote, remoteParams;
       
       function persistentCookie(k, v) { $.cookie(k, v, {expires: 60}); }
       function removeCookie(k) { $.cookie(k, null); }
@@ -1185,7 +1186,8 @@ module.exports = (function($){
       if (suppressRepeat && self._lastParams && _.isEqual(self._lastParams, params)) { return; }
       self._lastParams = _.clone(params);
       
-      self._customTrackUrls.requested = _.union(self._customTrackUrls.requested, params.customTracks || []);
+      customTracksArray = _.compact([].concat(params.customTracks)),
+      self._customTrackUrls.requested = _.union(self._customTrackUrls.requested, customTracksArray);
       var unprocessedUrls = _.difference(self._customTrackUrls.requested, self._customTrackUrls.processing);
       
       // We need to load a custom genome

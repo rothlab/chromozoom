@@ -1411,6 +1411,14 @@ body.row-resizing * {
   padding-right: 3px;
 }
 
+#tiptip_content table td.fields-header {
+  text-align: left;
+  text-transform: uppercase;
+  font-weight: bold;
+  padding-top: 7px;
+  border-top: 1px solid #444;
+}
+
 /* =============================================================== */
 /* = Farbtastic Color Picker CSS, (c) 2008 Steven Wittens, GPLv2 = */
 /* =============================================================== */
