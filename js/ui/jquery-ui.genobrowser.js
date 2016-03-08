@@ -157,12 +157,14 @@ module.exports = (function($){
       self._initInstanceVars();
       
       tracksToParse = _.filter(o.availTracks, function(t) { return t.customData; });
-      
       // a subset of options that CustomTracks needs to parse tracks
       function browserOpts() {
+        var pos = nextDirectives.position && self.normalizePos(nextDirectives.position, true);
+        pos = pos ? pos.pos : self.pos;
         return {
           bppps: o.bppps,
           chrPos: self.chrPos,
+          pos: pos,
           chrLengths: o.chrLengths,
           genomeSize: o.genomeSize,
           ajaxDir: o.ajaxDir
@@ -419,9 +421,13 @@ module.exports = (function($){
         $urlInput, $urlGet, $div, $b, $reset;
       
       function browserOpts() {
+        var nextDirectives = _.extend({}, self._nextDirectives),
+          pos = nextDirectives.position && self.normalizePos(nextDirectives.position, true);
+        pos = pos ? pos.pos : self.pos;
         return {
           bppps: o.bppps,
           chrPos: self.chrPos,
+          pos: pos,
           chrLengths: o.chrLengths,
           genomeSize: o.genomeSize,
           ajaxDir: o.ajaxDir

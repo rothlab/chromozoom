@@ -123,7 +123,7 @@ var BamFormat = {
           maxItemsToDraw = _.max(_.values(o.drawLimit)),
           bamChrs = [],
           infoParts = data.split("\n\n"),
-          sampleIntervals, chrScheme, meanItemsPerBp;
+          sampleIntervals, meanItemLength, chrScheme, meanItemsPerBp;
         
         _.each(infoParts[0].split("\n"), function(line) {
           var fields = line.split("\t"),
@@ -134,18 +134,24 @@ var BamFormat = {
           mappedReads += readsMappedToContig;
         });
         
-        sampleIntervals = _.compact(_.map(infoParts[1].split("\n"), function(line) {
-          return line != '' ? self.type('bam').parseLine.call(self, line) : null;
-        }));
-        // TODO: Can estimate insert sizes from TLEN - 2 * (end - start).
-        console.log(_.map(sampleIntervals, function(itvl) { return itvl.start + ' ' + itvl.end; }).join("\n"));
-        
         self.data.info.chrScheme = chrScheme = self.type("bam").guessChrScheme(bamChrs);
         if (chrScheme && self.browserChrScheme) {
           self.data.info.convertChrScheme = chrScheme != self.browserChrScheme ? chrScheme + '_' + self.browserChrScheme : null;
         }
+        
+        sampleIntervals = _.compact(_.map(infoParts[1].split("\n"), function(line) {
+          return self.type('bam').parseLine.call(self, line);
+        }));
+        if (sampleIntervals.length) {
+          meanItemLength = _.reduce(sampleIntervals, function(memo, next) { return memo + (next.end - next.start); }, 0);
+          meanItemLength = meanItemLength / sampleIntervals.length;
+        }
+        console.log(self.browserOpts.pos);
+        console.log(meanItemLength);
+        // TODO: Can estimate insert sizes from TLEN - 2 * (end - start).
+        
         self.data.info.meanItemsPerBp = meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
-        self.data.info.meanItemLength = 100; // TODO: this is a total guess now, should grab this from some sampled reads.
+        self.data.info.meanItemLength = meanItemLength || 100;
         o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
         o.optimalFetchWindow = Math.floor(o.maxFetchWindow / 2);
         
