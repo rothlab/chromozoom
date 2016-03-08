@@ -457,10 +457,12 @@ var BamFormat = {
       leftMate, rightMate, pairOrientation;
     function yesNo(bool) { return bool ? "yes" : "no"; }
     function addAlignedSegmentInfo(content, seg, prefix) {
+      var cigarAbbrev = seg.cigar && seg.cigar.length > 25 ? seg.cigar.substr(0, 24) + '...' : seg.cigar;
       prefix = prefix || "";
+      
       _.each({
         "position": seg.rname + ':' + seg.pos,
-        "cigar": seg.cigar,
+        "cigar": cigarAbbrev,
         "read strand": seg.flags.readStrandReverse ? '(-)' : '(+)',
         "mapped": yesNo(!seg.flags.isReadUnmapped),
         "map quality": seg.mapq,
