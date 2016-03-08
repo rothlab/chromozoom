@@ -12,18 +12,35 @@ define('RANGE_PATTERN', '/^(\\w+[^:]*):(\\d+)-(\\d+)$/');
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 
+// Attempt to automatically remedy RNAME mismatches because of UCSC/Ensembl differences.
+// This is for the $INFO_ONLY path below.  It occurs *before* bam.js figures out whether conversion is 
+// necessary, otherwise we could just use bam.js's logic alone for this.
+function first_column($line) { return reset(explode("\t", $line)); }
+function autoconvert_chrs(&$ranges, $output) {
+  $chrs = array_fill_keys(array_map('first_column', $output), true);
+  foreach ($ranges as $i => $range) {
+    $range_parts = explode(':', $range);
+    $chr = $range_parts[0];
+    if (!isset($chrs[$chr])) { 
+      $ranges[$i] = (strpos($chr, "chr") === 0 ? substr($chr, 3) : "chr{$chr}") . ":{$range_parts[1]}";
+    }
+  }
+}
+
 $ranges = array();
 $INFO_ONLY = FALSE;
 
 if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
-if (!isset($_GET['range'])) { $INFO_ONLY = TRUE; } 
-else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
-if (isset($_GET['range']) && !count($ranges)) { bad_request(); }
-$SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
-if ($SUMMARY) {
-  if (!isset($_GET['width'])) { bad_request(); }
-  $WIDTH = max(min(intval($_GET['width']), 5000), 1);
-}
+if (isset($_GET['info'])) { $INFO_ONLY = TRUE; } 
+$ranges = array_filter((array) $_GET['range'], 'valid_range');
+if (!isset($_GET['range']) || !count($ranges)) { bad_request(); }
+
+// // currently unused
+// $SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
+// if ($SUMMARY) {
+//   if (!isset($_GET['width'])) { bad_request(); }
+//   $WIDTH = max(min(intval($_GET['width']), 5000), 1);
+// }
 
 $SAMTOOLS = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/samtools') . ' view';
 $SAMTOOLS_INFO = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/samtools') . ' idxstats';
@@ -48,13 +65,17 @@ chdir($tmp_dir);
 header('Content-type: text/plain');
 
 if ($INFO_ONLY) {
-  // This gets the first 100 reads, which we can do read length and insert size statistics on
-  // `samtools view https://pakt01.u.hpc.mssm.edu/BSR6402-15-17.final.bam 2>/dev/null | head -n 100`
-  // More stringently, we can eliminate non-primary and unmapped reads like so:
-  // `samtools view -F3852 -f2 https://pakt01.u.hpc.mssm.edu/BSR6402-15-17.final.bam 2>/dev/null | head -n 100 | cut -f1-9`
-  passthru("$SAMTOOLS_INFO " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
-  echo "\n";
-  passthru("$SAMTOOLS -F3852 -f2 " . escapeshellarg($_GET['url']) . " 2>/dev/null | head -n 100 | cut -f1-9");
+  // First we fetch and echo the output of samtools idxstats, which has info on allowed RNAME's and their density.
+  $output = array();
+  exec("$SAMTOOLS_INFO " . escapeshellarg($_GET['url']), $output, $retval);
+  autoconvert_chrs($ranges, $output);
+  echo implode("\n", $output) . "\n\n";
+  $ranges = implode(' ', array_map('escapeshellarg', $ranges));
+  // Now get the first 500 reads from the given range for the purposes of read length and insert size statistics.
+  // We eliminate non-primary and unmapped reads with the -F and -f flags. We also dispense with the SEQ and QUAL columns.
+  // `samtools view -F3852 -f2 http://url/to/file.bam $range 2>/dev/null | head -n 100 | cut -f1-9`
+  passthru("$SAMTOOLS -F3852 " . escapeshellarg($_GET['url']) . " $ranges 2>/dev/null | head -n 500 | cut -f1-9");
 } else {
-  passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
+  $ranges = implode(' ', array_map('escapeshellarg', $ranges));
+  passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " $ranges");
 }

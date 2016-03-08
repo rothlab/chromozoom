@@ -250,7 +250,7 @@ function _pairingState(pairedItvlTree, itvl, potentialMate) {
   } 
   
   itvlIsLater = itvl.start > potentialMate.start;
-  inferredInsertSize = itvlIsLater ? itvl.start - potentialMate.end : potentialMate.start - itvl.end;
+  inferredInsertSize = Math.abs(tlen);
   
   // Check that the alignments are --> <--
   if (itvlIsLater) {

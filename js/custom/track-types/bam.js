@@ -34,7 +34,8 @@ var BamFormat = {
     convertChrScheme: "auto",
     // Draw paired ends within a range of expected insert sizes as a continuous feature?
     // See https://www.broadinstitute.org/igv/AlignmentData#paired for how this works
-    viewAsPairs: false
+    viewAsPairs: false,
+    expectedInsertSizePercentiles: [0.005, 0.995]
   },
   
   // The FLAG column for BAM/SAM is a combination of bitwise flags
@@ -83,6 +84,7 @@ var BamFormat = {
       cache = new PairedIntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}, 
           {startKey: 'templateStart', endKey: 'templateEnd', pairedLengthKey: 'tlen', pairingKey: 'qname'}),
       ajaxUrl = self.ajaxDir() + 'bam.php',
+      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + 10000)),
       remote;
     
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
@@ -117,13 +119,17 @@ var BamFormat = {
     // Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence
     // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
     $.ajax(ajaxUrl, {
-      data: {url: o.bigDataUrl},
+      data: {range: infoChrRange, url: o.bigDataUrl, info: 1},
       success: function(data) {
         var mappedReads = 0,
           maxItemsToDraw = _.max(_.values(o.drawLimit)),
           bamChrs = [],
           infoParts = data.split("\n\n"),
-          sampleIntervals, meanItemLength, chrScheme, meanItemsPerBp;
+          estimatedInsertSizes = [],
+          pctiles = o.expectedInsertSizePercentiles,
+          lowerBound = 10, 
+          upperBound = 5000, 
+          sampleIntervals, meanItemLength, hasAMatePair, chrScheme, meanItemsPerBp;
         
         _.each(infoParts[0].split("\n"), function(line) {
           var fields = line.split("\t"),
@@ -144,22 +150,32 @@ var BamFormat = {
         }));
         if (sampleIntervals.length) {
           meanItemLength = _.reduce(sampleIntervals, function(memo, next) { return memo + (next.end - next.start); }, 0);
-          meanItemLength = meanItemLength / sampleIntervals.length;
+          meanItemLength = Math.round(meanItemLength / sampleIntervals.length);
+          hasAMatePair = _.some(sampleIntervals, function(itvl) { 
+            return itvl.flags.isReadFirstOfPair || itvl.flags.isReadLastOfPair;
+          });
+          estimatedInsertSizes = _.compact(_.map(sampleIntervals, function(itvl) { 
+            return itvl.tlen ? Math.abs(itvl.tlen) : 0; 
+          }));
+          estimatedInsertSizes.sort(function(a, b) { return a - b; });  // NOTE: JavaScript does string sorting by default -_-
         }
-        console.log(self.browserOpts.pos);
-        console.log(meanItemLength);
-        // TODO: Can estimate insert sizes from TLEN - 2 * (end - start).
         
         self.data.info.meanItemsPerBp = meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
-        self.data.info.meanItemLength = meanItemLength || 100;
-        o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
+        self.data.info.meanItemLength = meanItemLength = _.isUndefined(meanItemLength) ? 100 : meanItemLength;
+        o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp / (Math.max(meanItemLength, 100) / 100);
         o.optimalFetchWindow = Math.floor(o.maxFetchWindow / 2);
         
-        // TODO: We should deactivate the pairing functionality of the PairedIntervalTree 
-        //       if we don't see any paired reads in this BAM.
-        //       If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes
-        //       should trigger pairing.
-        self.data.cache.setPairingInterval(10, 5000);
+        // If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes should trigger pairing.
+        if (hasAMatePair) {
+          if (estimatedInsertSizes.length) {
+            lowerBound = estimatedInsertSizes[Math.floor(estimatedInsertSizes.length * pctiles[0])];
+            upperBound = estimatedInsertSizes[Math.floor(estimatedInsertSizes.length * pctiles[1])];
+          }
+          self.data.cache.setPairingInterval(lowerBound, upperBound);
+        } else {
+          // If we don't see any paired reads in this BAM, deactivate the pairing functionality of the PairedIntervalTree 
+          self.data.cache.disablePairing();
+        }
         remote.setupBins(self.browserOpts.genomeSize, o.optimalFetchWindow, o.maxFetchWindow);
       }
     });
