@@ -122,8 +122,10 @@ var BamFormat = {
         var mappedReads = 0,
           maxItemsToDraw = _.max(_.values(o.drawLimit)),
           bamChrs = [],
-          chrScheme, meanItemsPerBp;
-        _.each(data.split("\n"), function(line) {
+          infoParts = data.split("\n\n"),
+          sampleIntervals, chrScheme, meanItemsPerBp;
+        
+        _.each(infoParts[0].split("\n"), function(line) {
           var fields = line.split("\t"),
             readsMappedToContig = parseInt(fields[2], 10);
           if (fields.length == 1 && fields[0] == '') { return; } // blank line
@@ -131,6 +133,12 @@ var BamFormat = {
           if (_.isNaN(readsMappedToContig)) { throw new Error("Invalid output for samtools idxstats on this BAM track."); }
           mappedReads += readsMappedToContig;
         });
+        
+        sampleIntervals = _.compact(_.map(infoParts[1].split("\n"), function(line) {
+          return line != '' ? self.type('bam').parseLine.call(self, line) : null;
+        }));
+        // TODO: Can estimate insert sizes from TLEN - 2 * (end - start).
+        console.log(_.map(sampleIntervals, function(itvl) { return itvl.start + ' ' + itvl.end; }).join("\n"));
         
         self.data.info.chrScheme = chrScheme = self.type("bam").guessChrScheme(bamChrs);
         if (chrScheme && self.browserChrScheme) {
@@ -165,6 +173,7 @@ var BamFormat = {
   // See section 1.4 of https://samtools.github.io/hts-specs/SAMv1.pdf for an explanation of CIGAR 
   parseCigar: function(feature, lineno) {        
     var cigar = feature.cigar,
+      seq = feature.seq || "",
       refLen = 0,
       seqPos = 0,
       operations, lengths;
@@ -185,7 +194,7 @@ var BamFormat = {
         block = {start: feature.start + refLen};
         block.end = block.start + len;
         block.type = op;
-        block.seq = feature.seq.slice(seqPos, seqPos + len);
+        block.seq = seq.slice(seqPos, seqPos + len);
         feature.blocks.push(block);
         refLen += len;
         seqPos += len;
@@ -195,7 +204,7 @@ var BamFormat = {
       } else if (op == 'I') {
         // Insertion
         insertion = {start: feature.start + refLen, end: feature.start + refLen};
-        insertion.seq = feature.seq.slice(seqPos, seqPos + len);
+        insertion.seq = seq.slice(seqPos, seqPos + len);
         feature.insertions.push(insertion);
         seqPos += len;
       } else if (op == 'S') {

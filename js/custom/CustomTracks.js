@@ -59,6 +59,7 @@ module.exports = (function(global){
     
     error: function(e) {
       // Can be overridden by a parent library to handle errors more gracefully.
+      // Note: this is overridden by ui.genobrowser during UI setup.
       console.log(e);
     },
     

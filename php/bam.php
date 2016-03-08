@@ -25,7 +25,8 @@ if ($SUMMARY) {
   $WIDTH = max(min(intval($_GET['width']), 5000), 1);
 }
 
-$SAMTOOLS = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/samtools') . ' ' . ($INFO_ONLY ? 'idxstats' : 'view');
+$SAMTOOLS = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/samtools') . ' view';
+$SAMTOOLS_INFO = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/samtools') . ' idxstats';
 
 $tmp_dir = '/tmp/samtools-' . substr(strtr(base64_encode(sha1(dirname($_GET['url']), TRUE)), '/', '-'), 0, 12);
 while (file_exists($tmp_dir) && !is_dir($tmp_dir)) { $tmp_dir .= '+'; } 
@@ -46,10 +47,14 @@ chdir($tmp_dir);
 
 header('Content-type: text/plain');
 
-if ($SUMMARY) {
+if ($INFO_ONLY) {
   // This gets the first 100 reads, which we can do read length and insert size statistics on
   // `samtools view https://pakt01.u.hpc.mssm.edu/BSR6402-15-17.final.bam 2>/dev/null | head -n 100`
-  passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
+  // More stringently, we can eliminate non-primary and unmapped reads like so:
+  // `samtools view -F3852 -f2 https://pakt01.u.hpc.mssm.edu/BSR6402-15-17.final.bam 2>/dev/null | head -n 100 | cut -f1-9`
+  passthru("$SAMTOOLS_INFO " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
+  echo "\n";
+  passthru("$SAMTOOLS -F3852 -f2 " . escapeshellarg($_GET['url']) . " 2>/dev/null | head -n 100 | cut -f1-9");
 } else {
   passthru("$SAMTOOLS " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));
 }

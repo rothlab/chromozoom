@@ -47,7 +47,7 @@ global.addEventListener('message', function(e) {
     callback = function(r) { global.postMessage({id: data.id, ret: JSON.stringify(r || null)}); },
     ret;
 
-  if (CustomTrackWorker._throwErrors || true) {
+  if (CustomTrackWorker._throwErrors || true) {  // FIXME
     ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback));
   } else {
     try { ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback)); } 
