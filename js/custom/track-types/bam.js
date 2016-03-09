@@ -63,10 +63,12 @@ var BamFormat = {
     this.browserChrScheme = this.type("bam").guessChrScheme(_.keys(this.browserOpts.chrPos));
   },
   
-  // TODO: We must note that when we change opts.viewAsPairs, we *need* to throw out this.data.pileup.
   // TODO: If the pairing interval changed, we should toss the entire cache and reset the RemoteTrack bins,
-  //         and blow up the areaIndex.
+  //         *and* blow up the areaIndex.
   applyOpts: function() {
+    var o = this.opts;
+    // When we change opts.viewAsPairs, we *need* to throw out this.data.pileup.
+    if (o.viewAsPairs != this.prevOpts.viewAsPairs) { this.data.pileup = {}; }
     this.prevOpts = deepClone(this.opts);
   },
   
@@ -195,7 +197,7 @@ var BamFormat = {
   // See section 1.4 of https://samtools.github.io/hts-specs/SAMv1.pdf for an explanation of CIGAR 
   parseCigar: function(feature, lineno) {        
     var cigar = feature.cigar,
-      seq = feature.seq || "",
+      seq = (!feature.seq || feature.seq == '*') ? "" : feature.seq,
       refLen = 0,
       seqPos = 0,
       operations, lengths;
@@ -303,7 +305,7 @@ var BamFormat = {
             if (!positionsToCalculate[i]) { continue; }
             nt = (block.seq[i - block.start] || '').toUpperCase();
             pileup[i] = pileup[i] || {A: 0, C: 0, G: 0, T: 0, N: 0, cov: 0};
-            if (/[ACTGN]/.test(nt)) { pileup[i][nt] += 1; }
+            pileup[i][(/[ACTG]/).test(nt) ? nt : 'N'] += 1;
             pileup[i].cov += 1;
           }
         });
@@ -337,18 +339,18 @@ var BamFormat = {
       vScale = this.data.info.meanItemsPerBp * this.data.info.meanItemLength * 2,
       alleleFreqThreshold = this.opts.alleleFreqThreshold,
       alleleSplits = [],
-      split, refNt, i, pileupAtPos;
+      split, refNt, i, pile;
       
     for (i = 0; i < sequence.length; i++) {
       refNt = sequence[i].toUpperCase();
-      pileupAtPos = pileup[start + i];
-      if (pileupAtPos && pileupAtPos.cov && pileupAtPos[refNt] / pileupAtPos.cov < (1 - alleleFreqThreshold)) {
+      pile = pileup[start + i];
+      if (pile && pile.cov && pile[refNt] / (pile.cov - pile.N) < (1 - alleleFreqThreshold)) {
         split = {
           x: i / bppp,
           splits: []
         };
         _.each(['A', 'C', 'G', 'T'], function(nt) {
-          if (pileupAtPos[nt] > 0) { split.splits.push({nt: nt, h: pileupAtPos[nt] / vScale}); }
+          if (pile[nt] > 0) { split.splits.push({nt: nt, h: pile[nt] / vScale}); }
         });
         alleleSplits.push(split);
       }
