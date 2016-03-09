@@ -142,13 +142,28 @@ $.widget('ui.genotrack', {
   
   // public resize function that updates the entire UI accordingly.
   resize: function(height, animCallback) {
-    var o = this.options,
+    var $elem = this.element,
+      o = this.options,
+      alsoEraseStretchedTiles = function() {},
       paddingBordersY = this.$side.outerHeight() - this.$side.height();
     // can pass callback==true to animate without a callback
     if (!_.isFunction(animCallback) && animCallback) { animCallback = function() {}; }
-    this._resize(height, animCallback);
-    if (animCallback) { this.$side.animate({height: height - paddingBordersY}, o.lineFixDuration); }
-    else { this.$side.outerHeight(height); }
+    if (o.track.custom && o.track.custom.stretchHeight) {
+      alsoEraseStretchedTiles = function() { 
+        $elem.find('.tile-custom canvas').each(function() {
+          if (this.height < height) { $(this).attr('height', height).trigger('render'); }
+        });
+      }
+    }
+    // this._resize(height, animCallback);
+    if (animCallback) { 
+      this._resize(height, function() { alsoEraseStretchedTiles(); animCallback(); });
+      this.$side.animate({height: height - paddingBordersY}, o.lineFixDuration); 
+    } else { 
+      this._resize(height);
+      this.$side.outerHeight(height);
+      alsoEraseStretchedTiles();
+    }
   },
   
   // internal resize handler, used by the resizable side handle, does not update the side height.
