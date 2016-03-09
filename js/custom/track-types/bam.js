@@ -68,7 +68,9 @@ var BamFormat = {
   applyOpts: function() {
     var o = this.opts;
     // When we change opts.viewAsPairs, we *need* to throw out this.data.pileup.
-    if (o.viewAsPairs != this.prevOpts.viewAsPairs) { this.data.pileup = {}; }
+    if (o.viewAsPairs != this.prevOpts.viewAsPairs && this.data && this.data.pileup) { 
+      this.data.pileup = {};
+    }
     this.prevOpts = deepClone(this.opts);
   },
   
