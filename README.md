@@ -20,7 +20,9 @@ ChromoZoom is free for academic, nonprofit, and personal use.  The source code i
 
 ## Requirements
 
-ChromoZoom was designed to run in a \*NIX environment and has been tested on OS X and Debian Linux.  The web interface should work in any recent version of a modern HTML5-capable web browser (Chrome, Firefox, Safari, IE ≥9).
+ChromoZoom was designed to run in a \*NIX environment and has been tested on OS X and Debian Linux. For Windows users we suggest 
+[usage of our virtual environment](#running-in-virtual-environment).
+The web interface should work in any recent version of a modern HTML5-capable web browser (Chrome, Firefox, Safari, IE ≥9).
 
 ### To serve the ChromoZoom web interface
 
@@ -87,6 +89,16 @@ By default, the tile stitcher will scrape the [public UCSC browser](http://genom
 [5]: http://htmlentities.rubyforge.org/
 [homebrew]: http://brew.sh
 
+### Running in virtual environment
+
+Using virtualization ChromoZoom can run easily from any system. [VirtualBox](http://www.virtualbox.org/wiki/Downloads) and [Vagrant](http://www.vagrantup.com/downloads.html) must be installed.
+To set up your environment use commands:
+
+    $ cd path/to/this/repo
+    $ vagrant up
+
+Once set up, you can access ChromoZoom at `localhost:8080`
+	
 ## Using the tile stitcher
 
 All interactions with the tile stitcher are performed via [rake][13].  To check that you have all the above requirements, `cd` into this repo and run
