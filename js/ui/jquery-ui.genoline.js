@@ -143,9 +143,11 @@ $.widget('ui.genoline', {
         initKeyedOffset = o.browser.genobrowser('keyedOffset');
         o.browser.genobrowser('showReticle', 'dragging', false);
         if (Math.abs(vInit) > 0.1) {
-          var xInit = ui.position.left, decel = vInit > 0 ? 0.001 : -0.001, lastRefresh = 0;            
-          self.$cont.css('text-indent', 1);
-          self.$cont.animate({textIndent: 0}, {
+          var xInit = ui.position.left, decel = vInit > 0 ? 0.001 : -0.001, lastRefresh = 0;
+          // Why animate margin-right? It's a dummy property that doesn't affect overall drawing. All the actual
+          // logic for the animation occurs within the step: function() {} below.
+          self.$cont.css('margin-right', -1);
+          self.$cont.animate({marginRight: 0}, {
             queue: false,
             duration: Math.abs(vInit / decel),
             step: function() {
