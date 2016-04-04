@@ -157,7 +157,7 @@
           </div>
           <div class="panel-three">
             <div id="intro-panel-2" class="intro-panel"></div>
-            <div class="desc"><strong class="num">2.</strong> <strong>Zoom</strong> with mousewheel or two-finger scroll</div>
+            <div class="desc"><strong class="num">2.</strong> <strong>Zoom</strong> with two fingers or mousewheel</div>
           </div>
           <div class="panel-three last">
             <div id="intro-panel-3" class="intro-panel"></div>
