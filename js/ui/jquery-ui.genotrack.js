@@ -521,8 +521,10 @@ $.widget('ui.genotrack', {
       custom = o.track.custom,
       defaultColor = (custom && custom.opts.color) || '0,0,0',
       tipTipOptions = {
-        async: true, delay: 400,
-        enter: this._areaTipTipEnter
+        async: true,
+        delay: 400,
+        enter: this._areaTipTipEnter,
+        allowOverlayX: true
       },
       hash = shortHash(area[5]),
       scaleToPct = 100 / o.tileWidth,

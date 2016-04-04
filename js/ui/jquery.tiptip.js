@@ -4,10 +4,11 @@
  * www.drewwilson.com
  * code.drewwilson.com/entry/tiptip-jquery-plugin
  *
- * Version 1.3   -   Updated: Mar. 23, 2010
+ * Modified by Theodore Pak for inclusion with ChromoZoom. Most of the positioning
+ * and content loading code was completely replaced.
  *
- * This Plug-In will create a custom tooltip to replace the default
- * browser tooltip. It is extremely lightweight and very smart in
+ * Original description: This Plugin will create a custom tooltip to replace 
+ * the default browser tooltip. It is lightweight and smart in
  * that it detects the edges of the browser window and will make sure
  * the tooltip stays within the current window size. As a result the
  * tooltip will adjust itself to be displayed above, below, to the left 
@@ -32,10 +33,11 @@ module.exports = function($){
     fadeIn: 200,
     fadeOut: 200,
     attribute: "title",
-    content: false, // HTML or String to fill TipTIp with
+    content: false,        // HTML or String to fill TipTIp with
     enter: function(){},
     async: false,
-    startActivated: false
+    startActivated: false,
+    allowOverlayX: false,  // allow the tipTip to overlay the element along the X-axis 
   };
   var $tiptip_holder, $tiptip_content, $tiptip_arrow, activating_elem;
   
@@ -48,11 +50,12 @@ module.exports = function($){
   function fill_show_tiptip(d, self, content) {
     var opts = d.opts,
       $org_elem = d.org_elem,
+      overlayX = opts.allowOverlayX && typeof d.pageX == 'number',
       org_title = content ? content : d.org_title,
       timeout = $(self).data('tiptipTimeout'),
       active = $(self).data('tiptipActive'),
       firedAfter = (new Date).getTime() - active;
-      
+    
     if (opts.async) {
       if (!active) { return; }
       if (content === false) { $(this).data('tiptipActive', false); return; }
@@ -65,12 +68,12 @@ module.exports = function($){
 
     var offset = $org_elem.offset(),
       top = offset.top,
-      left = offset.left,
+      left = overlayX ? d.pageX - 5 : offset.left,
       scroll_top = $(window).scrollTop(),
       scroll_left = $(window).scrollLeft(),
       win_width = $(window).width(),
       win_height = $(window).height(),
-      org_width = $org_elem.outerWidth(),
+      org_width = overlayX ? 10 : $org_elem.outerWidth(),
       org_height = $org_elem.outerHeight();
 
     if (left - scroll_left >= 0) { org_width = Math.min(org_width, win_width - (left - scroll_left)); }
@@ -84,21 +87,39 @@ module.exports = function($){
       marg_top = Math.round(top + org_height + opts.edgeOffset),
       t_class = "",
       arrow_top = "",
-      arrow_left = Math.round(tip_w - 12) / 2;
+      arrow_left = Math.round(tip_w - 12) / 2,
+      top_or_bottom_default;
 
     t_class = "_" + opts.defaultPosition;
+    top_or_bottom_default = opts.defaultPosition == 'bottom' || opts.defaultPosition == 'top';
 
-    var right_compare = (w_compare + left) < scroll_left,
-      left_compare = (tip_w + left) > win_width;
+      // While centered horizontally, would the left edge of the tipTip clip outside the viewport?
+    var left_clips = (w_compare + left) < scroll_left,
+      // While centered horizontally, would the right edge of the tipTip clip outside the viewport?
+      right_clips = (tip_w + left) > win_width,
+      // While centered vertically, would the top or bottom edge of the tipTip clip outside the viewport?
+      vcentered_would_clip = (top + org_height/2 + h_compare < scroll_top) 
+          || (top + org_height/2 - h_compare > win_height + scroll_top),
+      // In the bottom position, would the bottom edge of the tipTip clip outside the viewport?
+      bottom_would_clip = (top + org_height + opts.edgeOffset + tip_h + 8) > win_height + scroll_top, 
+      // In the top position, would the top edge of the tipTip clip outside the viewport?
+      top_would_clip = (top - (opts.edgeOffset + tip_h + 8)) < scroll_top;
 
-    if ((right_compare && w_compare < 0) || (t_class == "_right" && !left_compare) 
+    // If by default, the tipTip is on top or bottom but it would clip in either direction, we have to switch to left/right
+    if ((t_class == "_top" || t_class == "_bottom") && bottom_would_clip && top_would_clip) { 
+      t_class = "_left";
+      top_or_bottom_default = false;
+    }
+
+    // Orient the tipTip to the left/right if it is preferable to centered
+    if ((left_clips && w_compare < 0) || (t_class == "_right" && !right_clips) 
         || (t_class == "_left" && left < (tip_w + opts.edgeOffset + 5))) {
       t_class = "_right";
       arrow_top = Math.round(tip_h - 13) / 2;
       arrow_left = -12;
       marg_left = Math.round(left + org_width + opts.edgeOffset);
       marg_top = Math.round(top + h_compare);
-    } else if((left_compare && w_compare < 0) || (t_class == "_left" && !right_compare)){
+    } else if ((right_clips && w_compare < 0) || (t_class == "_left" && !left_clips)) {
       t_class = "_left";
       arrow_top = Math.round(tip_h - 13) / 2;
       arrow_left =  Math.round(tip_w);
@@ -106,33 +127,26 @@ module.exports = function($){
       marg_top = Math.round(top + h_compare);
     }
 
-    var top_compare = (top + org_height + opts.edgeOffset + tip_h + 8) > win_height + scroll_top,
-      bottom_compare = ((top + org_height) - (opts.edgeOffset + tip_h + 8)) < 0;
-
-    if(top_compare || (t_class == "_bottom" && top_compare) || (t_class == "_top" && !bottom_compare)){
-      if(t_class == "_top" || t_class == "_bottom"){
-        t_class = "_top";
-      } else {
-        t_class = t_class+"_top";
-      }
+    // Now, orient the tipTop to the top or bottom if it is better than centered
+    if (!top_would_clip && ((top_or_bottom_default && bottom_would_clip) || vcentered_would_clip)) {
+      t_class = (t_class == "_left" || t_class == "_right") ? t_class + "_top" : "_top";
+    } else if (!bottom_would_clip && ((top_or_bottom_default && top_would_clip) || vcentered_would_clip)) {
+      t_class = (t_class == "_left" || t_class == "_right") ? t_class + "_bottom" : "_bottom";
+    }
+    if (t_class.indexOf("_top") != -1) {
       arrow_top = tip_h;
       marg_top = Math.round(top - (tip_h + 5 + opts.edgeOffset));
-    } else if(bottom_compare | (t_class == "_top" && bottom_compare) || (t_class == "_bottom" && !top_compare)){
-      if(t_class == "_top" || t_class == "_bottom"){
-        t_class = "_bottom";
-      } else {
-        t_class = t_class+"_bottom";
-      }
-      arrow_top = -12;            
+    } else if (t_class.indexOf("_bottom") != -1) {
+      arrow_top = -12;
       marg_top = Math.round(top + org_height + opts.edgeOffset);
     }
 
-    if(t_class == "_right_top" || t_class == "_left_top"){
+    if (t_class == "_right_top" || t_class == "_left_top") {
       marg_top = marg_top + 5;
-    } else if(t_class == "_right_bottom" || t_class == "_left_bottom"){   
+    } else if (t_class == "_right_bottom" || t_class == "_left_bottom") {   
       marg_top = marg_top - 5;
     }
-    if(t_class == "_left_top" || t_class == "_left_bottom"){  
+    if (t_class == "_left_top" || t_class == "_left_bottom") {  
       marg_left = marg_left + 5;
     }
     $tiptip_arrow.css({"margin-left": arrow_left+"px", "margin-top": arrow_top+"px"});
@@ -143,10 +157,11 @@ module.exports = function($){
     else { $(self).data('tiptipTimeout', setTimeout(_.bind(show_tiptip, self, opts), opts.delay - firedAfter)); }
   }
 
-  function active_tiptip(e) {
+  function active_tiptip (e) {
     var self = this,
       d = e.data,
       content;
+    $.extend(d, {pageX: e.pageX, pageY: e.pageY});
     $(this).data('tiptipActive', (new Date).getTime());
     if (activating_elem && activating_elem != self) { $.tipTip.hide(); }
     activating_elem = self;
