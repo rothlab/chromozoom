@@ -428,6 +428,15 @@ body {
 }
 .browser-line .side .subtrack.unsized { padding-top: 1px; }
 
+.browser-line .subtrack-cont .scale {
+  position: absolute;
+  left: 100px;
+  top: 0;
+  bottom: 0;
+  font-size: 60%;
+  opacity: 0.6;
+}
+
 .browser-line .side-cont .side.ui-sortable-helper {
   border-top: #aaa solid 1px;
   border-bottom: #aaa solid 1px;
