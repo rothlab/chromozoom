@@ -120,8 +120,10 @@ var BamFormat = {
     self.renderSequenceCallbacks = {};
     self.prevOpts = deepClone(o);  // used to detect which drawing options have been changed by the user
     
-    // Get general info on the bam (e.g. `samtools idxstats`, use mapped reads per reference sequence
+    // Get general info on the bam (e.g. `samtools idxstats`), use mapped reads per reference sequence
     // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
+    // We also fetch a bunch of reads from around infoChrRange (by default, where the browser is when
+    // it first loads this track) to estimate meanItemLength, mate pairing, and the insert size distribution.
     $.ajax(ajaxUrl, {
       data: {range: infoChrRange, url: o.bigDataUrl, info: 1},
       success: function(data) {
