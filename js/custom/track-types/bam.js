@@ -20,13 +20,16 @@ var BamFormat = {
     priority: 'user',
     offset: 0,
     detail: false,
+    viewLimits: '',  // analogous to viewLimits in wiggle_0, applicable here to the coverage subtrack
     url: '',
     htmlUrl: '',
     drawLimit: {squish: 2000, pack: 2000},
     // If a nucleotide differs from the reference sequence in greater than 20% of quality weighted reads, 
     // IGV colors the bar in proportion to the read count of each base; the following changes that threshold for chromozoom
     alleleFreqThreshold: 0.2,
+    // Data for how many nts should be fetched in one go?
     optimalFetchWindow: 0,
+    // Above what tile width (in nts) do we avoid fetching data altogether?
     maxFetchWindow: 0,
     // The following can be "ensembl_ucsc" or "ucsc_ensembl" to attempt auto-crossmapping of reference contig names
     // between the two schemes, which IGV does, but is a perennial issue: https://www.biostars.org/p/10062/
@@ -60,7 +63,16 @@ var BamFormat = {
       throw new Error("Required parameter bigDataUrl not found for BAM track at " +
           JSON.stringify(this.opts) + (this.opts.lineNum + 1));
     }
+    this.type().initOpts.call(this);
     this.browserChrScheme = this.type("bam").guessChrScheme(_.keys(this.browserOpts.chrPos));
+  },
+  
+  initOpts: function() {
+    var o = this.opts;
+    o.viewAsPairs = this.isOn(o.viewAsPairs);
+    if (!_.isArray(o.viewLimits)) {
+      o.viewLimits = _.map(o.viewLimits.split(':'), parseFloat);
+    }
   },
   
   // TODO: If the pairing interval changed, we should toss the entire cache and reset the RemoteTrack bins,
@@ -71,6 +83,8 @@ var BamFormat = {
     if (o.viewAsPairs != this.prevOpts.viewAsPairs && this.data && this.data.pileup) { 
       this.data.pileup = {};
     }
+    this.drawRange = o.autoScale || o.viewLimits.length < 2 ? this.coverageRange : o.viewLimits;
+    // TODO: Setup this.scales here
     this.prevOpts = deepClone(this.opts);
   },
   
@@ -118,6 +132,7 @@ var BamFormat = {
     self.noAreaLabels = true;
     self.expectsSequence = true;
     self.renderSequenceCallbacks = {};
+    self.coverageRange = [0, 0];
     self.prevOpts = deepClone(o);  // used to detect which drawing options have been changed by the user
     
     // Get general info on the bam (e.g. `samtools idxstats`), use mapped reads per reference sequence
@@ -125,7 +140,7 @@ var BamFormat = {
     // We also fetch a bunch of reads from around infoChrRange (by default, where the browser is when
     // it first loads this track) to estimate meanItemLength, mate pairing, and the insert size distribution.
     $.ajax(ajaxUrl, {
-      data: {range: infoChrRange, url: o.bigDataUrl, info: 1},
+      data: {info: 1, range: infoChrRange, url: o.bigDataUrl},
       success: function(data) {
         var mappedReads = 0,
           maxItemsToDraw = _.max(_.values(o.drawLimit)),
@@ -168,8 +183,14 @@ var BamFormat = {
         
         self.data.info.meanItemsPerBp = meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
         self.data.info.meanItemLength = meanItemLength = _.isUndefined(meanItemLength) ? 100 : meanItemLength;
-        o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp / (Math.max(meanItemLength, 100) / 100);
-        o.optimalFetchWindow = Math.floor(o.maxFetchWindow / 2);
+        if (!o.optimalFetchWindow || !o.maxFetchWindow) {
+          o.optimalFetchWindow = Math.floor(maxItemsToDraw / meanItemsPerBp / (Math.max(meanItemLength, 100) / 100) * 0.5);
+          o.maxFetchWindow = o.optimalFetchWindow * 2;
+        }
+        if (!self.coverageRange[1]) { self.coverageRange[1] = meanItemsPerBp * meanItemLength * 2; }
+        self.type('bam').applyOpts.call(self);
+        // TODO: Is there a more elegant way, maybe have applyOpts do this? since that is where it will go for wiggle_0...
+        self.syncProps(['opts', 'drawRange', 'coverageRange', 'scales']);
         
         // If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes should trigger pairing.
         if (hasAMatePair) {
@@ -320,7 +341,6 @@ var BamFormat = {
   coverage: function(start, width, bppp) {
     // Compare with binning on the fly in .type('wiggle_0').prerender(...)
     var j = start,
-      vScale = this.data.info.meanItemsPerBp * this.data.info.meanItemLength * 2,
       curr = this.data.pileup[j],
       bars = [],
       next, bin, i;
@@ -333,14 +353,13 @@ var BamFormat = {
         curr = next;
         next = this.data.pileup[j + 1];
       }
-      bars.push(utils.wigBinFunctions.maximum(bin) / vScale);
+      bars.push(utils.wigBinFunctions.maximum(bin));
     }
     return bars;
   },
   
   alleles: function(start, sequence, bppp) {
     var pileup = this.data.pileup,
-      vScale = this.data.info.meanItemsPerBp * this.data.info.meanItemLength * 2,
       alleleFreqThreshold = this.opts.alleleFreqThreshold,
       alleleSplits = [],
       split, refNt, i, pile;
@@ -354,7 +373,7 @@ var BamFormat = {
           splits: []
         };
         _.each(['A', 'C', 'G', 'T'], function(nt) {
-          if (pile[nt] > 0) { split.splits.push({nt: nt, h: pile[nt] / vScale}); }
+          if (pile[nt] > 0) { split.splits.push({nt: nt, h: pile[nt]}); }
         });
         alleleSplits.push(split);
       }
@@ -507,9 +526,11 @@ var BamFormat = {
   
   // See https://www.broadinstitute.org/igv/AlignmentData#coverage for an idea of what we're imitating
   drawCoverage: function(ctx, coverage, height) {
+    var vScale = this.drawRange[1];
     _.each(coverage, function(d, x) {
       if (d === null) { return; }
-      ctx.fillRect(x, Math.max(height - (d * height), 0), 1, Math.min(d * height, height));
+      var h = d * height / vScale;
+      ctx.fillRect(x, Math.max(height - h, 0), 1, Math.min(h, height));
     });
   },
   
@@ -597,12 +618,14 @@ var BamFormat = {
   drawAlleles: function(ctx, alleles, height, barWidth) {
     // Same colors as $.ui.genotrack._ntSequenceLoad(...) but could be configurable?
     var colors = {A: '255,0,0', T: '255,0,255', C: '0,0,255', G: '0,180,0'},
+      vScale = this.drawRange[1];
       yPos;
     _.each(alleles, function(allelesForPosition) {
       yPos = height;
       _.each(allelesForPosition.splits, function(split) {
+        var h = split.h * height / vScale;
         ctx.fillStyle = 'rgb('+colors[split.nt]+')';
-        ctx.fillRect(allelesForPosition.x, yPos -= (split.h * height), Math.max(barWidth, 1), split.h * height);
+        ctx.fillRect(allelesForPosition.x, yPos -= h, Math.max(barWidth, 1), h);
       });
     });
   },
@@ -734,6 +757,7 @@ var BamFormat = {
     var o = this.opts;
     o.viewAsPairs = $dialog.find('[name=viewAsPairs]').is(':checked');
     o.convertChrScheme = $dialog.find('[name=convertChrScheme]').val();
+    this.type().initOpts.call(this);
     
     // If o.viewAsPairs was changed, we *need* to blow away the genobrowser's areaIndex 
     // and our locally cached areas, as all the areas will change.

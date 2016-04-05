@@ -32,15 +32,20 @@ var CustomTrackWorker = {
     track.prerender.apply(track, _.rest(args));
   },
   applyOpts: function() {
-    args = _.toArray(arguments),
+    var args = _.toArray(arguments),
       id = _.first(args),
       track = this._tracks[id];
     track.applyOpts.apply(track, _.rest(args));
+  },
+  syncPropsAsync: function(track, props) {
+    global.postMessage({id: track.id, syncProps: props});
   },
   throwErrors: function(toggle) {
     this._throwErrors = toggle;
   }
 };
+
+global.CustomTrackWorker = CustomTrackWorker;
 
 global.addEventListener('message', function(e) {
   var data = e.data,

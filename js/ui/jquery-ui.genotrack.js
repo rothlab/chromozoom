@@ -33,6 +33,9 @@ $.widget('ui.genotrack', {
     self.custom = !!o.track.custom;
     self.birth = (new Date).getTime();
     self.$side = $(o.side).append('<div class="subtrack-cont"/>');
+    self.fixClippedDebounced = _.debounce(self.fixClipped, 500);
+    if (self.custom) { o.track.custom.onSyncProps = function(props) { self._customTrackPropsUpdated(props); }; }
+    
     $elem.addClass('browser-track-'+o.track.n).toggleClass('no-ideograms', self.ruler && !o.chrBands);
     self._nearestBppps(o.browser.genobrowser('zoom'));
     // If the track has multiple densities, or its single density has multiple fixed heights,
@@ -935,6 +938,7 @@ $.widget('ui.genotrack', {
       $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
       $canvas.removeClass('unrendered').addClass('no-areas');
       d.self.fixClickAreas();
+      d.self.fixClippedDebounced();
       // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
       // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoom
       if ($canvas.hasClass('too-many')) { $canvas.parent().addClass('too-many'); }
@@ -965,6 +969,14 @@ $.widget('ui.genotrack', {
       $c.bind('erase', function() { o.track.custom.erase($c.get(0)); $c.addClass('unrendered'); });
       if (density==bestDensity) { $c.addClass('dens-best').trigger('render'); }
     });
+  },
+
+  // Runs when the custom track's properties change outside of parsing or using the track options dialog
+  // These changes might require us to update the UI, which we do here.
+  _customTrackPropsUpdated: function(props) {
+    // TODO: receive scales here and update them, somwhere in this._fixSide()
+    console.log("OY");
+    console.log(props);
   }
   
 });

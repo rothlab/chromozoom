@@ -25,8 +25,10 @@ function CustomTrack(opts, browserOpts) {
     sizes: ['dense'],
     mapSizes: [],
     areas: {},
+    scales: [],
     noAreaLabels: false,
-    expectsSequence: false
+    expectsSequence: false,
+    onSyncProps: null
   });
   this.init();
 }
@@ -65,6 +67,7 @@ _.each(['init', 'parse', 'render', 'renderSequence', 'prerender'], function(fn) 
   }
 });
 
+// Loads CustomTrack options into the track options dialog UI when it is opened
 CustomTrack.prototype.loadOpts = function($dialog) {
   var type = this.type(),
     o = this.opts;
@@ -78,6 +81,7 @@ CustomTrack.prototype.loadOpts = function($dialog) {
   $dialog.find('.enabler').change();
 };
 
+// Saves options changed in the track options dialog UI back to the CustomTrack object
 CustomTrack.prototype.saveOpts = function($dialog) {
   var type = this.type(),
     o = this.opts;
@@ -88,10 +92,34 @@ CustomTrack.prototype.saveOpts = function($dialog) {
   global.CustomTracks.worker() && this.applyOptsAsync(); // Apply the changes to the worker too!
 };
 
+// Sometimes newly set options (provided as the first arg) need to be transformed before use or have side effects.
+// This function is run for newly set options in both the DOM and Web Worker scopes (see applyOptsAsync below).
 CustomTrack.prototype.applyOpts = function(opts) {
   var type = this.type();
   if (opts) { this.opts = opts; }
   if (type.applyOpts) { type.applyOpts.call(this); }
+};
+
+// Copies the properties of the CustomTrack (listed in props) from the Web Worker side to the DOM side.
+// This is useful if the Web Worker computes something (like draw boundaries) that both sides need to be aware of.
+// If a callback is saved in this.onSyncProps, this will run the callback afterward.
+// If Web Workers are disabled, this is effectively a no-op, although the callback still fires.
+CustomTrack.prototype.syncProps = function(props, receiving) {
+  var self = this;
+  if (receiving === true) {
+    if (!_.isObject(props) || _.isArray(props)) { return false; }
+    _.extend(self, props);
+    if (_.isFunction(self.onSyncProps) && global.HTMLDocument) { self.onSyncProps(props); }
+    return self;
+  } else {    
+    if (_.isArray(props)) { props =_.object(props, _.map(props, function(p) { return self[p]; })); }
+    // Which side of the fence are we on?  HTMLDocument implies we're *not* in the Web Worker scope.
+    if (global.HTMLDocument) {
+      if (!global.CustomTracks.worker()) { return self.syncProps(props, true); }
+    } else if (global.CustomTrackWorker) {
+      global.CustomTrackWorker.syncPropsAsync(self, props);
+    }
+  }
 };
 
 CustomTrack.prototype.erase = function(canvas) {

@@ -17,6 +17,8 @@ module.exports = (function(global){
   // and it can delegate this work to a worker thread.
 
   var CustomTracks = {
+    _tracks: {},
+    
     parse: function(chunks, browserOpts) {
       var customTracks = [],
         data = [],
@@ -76,12 +78,16 @@ module.exports = (function(global){
         self._worker.addEventListener('message', function(e) {
           if (e.data.log) { console.log(JSON.parse(e.data.log)); return; }
           if (e.data.error) {
-            if (e.data.id) { callbacks[e.data.id] = null; }
+            if (e.data.id) { delete callbacks[e.data.id]; }
             self.error(JSON.parse(e.data.error));
             return;
           }
+          if (e.data.syncProps) {
+            self._tracks[e.data.id].syncProps(e.data.syncProps, true);
+            return;
+          }
           callbacks[e.data.id](JSON.parse(e.data.ret));
-          callbacks[e.data.id] = null;
+          delete callbacks[e.data.id];
         });
         self._worker.call = function(op, args, callback) {
           var id = callbacks.push(callback) - 1;
@@ -110,13 +116,15 @@ module.exports = (function(global){
     },
     
     parseAsync: function() {
-      this.async(this, 'parse', arguments, [], function(tracks) {
+      var self = this;
+      self.async(self, 'parse', arguments, [], function(tracks) {
         // These have been serialized, so they must be hydrated into real CustomTrack objects.
         // We replace .prerender() with an asynchronous version.
         return _.map(tracks, function(t) {
-          return _.extend(new CustomTrack(), t, {
+          self._tracks[t.id] = _.extend(new CustomTrack(), t, {
             prerender: function() { CustomTrack.prototype.prerenderAsync.apply(this, arguments); }
           });
+          return self._tracks[t.id];
         });
       });
     }
