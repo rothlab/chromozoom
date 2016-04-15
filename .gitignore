@@ -1,4 +1,5 @@
 bin/
+build/.commit
 vendor/
 tracks/
 .bundle/

@@ -25,7 +25,7 @@ function CustomTrack(opts, browserOpts) {
     sizes: ['dense'],
     mapSizes: [],
     areas: {},
-    scales: [],
+    scales: {},
     noAreaLabels: false,
     expectsSequence: false,
     onSyncProps: null

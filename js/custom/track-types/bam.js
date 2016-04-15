@@ -85,6 +85,10 @@ var BamFormat = {
     }
     this.drawRange = o.autoScale || o.viewLimits.length < 2 ? this.coverageRange : o.viewLimits;
     // TODO: Setup this.scales here
+    
+    // Ensures that options and derived properties set by the above are equal across Web Worker and DOM contexts
+    this.syncProps(['opts', 'drawRange', 'coverageRange', 'scales']);
+    
     this.prevOpts = deepClone(this.opts);
   },
   
@@ -189,8 +193,6 @@ var BamFormat = {
         }
         if (!self.coverageRange[1]) { self.coverageRange[1] = meanItemsPerBp * meanItemLength * 2; }
         self.type('bam').applyOpts.call(self);
-        // TODO: Is there a more elegant way, maybe have applyOpts do this? since that is where it will go for wiggle_0...
-        self.syncProps(['opts', 'drawRange', 'coverageRange', 'scales']);
         
         // If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes should trigger pairing.
         if (hasAMatePair) {
@@ -618,7 +620,7 @@ var BamFormat = {
   drawAlleles: function(ctx, alleles, height, barWidth) {
     // Same colors as $.ui.genotrack._ntSequenceLoad(...) but could be configurable?
     var colors = {A: '255,0,0', T: '255,0,255', C: '0,0,255', G: '0,180,0'},
-      vScale = this.drawRange[1];
+      vScale = this.drawRange[1],
       yPos;
     _.each(alleles, function(allelesForPosition) {
       yPos = height;

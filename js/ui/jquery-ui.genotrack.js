@@ -120,13 +120,13 @@ $.widget('ui.genotrack', {
       $cont = self.$side.children('.subtrack-cont'),
       trackDesc = o.browser.genobrowser('option', 'trackDesc'), // always use the latest values from the browser
       densBpppMemo = [density, bppp].join('|'),
-      $tooManyDataWarning = self.$side.children('.too-many-warning'), 
       dens, text, h;
     if ($cont.data('densBppp') === densBpppMemo) { return; }
     $cont.empty();
+    // First, draw the subtrack labels. Sometimes they are density dependent:
     if (dens = trackDesc[n] && trackDesc[n].dens && trackDesc[n].dens[density]) {
       if (dens[0][0] === 0) {
-        // Labels change for certain bppp levels
+        // Labels can also change for certain bppp levels
         dens = (dens[_.sortedIndex(dens, [bppp], function(v) { return v[0]; }) - 1] || dens[0]).slice(1);
       }
       // Apply the appropriate subtrack labels for certain bppp levels
@@ -135,11 +135,12 @@ $.widget('ui.genotrack', {
         h = v[1] || 15;
         $('<div class="subtrack"/>').css({height: h, lineHeight: h+'px'}).html(v[0]).appendTo($cont);
       });
-    } else {
+    } else { // sometimes they are not 
       text = (trackDesc[n] && trackDesc[n].sm) || o.track.n;
       h = o.track.h;
       $cont.append($('<div class="subtrack unsized"/>').text(text));
     }
+    // TODO: Next, draw the subtrack scales + ticks, which can be set by certain custom tracks.
     $cont.data('densBppp', densBpppMemo);
   },
   
@@ -226,8 +227,6 @@ $.widget('ui.genotrack', {
       $this.toggleClass('dens-best', isBest);
       if (isBest) { $this.trigger('bestDensity'); }
     });
-    // If the too-many class was set on tiles, we couldn't draw/load some custom data because there's too much of it.
-    // Add a class to this track to show warnings about this to the user.
     // Finally, fix clipping indicators
     self.fixClipped();
   },
