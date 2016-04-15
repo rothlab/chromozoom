@@ -15,6 +15,7 @@ $.widget('ui.genotrack', {
   // Default options that can be overridden
   options: {
     disabled: false,
+    scales: {},
     line: null,       // must be specified on instantiation
     side: null        // must be specified on instantiation
   },
@@ -32,9 +33,12 @@ $.widget('ui.genotrack', {
     self.tileLoadCounter = self.areaLoadCounter = 0;
     self.custom = !!o.track.custom;
     self.birth = (new Date).getTime();
-    self.$side = $(o.side).append('<div class="subtrack-cont"/>');
+    self.$side = $(o.side).append('<div class="subtrack-cont"><div class="scales"></div></div>');
     self.fixClippedDebounced = _.debounce(self.fixClipped, 500);
-    if (self.custom) { o.track.custom.onSyncProps = function(props) { self._customTrackPropsUpdated(props); }; }
+    if (self.custom) {
+      o.scales = o.track.custom.scales;
+      o.track.custom.onSyncProps = function(props) { self._customTrackPropsUpdated(props); }; 
+    }
     
     $elem.addClass('browser-track-'+o.track.n).toggleClass('no-ideograms', self.ruler && !o.chrBands);
     self._nearestBppps(o.browser.genobrowser('zoom'));
@@ -112,7 +116,7 @@ $.widget('ui.genotrack', {
   
   side: function() { return this.$side; },
   
-  _fixSide: function(density, bppp) {
+  _fixSide: function(density, bppp, force) {
     var self = this,
       o = self.options,
       $elem = self.element,
@@ -121,8 +125,8 @@ $.widget('ui.genotrack', {
       trackDesc = o.browser.genobrowser('option', 'trackDesc'), // always use the latest values from the browser
       densBpppMemo = [density, bppp].join('|'),
       dens, text, h;
-    if ($cont.data('densBppp') === densBpppMemo) { return; }
-    $cont.empty();
+    if ($cont.data('densBppp') === densBpppMemo && force !== true) { return; }
+    $cont.find('.subtrack').remove();
     // First, draw the subtrack labels. Sometimes they are density dependent:
     if (dens = trackDesc[n] && trackDesc[n].dens && trackDesc[n].dens[density]) {
       if (dens[0][0] === 0) {
@@ -140,8 +144,37 @@ $.widget('ui.genotrack', {
       h = o.track.h;
       $cont.append($('<div class="subtrack unsized"/>').text(text));
     }
-    // TODO: Next, draw the subtrack scales + ticks, which can be set by certain custom tracks.
+    // TODO: Next, draw the ticks for subtrack scales, which can be set by certain custom tracks.
+    this._fixTicks(density);
     $cont.data('densBppp', densBpppMemo);
+  },
+  
+  // fixes tick elements for scaled specified in o.scales
+  _fixTicks: function(density) {
+    var self = this,
+      o = self.options,
+      // o.scales is supposed to be an object with densities as the keys (or "_all", which is used for all densities)
+      //    and each value is an array containing objects that each specify a scale
+      // each scale is in the form {limits: [low, high], yLineMark: val, top: pixels, height: pixels, bottom: pixels}
+      //    where yLineMark is optional and only one of bottom or height is required
+      scales = o.scales._all || o.scales[density],
+      $cont = self.$side.children('.subtrack-cont'),
+      $scales = $cont.find('.scales'),
+      scaleHtml = '<div class="scale"><span class="tick top"/><span class="tick bottom"/>'
+        + '<span class="tick yLineMark"/></div>',
+      $scale;
+
+    if (scales && !_.isArray(scales)) { scales = [scales]; }
+    if (!scales || !scales.length) { $cont.find('.scale').remove(); return; }
+    _.each(scales, function(scale, i) {
+      $scale = $scales.children('.scale').eq(i);
+      if (!$scale.length) { $scale = $(scaleHtml).appendTo($scales); }
+      if (scale.top) { $scale.css('top', scale.top); }
+      if (scale.height) { $scale.css('height', scale.height); }
+      else { $scale.css('bottom', scale.bottom || 0); }
+      $scale.children('.top').text(scale.limits[1]).prepend('<span class="mark">&nbsp;</span>');
+      $scale.children('.bottom').text(scale.limits[0]).prepend('<span class="mark">&nbsp;</span>');
+    });
   },
   
   // public resize function that updates the entire UI accordingly.
@@ -973,9 +1006,13 @@ $.widget('ui.genotrack', {
   // Runs when the custom track's properties change outside of parsing or using the track options dialog
   // These changes might require us to update the UI, which we do here.
   _customTrackPropsUpdated: function(props) {
-    // TODO: receive scales here and update them, somwhere in this._fixSide()
-    console.log("OY");
-    console.log(props);
+    var self = this,
+      topBppp = self.bppps().top;
+    // For now, the only custom track property that might change the genotrack UI are the track scales.
+    if (props.scales) {
+      self.options.scales = props.scales;
+      self._fixSide(self._bestDensity(topBppp), topBppp, true);
+    }
   }
   
 });

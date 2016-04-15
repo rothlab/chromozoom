@@ -428,14 +428,28 @@ body {
 }
 .browser-line .side .subtrack.unsized { padding-top: 1px; }
 
-.browser-line .subtrack-cont .scale {
+.browser-line .subtrack-cont .scales {
   position: absolute;
   left: 100px;
   top: 0;
   bottom: 0;
+  width: 60px;
   font-size: 60%;
-  opacity: 0.6;
+  opacity: 0.7;
+  overflow-y: hidden;
 }
+.browser-line .subtrack-cont .scale { 
+  position: absolute;
+  left: 0;
+}
+.browser-line .scale .tick {
+  position: absolute;
+  left: 0;
+}
+.browser-line .scale .tick.top { top: 2px; }
+.browser-line .scale .tick.bottom { bottom: 0; }
+.browser-line .scale .tick .mark { border-bottom: 2px solid black; }
+.browser-line .scale .tick.top .mark { border-bottom: none; border-top: 2px solid black; }
 
 .browser-line .side-cont .side.ui-sortable-helper {
   border-top: #aaa solid 1px;

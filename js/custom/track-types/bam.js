@@ -24,6 +24,7 @@ var BamFormat = {
     url: '',
     htmlUrl: '',
     drawLimit: {squish: 2000, pack: 2000},
+    covHeight: {dense: 24, squish: 38, pack: 38},
     // If a nucleotide differs from the reference sequence in greater than 20% of quality weighted reads, 
     // IGV colors the bar in proportion to the read count of each base; the following changes that threshold for chromozoom
     alleleFreqThreshold: 0.2,
@@ -78,13 +79,16 @@ var BamFormat = {
   // TODO: If the pairing interval changed, we should toss the entire cache and reset the RemoteTrack bins,
   //         *and* blow up the areaIndex.
   applyOpts: function() {
-    var o = this.opts;
+    var self = this,
+      o = this.opts;
     // When we change opts.viewAsPairs, we *need* to throw out this.data.pileup.
     if (o.viewAsPairs != this.prevOpts.viewAsPairs && this.data && this.data.pileup) { 
       this.data.pileup = {};
     }
     this.drawRange = o.autoScale || o.viewLimits.length < 2 ? this.coverageRange : o.viewLimits;
-    this.scales = {};
+    this.scales = _.mapObject({dense: 0, squish: 0, pack: 0}, function(v, k) {
+      return [{limits: self.drawRange, top: 0, height: o.covHeight[k] || 24}];
+    });
     // TODO: Setup this.scales here
     
     // Ensures that options and derived properties set by the above are equal across Web Worker and DOM contexts
@@ -192,7 +196,7 @@ var BamFormat = {
           o.optimalFetchWindow = Math.floor(maxItemsToDraw / meanItemsPerBp / (Math.max(meanItemLength, 100) / 100) * 0.5);
           o.maxFetchWindow = o.optimalFetchWindow * 2;
         }
-        if (!self.coverageRange[1]) { self.coverageRange[1] = meanItemsPerBp * meanItemLength * 2; }
+        if (!self.coverageRange[1]) { self.coverageRange[1] = Math.ceil(meanItemsPerBp * meanItemLength * 2); }
         self.type('bam').applyOpts.call(self);
         
         // If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes should trigger pairing.
@@ -654,7 +658,7 @@ var BamFormat = {
       urlTemplate = 'javascript:void("'+self.opts.name+':$$")',
       drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
       lineHeight = density == 'pack' ? 14 : 4,
-      covHeight = density == 'dense' ? 24 : 38,
+      covHeight = self.opts.covHeight[density] || 38,
       covMargin = 7,
       lineOffset = ((covHeight + covMargin) / lineHeight), 
       color = self.opts.color,
