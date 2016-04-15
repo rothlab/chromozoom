@@ -84,6 +84,7 @@ var BamFormat = {
       this.data.pileup = {};
     }
     this.drawRange = o.autoScale || o.viewLimits.length < 2 ? this.coverageRange : o.viewLimits;
+    this.scales = {};
     // TODO: Setup this.scales here
     
     // Ensures that options and derived properties set by the above are equal across Web Worker and DOM contexts
