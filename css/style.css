@@ -441,14 +441,21 @@ body {
 .browser-line .subtrack-cont .scale { 
   position: absolute;
   left: 0;
+  right: 0;
 }
 .browser-line .scale .tick {
   position: absolute;
+  line-height: 0.6;
   left: 0;
 }
-.browser-line .scale .tick.top { top: 2px; }
+.browser-line .scale .tick.top { top: 0; }
 .browser-line .scale .tick.bottom { bottom: 0; }
-.browser-line .scale .tick .mark { border-bottom: 2px solid black; }
+
+.browser-line .scale .tick .mark { 
+  border-bottom: 2px solid black; 
+  display: inline-block; 
+  margin-right: 2px;
+}
 .browser-line .scale .tick.top .mark { border-bottom: none; border-top: 2px solid black; }
 
 .browser-line .side-cont .side.ui-sortable-helper {
