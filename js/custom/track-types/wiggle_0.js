@@ -50,6 +50,11 @@ var WiggleFormat = {
       o = self.opts;
     self.drawRange = o.autoScale || o.viewLimits.length < 2 ? self.range : o.viewLimits;
     _.each({max: 0, min: 2, start: 1}, function(v, k) { self.heights[k] = o.maxHeightPixels[v]; });
+    self.scales = {
+      _all: [{limits: self.drawRange, top: 0, bottom: 0}]
+    };
+    if (o.yLineOnOff) { self.scales._all[0].yLine = o.yLineMark; }
+    
     if (!o.altColor) {
       var hsl = this.rgbToHsl.apply(this, o.color.split(/,\s*/g));
       hsl[0] = hsl[0] + 0.02 % 1;

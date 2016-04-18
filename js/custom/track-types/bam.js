@@ -87,7 +87,7 @@ var BamFormat = {
     }
     this.drawRange = o.autoScale || o.viewLimits.length < 2 ? this.coverageRange : o.viewLimits;
     this.scales = _.mapObject({dense: 0, squish: 0, pack: 0}, function(v, k) {
-      return [{limits: self.drawRange, top: 0, height: o.covHeight[k] || 24}];
+      return [{limits: self.drawRange, specialTicks: [Math.round(self.drawRange[1] / 2)], top: 0, height: o.covHeight[k] || 24}];
     });
     // TODO: Setup this.scales here
     

@@ -155,26 +155,48 @@ $.widget('ui.genotrack', {
       o = self.options,
       // o.scales is supposed to be an object with densities as the keys (or "_all", which is used for all densities)
       //    and each value is an array containing objects that each specify a scale
-      // each scale is in the form {limits: [low, high], yLineMark: val, top: pixels, height: pixels, bottom: pixels}
-      //    where yLineMark is optional and only one of bottom or height is required
+      // each scale is in the form {limits: [low, high], specialTicks: [val], yLine: false, top: pixels, height: pixels, bottom: pixels}
+      //    WHERE specialTicks and yLine are optional AND only one of bottom or height is required
       scales = o.scales._all || o.scales[density],
       $cont = self.$side.children('.subtrack-cont'),
       $scales = $cont.find('.scales'),
-      scaleHtml = '<div class="scale"><span class="tick top"/><span class="tick bottom"/>'
-        + '<span class="tick yLineMark"/></div>',
-      $scale;
+      scaleHtml = '<div class="scale"><span class="tick top"/><span class="tick bottom"/></div>',
+      $scale, extraTicks;
 
     if (scales && !_.isArray(scales)) { scales = [scales]; }
     if (!scales || !scales.length) { $cont.find('.scale').remove(); return; }
     _.each(scales, function(scale, i) {
+      // create and position the scale
       $scale = $scales.children('.scale').eq(i);
       if (!$scale.length) { $scale = $(scaleHtml).appendTo($scales); }
-      if (scale.top) { $scale.css('top', scale.top); }
+      $scale.css('top', scale.top || 0);
       if (scale.height) { $scale.css('height', scale.height); }
       else { $scale.css('bottom', scale.bottom || 0); }
+      $scale.toggleClass('tiny', $scale.height() < 24);
+      
+      // create, position, and fill the limit ticks
       $scale.children('.top').text(scale.limits[1]).prepend('<span class="mark">&nbsp;</span>');
       $scale.children('.bottom').text(scale.limits[0]).prepend('<span class="mark">&nbsp;</span>');
+      
+      // create, position, and fill the special ticks and the yLineMark tick
+      extraTicks = _.isArray(scale.specialTicks) ? scale.specialTicks : [];
+      if (!_.isUndefined(scale.yLine) && scale.yLine !== false) { extraTicks = extraTicks.concat(scale.yLine); }
+      $scale.children('.extra-tick').slice(extraTicks.length).remove();
+      _.each(extraTicks, function(tick, j) {
+        var $tick = $scale.children('.extra-tick').eq(i),
+          position = (scale.limits[1] - tick) / (scale.limits[1] - scale.limits[0]) * 100;
+        if (!$tick.length) { $tick = $('<span class="extra-tick tick"/>').appendTo($scale); }
+        $tick.text(tick).prepend('<span class="mark">&nbsp;</span>');
+        if (!_.isArray(scale.specialTicks) || j >= scale.specialTicks.length) {
+          // yLineMark ticks are positioned above or below the line so as not to occlude the line
+          if (position > 50) { $tick.css('bottom', (100 - position) + '%'); }
+          else { $tick.css('top', position + '%'); }
+        } else {
+          $tick.css('top', position + '%').addClass('mid');
+        }
+      });
     });
+    $scales.children('.scale').slice(scales.length).remove();
   },
   
   // public resize function that updates the entire UI accordingly.
@@ -216,6 +238,7 @@ $.widget('ui.genotrack', {
     o.browser.genobrowser('densityOrder', o.track.n, height, bppps);
     this.fixTiles();
     this.fixClipped();
+    this.$side.find('.scale').each(function() { $(this).toggleClass('tiny', $(this).height() < 24); });
     if (_.isFunction(callback)) { 
       this.element.animate({height: height}, o.lineFixDuration, callback).css('overflow', 'visible'); 
     } else { this.element.height(height); }

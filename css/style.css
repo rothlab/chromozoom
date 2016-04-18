@@ -434,8 +434,7 @@ body {
   top: 0;
   bottom: 0;
   width: 60px;
-  font-size: 60%;
-  opacity: 0.7;
+  color: #444;
   overflow-y: hidden;
 }
 .browser-line .subtrack-cont .scale { 
@@ -445,18 +444,25 @@ body {
 }
 .browser-line .scale .tick {
   position: absolute;
-  line-height: 0.6;
+  line-height: 5px;
+  font-size: 9px;
   left: 0;
+  text-shadow: -1px -1px 0 rgba(255,255,255,0.5), 1px -1px 0 rgba(255,255,255,0.5), -1px 1px 0 rgba(255,255,255,0.5), 1px 1px 0 rgba(255,255,255,0.5);
 }
+.browser-line .scale.tiny .tick { line-height: 3px; font-size: 7px; }
+.browser-line .scale.tiny .extra-tick { display: none; }
 .browser-line .scale .tick.top { top: 0; }
 .browser-line .scale .tick.bottom { bottom: 0; }
+.browser-line .scale .tick.mid { margin-top: -2px; }
 
 .browser-line .scale .tick .mark { 
-  border-bottom: 2px solid black; 
-  display: inline-block; 
-  margin-right: 2px;
+  border-bottom: 1px solid #444;
+  display: inline-block;
+  width: 4px;
+  margin-right: 1px;
 }
-.browser-line .scale .tick.top .mark { border-bottom: none; border-top: 2px solid black; }
+.browser-line .scale .tick.top .mark { border-bottom: none; border-top: 1px solid #444; }
+.browser-line .scale .tick.mid .mark { height: 2px; }
 
 .browser-line .side-cont .side.ui-sortable-helper {
   border-top: #aaa solid 1px;
