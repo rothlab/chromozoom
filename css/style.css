@@ -1509,6 +1509,7 @@ body.row-resizing * {
   
   .browser-line { padding-left: 60px; }
   .browser-line .side-cont { width: 60px; }
+  .browser-line .subtrack-cont .scales { left: 60px; }
   .browser-line .indices .start, .browser-line .first-label { left: 60px; }
     
   #custom-dialog-cont { max-width: 314px; margin-left: -160px; }
