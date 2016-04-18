@@ -447,9 +447,9 @@ body {
   line-height: 5px;
   font-size: 9px;
   left: 0;
-  text-shadow: -1px -1px 0 rgba(255,255,255,0.5), 1px -1px 0 rgba(255,255,255,0.5), -1px 1px 0 rgba(255,255,255,0.5), 1px 1px 0 rgba(255,255,255,0.5);
+  text-shadow: -1px 0 0 #FFF, 1px 0 0 #FFF, 0 1px 0 #FFF, 0 -1px 0 #FFF;
 }
-.browser-line .scale.tiny .tick { line-height: 3px; font-size: 7px; }
+.browser-line .scale.tiny .tick { line-height: 3px; font-size: 7px; font-family: Verdana, 'Lucida Grande', sans-serif; }
 .browser-line .scale.tiny .extra-tick { display: none; }
 .browser-line .scale .tick.top { top: 0; }
 .browser-line .scale .tick.bottom { bottom: 0; }
