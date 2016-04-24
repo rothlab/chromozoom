@@ -94,6 +94,7 @@ def qups(in_cmd, ucur):
     """
     Executes mySQL query and returns parsed results
     """
+    ucur.connection.ping(reconnect=True)
     ucur.execute(in_cmd)
     return ucur.fetchall()
 

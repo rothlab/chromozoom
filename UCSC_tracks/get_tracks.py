@@ -4,7 +4,7 @@ import lib.buildfuncions as buildfun
 import pymysql.cursors
 import os
 import argparse
-
+import time
 
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
 parser.add_argument('--all', action="store_true", default=False,
@@ -28,9 +28,8 @@ for organism in buildfun.get_organisms_list(args.source):
         conn = pymysql.connect(host='genome-mysql.cse.ucsc.edu', user='genome', database=organism)
         cur = conn.cursor()
     except pymysql.err.InternalError:
-        print('WARNING: No MYSQL tables found for {}. Omitting.'.format(organism))
+        print('WARNING: No MYSQL tables found for "{}". Omitting.'.format(organism))
         continue
-
     buildfun.setup(organism)
 
     all_tracks = []
@@ -113,3 +112,4 @@ for organism in buildfun.get_organisms_list(args.source):
                                        track_info[tablename][1], shortLabel, longLabel, file_location, htmlDescription,
                                        update_date))
         localconn.commit()
+        time.sleep(10)
