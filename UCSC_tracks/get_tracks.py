@@ -1,10 +1,9 @@
-
-
 import lib.buildfuncions as buildfun
 import pymysql.cursors
 import os
 import argparse
 import time
+
 
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
 parser.add_argument('--all', action="store_true", default=False,
@@ -16,11 +15,11 @@ args = parser.parse_args()
 
 for organism in buildfun.get_organisms_list(args.source):
     print('#####################################')
-    print('INFO: FETCHING DATA FOR NEW ORGANISM: {}'.format(organism))
-    print('INFO: EXTRACTING TRACK HIRARCHY!')
+    print('INFO ({}): FETCHING DATA FOR NEW ORGANISM: {}'.format(buildfun.print_time(), organism))
+    print('INFO ({}): EXTRACTING TRACK HIRARCHY!'.format(buildfun.print_time()))
     track_meta = buildfun.create_hirarchy(organism)
     if not track_meta:
-        print('WARNING: No tables for {} found. Omitting.'.format(organism))
+        print('WARNING ({}): No tables for {} found. Omitting.'.format(buildfun.print_time(), organism))
         continue
 
     # Try connecting to a database
@@ -28,7 +27,7 @@ for organism in buildfun.get_organisms_list(args.source):
         conn = pymysql.connect(host='genome-mysql.cse.ucsc.edu', user='genome', database=organism)
         cur = conn.cursor()
     except pymysql.err.InternalError:
-        print('WARNING: No MYSQL tables found for "{}". Omitting.'.format(organism))
+        print('WARNING ({}): No MYSQL tables found for "{}". Omitting.'.format(buildfun.print_time(), organism))
         continue
     buildfun.setup(organism)
 
@@ -61,10 +60,11 @@ for organism in buildfun.get_organisms_list(args.source):
         # check if we need to update the table
         if tablename in last_updates:
             if last_updates[tablename] == update_date:
-                print('INFO: data for table "{}" is up to date. Organism: {}'.format(tablename, organism))
+                print('INFO ({}): data for table "{}" is up to date. Organism: {}'.format(buildfun.print_time(),
+                                                                                          tablename, organism))
                 continue
             else:
-                print('INFO: Updating table "{}". Organism: {}'.format(tablename, organism))
+                print('INFO ({}): Updating table "{}". Organism: {}'.format(buildfun.print_time(), tablename, organism))
                 localcur.execute('DELETE FROM tracks WHERE name="{}";'.format(tablename))
 
         # BigWig and Bam processing
@@ -72,11 +72,12 @@ for organism in buildfun.get_organisms_list(args.source):
             file_location = buildfun.qups("SELECT fileName FROM {}".format(tablename), cur)
 
             if len(file_location) > 1:
-                print('WARNING: Multiple files are associated with "{}" "({})" file. Organims: "{}"'
-                      .format(tablename, dbtype, organism))
+                print('WARNING ({}): Multiple files are associated with "{}" "({})" file. Organims: "{}"'
+                      .format(buildfun.print_time(), tablename, dbtype, organism))
             file_location = 'http://hgdownload.cse.ucsc.edu' + file_location[0][0]
-            print('DONE: Fetched remote location for "{}" "{}" file. Organims: "{}"'.format(tablename, dbtype,
-                                                                                            organism))
+            print('DONE ({}): Fetched remote location for "{}" "{}" file. Organims: "{}"'.format(buildfun.print_time(),
+                                                                                                 tablename, dbtype,
+                                                                                                 organism))
             save_to_db = True
 
         # Bed processing
@@ -85,7 +86,6 @@ for organism in buildfun.get_organisms_list(args.source):
             if bed_location is None:
                 continue
             as_location = buildfun.fetch_as_file(bed_location, cur, tablename)
-            # num_rows = fvt.get_numrows(cur, tablename)
             bedtype = dbtype.replace(' ', '').rstrip('.')
             file_location = buildfun.generate_big_bed(organism, bedtype, as_location, bed_location)
 

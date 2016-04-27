@@ -8,6 +8,14 @@ import subprocess as sbp
 import re
 import json
 import fileinput
+import time
+
+
+def print_time():
+    """
+    :return: current time string
+    """
+    return time.strftime('%X_%x')
 
 
 def get_tables(db='', tgroup='', xtrack=''):
@@ -187,10 +195,10 @@ def generate_big_bed(organims, btype, as_file, b_file):
                '"{4}" 2>/dev/null 1>&2').format(organims, btype, as_file, b_file, bb_file)
     try:
         sbp.check_call(command, shell=True)
-        print('DONE: constructed "{}" BigBed file for organims "{}"'.format(organims, bb_file))
+        print('DONE ({}): Constructed "{}" BigBed file for organims "{}"'.format(print_time(), bb_file, organims))
     except sbp.CalledProcessError:
-        print(('FAILED: Couldn\'t construct "{}" BigBed file for organims "{}". '
-              'Used command: "{}"').format(organims, bb_file, command))
+        print(('FAILED ({}): Couldn\'t construct "{}" BigBed file for organims "{}". '
+              'Used command: "{}"').format(print_time(), organims, bb_file, command))
         return None
 
     return bb_file
@@ -208,9 +216,10 @@ def fetch_bed_table(xcur, table_name, sorganism):
                "2>/dev/null").format(headers, table_name, sorganism, location)
     try:
         sbp.check_call(command, shell=True)
-        print('DONE: Fetched "{}" Bed file for organims "{}"'.format(table_name, sorganism))
+        print('DONE ({}): Fetched "{}" Bed file for organims "{}"'.format(print_time(), table_name, sorganism))
     except sbp.CalledProcessError:
-        print('FAILED: couldn\'t fetch "{}" Bed file for organims "{}"'.format(table_name, sorganism))
+        print('FAILED ({}): couldn\'t fetch "{}" Bed file for organims "{}"'.format(print_time(), table_name,
+                                                                                    sorganism))
         print(command)
         return None
     return location
@@ -268,7 +277,6 @@ def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php'):
     """
     Get list of organisms
     """
-    urllib.request.urlopen('http://python.org/')
 
     with urllib.request.urlopen(url) as response:
         my_html = response.read().decode()
