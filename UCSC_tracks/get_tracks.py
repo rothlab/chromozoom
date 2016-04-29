@@ -6,18 +6,26 @@ import time
 
 
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
-parser.add_argument('--all', action="store_true", default=False,
+parser.add_argument('--all', action='store_true', default=False,
                     help='Load all tables from UCSC.')
-parser.add_argument('--source', action="store", type=str, default='http://beta.chromozoom.org/php/chromsizes.php',
+parser.add_argument('--org_source', action='store', type=str, default='http://beta.chromozoom.org/php/chromsizes.php',
                     help='Location of organisms list in JSON format.')
+parser.add_argument('--table_source', action='store', type=str, default='local',
+                    help='Location of Track tables. Use "local" to extract from central config file')
 args = parser.parse_args()
 
 
-for organism in buildfun.get_organisms_list(args.source):
+if args.table_source == 'local':
+    table_source = buildfun.get_remote_table()
+else:
+    table_source = args.table_source
+
+
+for organism in buildfun.get_organisms_list(args.org_source):
     print('#####################################')
     print('INFO ({}): FETCHING DATA FOR NEW ORGANISM: {}'.format(buildfun.print_time(), organism))
     print('INFO ({}): EXTRACTING TRACK HIRARCHY!'.format(buildfun.print_time()))
-    track_meta = buildfun.create_hirarchy(organism)
+    track_meta = buildfun.create_hirarchy(organism, table_source)
     if not track_meta:
         print('WARNING ({}): No tables for {} found. Omitting.'.format(buildfun.print_time(), organism))
         continue
@@ -34,14 +42,14 @@ for organism in buildfun.get_organisms_list(args.source):
     all_tracks = []
     track_info = dict()
 
-    with open('table_hirarchy_{}.txt'.format(organism), 'r') as handle:
+    with open(track_meta, 'r') as handle:
         for line in handle:
             if 'Trackgroup: ' in line:
                 c_tgroupname = line.split('(', 1)[1][:-2]
-            if 'Track:' in line:
+            elif 'Track:' in line:
                 c_track = line.split()[1]
                 c_trackname = line.split('(', 1)[1][:-2]
-            if 'Table:' in line and (c_track == line.split()[1] or args.all):
+            elif 'Table:' in line and (c_track == line.split()[1] or args.all):
                 c_table = line.split()[1]
                 all_tracks.append(c_table)
                 track_info[c_table] = (line.split('(', 1)[1][:-2], c_trackname, c_tgroupname)

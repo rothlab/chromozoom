@@ -18,17 +18,28 @@ def print_time():
     return time.strftime('%X_%x')
 
 
-def get_tables(db='', tgroup='', xtrack=''):
-    mytree = html.parse("http://genome.ucsc.edu/cgi-bin/hgTables?db={}&hgta_group={}&hgta_track={}".format(db, tgroup,
-                                                                                                           xtrack))
+def get_remote_table():
+    try:
+        import yaml
+        with open('../ucsc.dist.yaml', 'r') as handle:
+            my_yaml = yaml.load(handle)
+        table_url = my_yaml['browser_hosts']['authoritative'] + my_yaml['browser_urls']['tables']
+    except ImportError:
+        table_url = 'http://genome.ucsc.edu/cgi-bin/hgTables'
+        print('Warning could not read config yaml file.')
+    return table_url
+
+
+def get_tables(db='', tgroup='', xtrack='', table_source=''):
+    mytree = html.parse("{}?db={}&hgta_group={}&hgta_track={}".format(table_source, db, tgroup, xtrack))
     search_taids = mytree.xpath('//select[@name="hgta_table"]/option/@value')
     search_tanames = [xel.strip() for xel in mytree.xpath('//select[@name="hgta_table"]/option/text()')]
 
     return dict(zip(search_taids, search_tanames))
 
 
-def get_tracks(db='', tgroup=''):
-    mytree = html.parse("http://genome.ucsc.edu/cgi-bin/hgTables?db={}&hgta_group={}".format(db, tgroup))
+def get_tracks(db='', tgroup='', table_source=''):
+    mytree = html.parse("{}?db={}&hgta_group={}".format(table_source, db, tgroup))
 
     search_tids = mytree.xpath('//select[@name="hgta_track"]/option/@value')
     search_tnames = [xel.strip() for xel in mytree.xpath('//select[@name="hgta_track"]/option/text()')]
@@ -36,12 +47,11 @@ def get_tracks(db='', tgroup=''):
     return dict(zip(search_tids, search_tnames))
 
 
-def get_groups(db=''):
+def get_groups(db='', table_source=''):
     """
     Returns dictionary of groups.
     """
-    mytree = html.parse("http://genome.ucsc.edu/cgi-bin/hgTables?db={}".format(db))
-
+    mytree = html.parse("{}?db={}".format(table_source, db))
     search_gids = mytree.xpath('//select[@name="hgta_group"]/option/@value')
     search_gnames = [xel.strip() for xel in mytree.xpath('//select[@name="hgta_group"]/option/text()')]
     groups_dict = dict(zip(search_gids, search_gnames))
@@ -58,25 +68,33 @@ def get_groups(db=''):
     return groups_dict
 
 
-def create_hirarchy(organism):
+def create_hirarchy(organism, table_source):
     """
     Creates a file with tables hirarchy for a given organism.
     """
-    location = 'table_hirarchy_{}.txt'.format(organism)
+    save_dir = './hirarchy/'
+    location = save_dir + 'table_hirarchy_{}.txt'.format(organism)
+
+    if not os.path.isdir(save_dir):
+        os.mkdir(save_dir)
+
     w_file = open(location, 'w')
 
     print('Organism: {}'.format(organism), file=w_file)
-    org_groups = get_groups(organism)
+    org_groups = get_groups(organism, table_source=table_source)
+
     if not org_groups:
+        w_file.close()
+        os.remove(location)
         return None
 
     for group in org_groups:
         print('\tTrackgroup: {} ({})'.format(group, org_groups[group]), file=w_file)
-        track_groups = get_tracks(organism, group)
+        track_groups = get_tracks(organism, group, table_source)
 
         for track in track_groups:
             print('\t\tTrack: {} ({})'.format(track, track_groups[track]), file=w_file)
-            tables = get_tables(organism, group, track)
+            tables = get_tables(organism, group, track, table_source)
             for table in tables:
                 print('\t\t\tTable: {} ({})'.format(table, tables[table]), file=w_file)
     return location

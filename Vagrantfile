@@ -36,7 +36,8 @@ Vagrant.configure(2) do |config|
     # sudo pip3.4 install pymysql
     # sudo apt-get install -y python3.4-dev
     # sudo pip3.4 install lxml
-
+	# sudo pip3.4 install pyyaml
+	
 	# mkdir ~/setup/
 	# for PROG in bigBedInfo bigBedSummary bigBedToBed bigWigSummary bigWigInfo twoBitToFa bedToBigBed fetchChromSizes
     # do
