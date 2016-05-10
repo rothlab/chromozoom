@@ -11,23 +11,44 @@ import fileinput
 import time
 
 
+# Cache the parsed config file after the first access
+config_yaml = None
+
+def open_ucsc_yaml():
+    global config_yaml
+    if config_yaml is not None:
+        return config_yaml
+    try:
+        import yaml
+        with open('../ucsc.yaml', 'r') as handle:
+            config_yaml = yaml.load(handle)
+    except ImportError:
+        sys.exit('FATAL: could not read ../config.yaml.')
+    return config_yaml
+    
+
 def print_time():
     """
     :return: current time string
     """
-    return time.strftime('%X_%x')
+    return time.strftime('%X %x')
 
 
 def get_remote_table():
-    try:
-        import yaml
-        with open('../ucsc.dist.yaml', 'r') as handle:
-            my_yaml = yaml.load(handle)
-        table_url = my_yaml['browser_hosts']['authoritative'] + my_yaml['browser_urls']['tables']
-    except ImportError:
-        table_url = 'http://genome.ucsc.edu/cgi-bin/hgTables'
-        print('Warning could not read config yaml file.')
-    return table_url
+    cfg = open_ucsc_yaml()
+    return cfg['browser_hosts']['authoritative'] + cfg['browser_urls']['tables']
+
+def get_mysql_host():
+    return open_ucsc_yaml()['browser_mysql']['authoritative']
+
+def get_downloads_base_url():
+    return open_ucsc_yaml()['data_urls']['downloads']
+
+
+# Check if a given executable is on $PATH
+# For more on the `type` shell builtin, see https://bash.cyberciti.biz/guide/Type_command
+def cmd_exists(cmd):
+    return sbp.call("type " + cmd, shell=True, stdout=sbp.PIPE, stderr=sbp.PIPE) == 0
 
 
 def get_tables(db='', tgroup='', xtrack='', table_source=''):
@@ -68,12 +89,12 @@ def get_groups(db='', table_source=''):
     return groups_dict
 
 
-def create_hirarchy(organism, table_source):
+def create_hierarchy(organism, table_source):
     """
-    Creates a file with tables hirarchy for a given organism.
+    Creates a file with tables hierarchy for a given organism.
     """
-    save_dir = './hirarchy/'
-    location = save_dir + 'table_hirarchy_{}.txt'.format(organism)
+    save_dir = './hierarchy/'
+    location = save_dir + 'table_hierarchy_{}.txt'.format(organism)
 
     if not os.path.isdir(save_dir):
         os.mkdir(save_dir)
@@ -109,11 +130,11 @@ def setup(sorganism):
     if not os.path.exists(sorganism):
         os.makedirs(sorganism)
 
-    if not os.path.exists(sorganism + '/build_dir'):
-        os.makedirs(sorganism + '/build_dir')
+    if not os.path.exists(sorganism + '/build'):
+        os.makedirs(sorganism + '/build')
 
-    if not os.path.exists(sorganism + '/bigBed_dir'):
-        os.makedirs(sorganism + '/bigBed_dir')
+    if not os.path.exists(sorganism + '/bigBed'):
+        os.makedirs(sorganism + '/bigBed')
 
 
 def qups(in_cmd, ucur):
@@ -195,61 +216,66 @@ def fix_bed_as_files(blocation, btype):
             print('\t'.join(line))
 
 
-def generate_big_bed(organims, btype, as_file, b_file):
+def generate_big_bed(organism, btype, as_file, b_file):
     """
     Generates BigBed file. Make sure you have 'fetchChromSizes' and 'bedToBigBed' in your $PATH
     """
-    bb_file = organims + '/bigBed_dir/' + os.path.basename(b_file)[:-4] + '.bb'
+    if not cmd_exists('fetchChromSizes'):
+        sys.exit("FATAL: must have fetchChromSizes installed on $PATH")
+    if not cmd_exists('bedToBigBed'):
+        sys.exit("FATAL: must have bedToBigBed installed on $PATH")
+        
+    bb_file = organism + '/bigBed/' + os.path.basename(b_file)[:-4] + '.bb'
 
-    if not os.path.isfile("./{0}/build_dir/chsize.txt".format(organims)):
-        command = 'fetchChromSizes "{0}" > "./{0}/build_dir/chsize.txt" 2>/dev/null'.format(organims)
+    if not os.path.isfile("./{0}/build/chsize.txt".format(organism)):
+        command = 'fetchChromSizes "{0}" > "./{0}/build/chsize.txt" 2>/dev/null'.format(organism)
         try:
             sbp.check_call(command, shell=True)
         except sbp.CalledProcessError:
             print('FAILED: Couldn\'t fetch chromosome info')
             return None
 
-    command = ('bedToBigBed -type="{1}" -as="{2}" -tab "{3}" "./{0}/build_dir/chsize.txt" '
-               '"{4}" 2>/dev/null 1>&2').format(organims, btype, as_file, b_file, bb_file)
+    command = ('bedToBigBed -type="{1}" -as="{2}" -tab "{3}" "./{0}/build/chsize.txt" '
+               '"{4}" 2>/dev/null 1>&2').format(organism, btype, as_file, b_file, bb_file)
     try:
         sbp.check_call(command, shell=True)
-        print('DONE ({}): Constructed "{}" BigBed file for organims "{}"'.format(print_time(), bb_file, organims))
+        print('DONE ({}): Constructed "{}" BigBed file for organism "{}"'.format(print_time(), bb_file, organism))
     except sbp.CalledProcessError:
-        print(('FAILED ({}): Couldn\'t construct "{}" BigBed file for organims "{}". '
-              'Used command: "{}"').format(print_time(), organims, bb_file, command))
+        print(('FAILED ({}): Couldn\'t construct "{}" BigBed file for organism "{}". '
+              'Used command: `{}`').format(print_time(), organism, bb_file, command))
         return None
 
     return bb_file
 
 
-def fetch_bed_table(xcur, table_name, sorganism):
+def fetch_bed_table(host, xcur, table_name, sorganism):
     """
     Uses mySQL query to fetch columns from bed file
     """
-    location = './{}/build_dir/{}.bed'.format(sorganism, table_name)
+    location = './{}/build/{}.bed'.format(sorganism, table_name)
     headers = ', '.join([val[0] for val in qups("SHOW columns FROM {}".format(table_name), xcur) if val[0] != 'bin'])
 
     # TODO: Use limit in case of testing
-    command = ("mysql -N -A -u genome -h genome-mysql.cse.ucsc.edu  -e 'Select {} from {}' {} >\"{}\" "
-               "2>/dev/null").format(headers, table_name, sorganism, location)
+    command = ("mysql -N -A -u genome -h {} -e 'Select {} from {}' {} >\"{}\" "
+               "2>/dev/null").format(host, headers, table_name, sorganism, location)
     try:
         sbp.check_call(command, shell=True)
-        print('DONE ({}): Fetched "{}" Bed file for organims "{}"'.format(print_time(), table_name, sorganism))
+        print('DONE ({}): Fetched "{}" Bed file for organism "{}"'.format(print_time(), table_name, sorganism))
     except sbp.CalledProcessError:
-        print('FAILED ({}): couldn\'t fetch "{}" Bed file for organims "{}"'.format(print_time(), table_name,
+        print('FAILED ({}): couldn\'t fetch "{}" Bed file for organism "{}"'.format(print_time(), table_name,
                                                                                     sorganism))
         print(command)
         return None
     return location
 
 
-def fetch_tracks(db_name='hg19', xcur=None, selection=None):
+def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
     """
     Fetches all tracks from UCSC specified database
     :return:
     """
     if xcur is None:
-        xconn = pymysql.connect(host='genome-mysql.cse.ucsc.edu', user='genome', database=db_name)
+        xconn = pymysql.connect(host=host, user='genome', database=db_name)
         xcur = xconn.cursor()     # get the cursor
 
     if selection:
@@ -285,8 +311,8 @@ def filter_extractable_dbs(wanted_tracks, xcur):
     Checks which tracks can be extracted from UCSC
     databases and returns a list of those
     """
-    track_data = set([tabl[0] for tabl in qups("SELECT tableName FROM trackDb", xcur)])
-    tracks_tables = set([tabl[0] for tabl in qups("SHOW TABLES", xcur)])
+    track_data = set([table[0] for table in qups("SELECT tableName FROM trackDb", xcur)])
+    tracks_tables = set([table[0] for table in qups("SHOW TABLES", xcur)])
     extractable = track_data & tracks_tables
     return [track for track in wanted_tracks if track in extractable]
 
@@ -300,4 +326,4 @@ def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php'):
         my_html = response.read().decode()
         my_html = json.loads(my_html)
 
-    return [organ['name'] for organ in my_html]
+    return [organism['name'] for organism in my_html]

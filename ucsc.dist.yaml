@@ -6,6 +6,11 @@ browser_hosts:
     local: 'http://localhost:58080/'
     authoritative: 'http://genome.ucsc.edu/'
 
+# What is the hostname for the MySQL server with UCSC genome browser data?
+browser_mysql:
+    local: 'localhost'
+    authoritative: 'genome-mysql.cse.ucsc.edu'
+
 # If the CGI binaries are directly executable from this machine, specify that directory here
 # Then, you can use the scrape_method of "cgi_bin", which avoids the overhead of working through the HTTP server
 cgi_bin_dir: '/Library/WebServer/CGI-Executables'
@@ -73,6 +78,7 @@ browser_urls:
 
 # Public URLs for downloading certain data from the UCSC browser site
 data_urls:
+    downloads: 'http://hgdownload.cse.ucsc.edu'
     all_genomes: 'http://hgdownload.cse.ucsc.edu/downloads.html'
     big_zips: 'bigZips'
     chrom_info: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/chromInfo.txt.gz'

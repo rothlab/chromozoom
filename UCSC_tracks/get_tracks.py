@@ -1,4 +1,4 @@
-import lib.buildfuncions as buildfun
+import lib.buildfunctions as buildfun
 import pymysql.cursors
 import os
 import argparse
@@ -10,32 +10,36 @@ parser.add_argument('--all', action='store_true', default=False,
                     help='Load all tables from UCSC.')
 parser.add_argument('--org_source', action='store', type=str, default='http://beta.chromozoom.org/php/chromsizes.php',
                     help='Location of organisms list in JSON format.')
-parser.add_argument('--table_source', action='store', type=str, default='local',
-                    help='Location of Track tables. Use "local" to extract from central config file')
+parser.add_argument('--table_source', action='store', type=str, default='',
+                    help='Location of Track tables. Leave blank to retrieve it from the ../ucsc.yaml config file')
+parser.add_argument('--mysql_host', action='store', type=str, default='',
+                    help='Hostname for UCSC\'s MySQL server. Leave blank to retrieve it from the ../ucsc.yaml config file')
+parser.add_argument('--downloads_base_url', action='store', type=str, default='',
+                    help='Base URL for bulk downloads from UCSC. Leave blank to retrive it from the ../ucsc.yaml config file')
 args = parser.parse_args()
 
 
-if args.table_source == 'local':
-    table_source = buildfun.get_remote_table()
-else:
-    table_source = args.table_source
+table_source = buildfun.get_remote_table() if args.table_source == '' else args.table_source
+mysql_host = buildfun.get_mysql_host() if args.mysql_host == '' else args.mysql_host
+downloads_base_url = buildfun.get_downloads_base_url() if args.downloads_base_url == '' else args.downloads_base_url
+downloads_base_url = downloads_base_url.rstrip('/')
 
 
 for organism in buildfun.get_organisms_list(args.org_source):
     print('#####################################')
     print('INFO ({}): FETCHING DATA FOR NEW ORGANISM: {}'.format(buildfun.print_time(), organism))
-    print('INFO ({}): EXTRACTING TRACK HIRARCHY!'.format(buildfun.print_time()))
-    track_meta = buildfun.create_hirarchy(organism, table_source)
+    print('INFO ({}): EXTRACTING TRACK HIERARCHY!'.format(buildfun.print_time()))
+    track_meta = buildfun.create_hierarchy(organism, table_source)
     if not track_meta:
         print('WARNING ({}): No tables for {} found. Omitting.'.format(buildfun.print_time(), organism))
         continue
 
     # Try connecting to a database
     try:
-        conn = pymysql.connect(host='genome-mysql.cse.ucsc.edu', user='genome', database=organism)
+        conn = pymysql.connect(host=mysql_host, user='genome', database=organism)
         cur = conn.cursor()
     except pymysql.err.InternalError:
-        print('WARNING ({}): No MYSQL tables found for "{}". Omitting.'.format(buildfun.print_time(), organism))
+        print('WARNING ({}): No MySQL tables found for "{}". Omitting.'.format(buildfun.print_time(), organism))
         continue
     buildfun.setup(organism)
 
@@ -56,7 +60,7 @@ for organism in buildfun.get_organisms_list(args.org_source):
 
     process_tracks = buildfun.filter_extractable_dbs(all_tracks, cur)
     local_db, localcur, localconn = buildfun.create_sqllite3_db(organism)
-    my_tracks = buildfun.fetch_tracks(db_name=organism, xcur=cur, selection=process_tracks)
+    my_tracks = buildfun.fetch_tracks(host=mysql_host, db_name=organism, xcur=cur, selection=process_tracks)
 
     localcur.execute('SELECT name, updateDate FROM tracks;')
     last_updates = dict(localcur.fetchall())
@@ -80,17 +84,17 @@ for organism in buildfun.get_organisms_list(args.org_source):
             file_location = buildfun.qups("SELECT fileName FROM {}".format(tablename), cur)
 
             if len(file_location) > 1:
-                print('WARNING ({}): Multiple files are associated with "{}" "({})" file. Organims: "{}"'
+                print('WARNING ({}): Multiple files are associated with "{}" "({})" file. Organism: "{}"'
                       .format(buildfun.print_time(), tablename, dbtype, organism))
-            file_location = 'http://hgdownload.cse.ucsc.edu' + file_location[0][0]
-            print('DONE ({}): Fetched remote location for "{}" "{}" file. Organims: "{}"'.format(buildfun.print_time(),
+            file_location = downloads_base_url + file_location[0][0]
+            print('DONE ({}): Fetched remote location for "{}" "{}" file. Organism: "{}"'.format(buildfun.print_time(),
                                                                                                  tablename, dbtype,
                                                                                                  organism))
             save_to_db = True
 
         # Bed processing
         elif dbtype.startswith('bed '):
-            bed_location = buildfun.fetch_bed_table(cur, tablename, organism)
+            bed_location = buildfun.fetch_bed_table(mysql_host, cur, tablename, organism)
             if bed_location is None:
                 continue
             as_location = buildfun.fetch_as_file(bed_location, cur, tablename)
