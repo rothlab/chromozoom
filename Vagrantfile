@@ -26,10 +26,21 @@ Vagrant.configure(2) do |config|
     # sudo apt-get install -y libxslt-dev libxml2-dev
     # sudo gem install -y bundler
     # cd /var/www/ && bundle install
-    
+
+    # sudo apt-get -y install mysql-client-core-5.5
+    # sudo apt-get -y install python-software-properties
+    # sudo add-apt-repository -y ppa:fkrull/deadsnakes
+    # sudo apt-get -y update
+    # sudo apt-get -y install python3.4
+    # sudo sh -c "wget -O - https://bootstrap.pypa.io/get-pip.py | python3.4"
+    # sudo pip3.4 install pymysql
+    # sudo apt-get install -y python3.4-dev
+    # sudo pip3.4 install lxml
+	# sudo pip3.4 install pyyaml
+	
 	# mkdir ~/setup/
-	# for PROG in bigBedInfo bigBedSummary bigBedToBed bigWigSummary bigWigInfo twoBitToFa
-    # do 
+	# for PROG in bigBedInfo bigBedSummary bigBedToBed bigWigSummary bigWigInfo twoBitToFa bedToBigBed fetchChromSizes
+    # do
     #   wget -O ~/setup/"$PROG" http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/"$PROG"
     # done
     
