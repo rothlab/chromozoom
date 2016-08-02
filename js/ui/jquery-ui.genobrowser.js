@@ -2071,7 +2071,8 @@ module.exports = (function($){
         $elem = self.element;
       _.each(o.tracks, function(t) {
         self.densityOrder(t.n, t.h, $elem.find('.browser-track-'+t.n).genotrack('bppps'));
-        $elem.find('.browser-track-'+t.n).genotrack('redrawCanvasTicks');
+        if (t.custom) { $elem.find('.browser-track-'+t.n).genotrack('redrawAreaLabels'); }
+        if (t.n === 'ruler') { $elem.find('.browser-track-'+t.n).genotrack('redrawRulerCanvasTicks'); }
       });
     },
     

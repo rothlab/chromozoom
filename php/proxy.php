@@ -28,6 +28,12 @@ function is_track($buffer) {
   return $is_track;
 }
 
+// Can whitelist/blacklist content type headers
+function valid_content_type($content_type) {
+  if ($content_type === NULL) { return true; }  // allow unknown/unspecified to pass
+  return preg_match('#text/plain|vnd.realvnc.bed#', $content_type)===1;
+}
+
 if (!isset($_GET['url']) || !preg_match('#^(https?|ftp)://#', $_GET['url'])) { forbidden(); }
 
 // First check if this is actually a bigBed, bigWig, or vcfTabix file
@@ -77,7 +83,7 @@ function receive_body($ch, $body_data) {
     if (preg_match('/^\\s*Content-Length\\s*:\\s*(.*)/i', $line, $matches)) { $content_length = $matches[1]; }
     if (preg_match('/^\\s*Access-Control-Allow-Origin\\s*:\\s*(.*)/i', $line, $matches)) { $acao = $matches[1]; }
   }
-  if (($acao === NULL || $acao !== '*') && $content_type !== NULL && strpos($content_type, 'text/plain')===FALSE) {
+  if (($acao === NULL || $acao !== '*') && !valid_content_type($content_type)) {
     if (!headers_sent()) { forbidden(); }
     return $len;
   }
