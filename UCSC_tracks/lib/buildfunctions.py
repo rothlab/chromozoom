@@ -93,8 +93,8 @@ def create_hierarchy(organism, table_source):
     """
     Creates a file with tables hierarchy for a given organism.
     """
-    save_dir = './hierarchy/'
-    location = save_dir + 'table_hierarchy_{}.txt'.format(organism)
+    save_dir = './_hierarchy/'
+    location = save_dir + '{}.txt'.format(organism)
 
     if not os.path.isdir(save_dir):
         os.mkdir(save_dir)
@@ -317,7 +317,7 @@ def filter_extractable_dbs(wanted_tracks, xcur):
     return [track for track in wanted_tracks if track in extractable]
 
 
-def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php'):
+def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php', prefix=''):
     """
     Get list of organisms
     """
@@ -326,4 +326,8 @@ def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php'):
         my_html = response.read().decode()
         my_html = json.loads(my_html)
 
-    return [organism['name'] for organism in my_html]
+    org_names = [organism['name'] for organism in my_html]
+    if prefix != '':
+        org_names = [name for name in org_names if name.startswith(prefix)]
+    
+    return org_names

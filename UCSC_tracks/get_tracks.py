@@ -10,12 +10,14 @@ parser.add_argument('--all', action='store_true', default=False,
                     help='Load all tables from UCSC.')
 parser.add_argument('--org_source', action='store', type=str, default='http://beta.chromozoom.org/php/chromsizes.php',
                     help='Location of organisms list in JSON format.')
+parser.add_argument('--org_prefix', action='store', type=str, default='',
+                    help='Restrict scraping to organism database names matching this prefix.')
 parser.add_argument('--table_source', action='store', type=str, default='',
                     help='Location of Track tables. Leave blank to retrieve it from the ../ucsc.yaml config file')
 parser.add_argument('--mysql_host', action='store', type=str, default='',
                     help='Hostname for UCSC\'s MySQL server. Leave blank to retrieve it from the ../ucsc.yaml config file')
 parser.add_argument('--downloads_base_url', action='store', type=str, default='',
-                    help='Base URL for bulk downloads from UCSC. Leave blank to retrive it from the ../ucsc.yaml config file')
+                    help='Base URL for bulk downloads from UCSC. Leave blank to retrieve it from the ../ucsc.yaml config file')
 args = parser.parse_args()
 
 
@@ -25,7 +27,7 @@ downloads_base_url = buildfun.get_downloads_base_url() if args.downloads_base_ur
 downloads_base_url = downloads_base_url.rstrip('/')
 
 
-for organism in buildfun.get_organisms_list(args.org_source):
+for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
     print('#####################################')
     print('INFO ({}): FETCHING DATA FOR NEW ORGANISM: {}'.format(buildfun.print_time(), organism))
     print('INFO ({}): EXTRACTING TRACK HIERARCHY!'.format(buildfun.print_time()))
