@@ -19,7 +19,7 @@ On most computers (particularly Macs) it is easiest to install [Anaconda](https:
 
 ## Using `virtualenv` and `pip`
 
-1. You need Python 3.5 and libxml >2.9.x to be installed and accessible on PATH. If you're on Minerva, `source minerva-modules.sh` will load them.
+1. You need Python 3.5 and libxml >2.9.x to be installed and accessible on PATH. If you're on Minerva, `source minerva-modules.sh` will load them, plus the Jim Kent binaries listed above.
 
 2. To set up a virtual environment, run
 
