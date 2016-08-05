@@ -646,6 +646,9 @@ $.widget('ui.genotrack', {
       if (area[7]) { ctx.fillStyle = 'rgb(' + area[7] + ')'; }
       ctx.fillText((area[8] || area[4]), area[0] * canvasXScale - xPad + leftOverhang, floorHack((area[1] + area[3]) * 0.5));
       if (area[7]) { ctx.fillStyle = 'rgb(' + defaultColor + ')'; }
+      // FIXME: add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
+      //        Can measure text width with ctx.measureText(text).
+      //        _tileMouseMove then needs to check the *right-adjacent* tile's area data for any areas with area[10] < 0.
     });
     
     $c.toggleClass('dens-best', density == bestDensity);
