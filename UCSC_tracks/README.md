@@ -23,7 +23,7 @@ On most computers (particularly Macs) it is easiest to install [Anaconda](https:
 
 2. To set up a virtual environment, run
 
-       $ virtualenv -p \`which python3\` venv
+            $ virtualenv -p \`which python3\` venv
 
 3. Run `source bin/env/activate` to activate this environment. You should now see `(venv)` at the beginning of your prompt.
 
