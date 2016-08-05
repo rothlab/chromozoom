@@ -1,0 +1,6 @@
+# This file may be used to install required packages using:
+# $ pip install -r requirements.txt
+lxml==3.6.0
+pymysql==0.6.7
+pyyaml==3.11
+readline==6.2
