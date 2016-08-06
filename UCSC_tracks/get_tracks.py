@@ -47,6 +47,10 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
 
     all_tracks = []
     track_info = dict()
+    c_tgroupname = None
+    c_track = None
+    c_trackname = None
+    c_table = None
 
     with open(track_meta, 'r') as handle:
         for line in handle:
@@ -55,8 +59,10 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             elif 'Track:' in line:
                 c_track = line.split()[1]
                 c_trackname = line.split('(', 1)[1][:-2]
-            elif 'Table:' in line and (c_track == line.split()[1] or args.all):
+            elif 'Table:' in line:
                 c_table = line.split()[1]
+                if c_track != line.split()[1] and not args.all:
+                    continue
                 all_tracks.append(c_table)
                 track_info[c_table] = (line.split('(', 1)[1][:-2], c_trackname, c_tgroupname)
 
