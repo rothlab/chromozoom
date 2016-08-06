@@ -98,6 +98,8 @@ def create_hierarchy(organism, table_source):
 
     if not os.path.isdir(save_dir):
         os.mkdir(save_dir)
+    if os.path.isfile(location):
+        return location
 
     w_file = open(location, 'w')
 
