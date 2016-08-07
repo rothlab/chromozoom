@@ -12,7 +12,7 @@ parser.add_argument('--org_source', action='store', type=str, default='http://be
                     help='Location of organisms list in JSON format.')
 parser.add_argument('--org_prefix', action='store', type=str, default='',
                     help='Restrict scraping to organism database names matching this prefix.')
-parser.add_argument('--table_source', action='store', type=str, default=''
+parser.add_argument('--table_source', action='store', type=str, default='',
                     help='Location of Track tables. Leave blank to retrieve it from the ../ucsc.yaml config file')
 parser.add_argument('--mysql_host', action='store', type=str, default='',
                     help='Hostname for UCSC\'s MySQL server. Leave blank to retrieve it from the ../ucsc.yaml config file')
