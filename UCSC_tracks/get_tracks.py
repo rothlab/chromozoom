@@ -66,7 +66,7 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
                 all_tracks.append(c_table)
                 track_info[c_table] = (line.split('(', 1)[1][:-2], c_trackname, c_tgroupname)
 
-    process_tracks = buildfun.filter_extractable_dbs(all_tracks, cur)
+    process_tracks = sorted(buildfun.filter_extractable_dbs(all_tracks, cur))
     local_db, localcur, localconn = buildfun.create_sqllite3_db(organism)
     my_tracks = buildfun.fetch_tracks(host=mysql_host, db_name=organism, xcur=cur, selection=process_tracks)
 
@@ -74,6 +74,7 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
     last_updates = dict(localcur.fetchall())
 
     for tablename, dbtype, group, shortLabel, longLabel, htmlDescription, settings in my_tracks:
+        print('INFO ({}): [db {}] Checking table "{}".'.format(buildfun.print_time(), organism, tablename))
         save_to_db = False
         update_date = buildfun.get_update_time(cur, organism, tablename)
 
