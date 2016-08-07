@@ -3,7 +3,7 @@ import pymysql.cursors
 import os
 import argparse
 import time
-
+import sys
 
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
 parser.add_argument('--all', action='store_true', default=False,
@@ -12,7 +12,7 @@ parser.add_argument('--org_source', action='store', type=str, default='http://be
                     help='Location of organisms list in JSON format.')
 parser.add_argument('--org_prefix', action='store', type=str, default='',
                     help='Restrict scraping to organism database names matching this prefix.')
-parser.add_argument('--table_source', action='store', type=str, default='',
+parser.add_argument('--table_source', action='store', type=str, default=''
                     help='Location of Track tables. Leave blank to retrieve it from the ../ucsc.yaml config file')
 parser.add_argument('--mysql_host', action='store', type=str, default='',
                     help='Hostname for UCSC\'s MySQL server. Leave blank to retrieve it from the ../ucsc.yaml config file')
@@ -81,11 +81,11 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
         # check if we need to update the table
         if tablename in last_updates:
             if last_updates[tablename] == update_date:
-                print('INFO ({}): data for table "{}" is up to date. Organism: {}'.format(buildfun.print_time(),
-                                                                                          tablename, organism))
+                print('INFO ({}): [db {}] data for table "{}" is up to date.'.format(buildfun.print_time(),
+                                                                                          organism, tablename))
                 continue
             else:
-                print('INFO ({}): Updating table "{}". Organism: {}'.format(buildfun.print_time(), tablename, organism))
+                print('INFO ({}): [db {}] Updating table "{}".'.format(buildfun.print_time(), organism, tablename))
                 localcur.execute('DELETE FROM tracks WHERE name="{}";'.format(tablename))
 
         # BigWig and Bam processing
@@ -93,12 +93,12 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             file_location = buildfun.qups("SELECT fileName FROM {}".format(tablename), cur)
 
             if len(file_location) > 1:
-                print('WARNING ({}): Multiple files are associated with "{}" "({})" file. Organism: "{}"'
-                      .format(buildfun.print_time(), tablename, dbtype, organism))
+                print('WARNING ({}): [db {}] Multiple files are associated with "{}" "({})" file.'
+                      .format(buildfun.print_time(), organism, tablename, dbtype))
             file_location = downloads_base_url + file_location[0][0]
-            print('DONE ({}): Fetched remote location for "{}" "{}" file. Organism: "{}"'.format(buildfun.print_time(),
-                                                                                                 tablename, dbtype,
-                                                                                                 organism))
+            print('DONE ({}): [db {}] Fetched remote location for "{}" "{}" file.'.format(buildfun.print_time(),
+                                                                                                 organism, tablename, 
+                                                                                                 dbtype))
             save_to_db = True
 
         # Bed processing
@@ -124,7 +124,10 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             os.remove(bed_location)
             os.remove(as_location)
             save_to_db = True
+            
         else:
+            print('INFO ({}): [db {}] Unhandled dbtype {} for table "{}".'.format(buildfun.print_time(),
+                                                                                      organism, tablename))
             continue
 
         if save_to_db:
