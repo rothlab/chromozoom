@@ -649,6 +649,10 @@ $.widget('ui.genotrack', {
       // FIXME: add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
       //        Can measure text width with ctx.measureText(text).
       //        _tileMouseMove then needs to check the *right-adjacent* tile's area data for any areas with area[10] < 0.
+      //        This adjacent tile can be found via manipulating the tile ID.
+      //          - $tile.data('tileId') has the leftmost bp position;
+      //          - adding bppp * o.tileWidth to this gives the position of the next tile;
+      //          - substituting $tile.attr('id')'s last number with this number gets the HTML ID of the next tile.
     });
     
     $c.toggleClass('dens-best', density == bestDensity);
