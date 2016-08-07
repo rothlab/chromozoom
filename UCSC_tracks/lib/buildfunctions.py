@@ -123,20 +123,20 @@ def create_hierarchy(organism, table_source):
     return location
 
 
-def setup(sorganism):
+def setup(organism):
     """
     Sets up directories and files needed for track fetching
     """
 
     # Build directory
-    if not os.path.exists(sorganism):
-        os.makedirs(sorganism)
+    if not os.path.exists(organism):
+        os.makedirs(organism)
 
-    if not os.path.exists(sorganism + '/build'):
-        os.makedirs(sorganism + '/build')
+    if not os.path.exists(organism + '/build'):
+        os.makedirs(organism + '/build')
 
-    if not os.path.exists(sorganism + '/bigBed'):
-        os.makedirs(sorganism + '/bigBed')
+    if not os.path.exists(organism + '/bigBed'):
+        os.makedirs(organism + '/bigBed')
 
 
 def qups(in_cmd, ucur):
@@ -237,6 +237,7 @@ def generate_big_bed(organism, btype, as_file, b_file):
             print('FAILED: Couldn\'t fetch chromosome info')
             return None
 
+    # FIXME: Add -extraIndex parameter here for name field
     command = ('bedToBigBed -type="{1}" -as="{2}" -tab "{3}" "./{0}/build/chsize.txt" '
                '"{4}" 2>/dev/null 1>&2').format(organism, btype, as_file, b_file, bb_file)
     try:
@@ -250,24 +251,42 @@ def generate_big_bed(organism, btype, as_file, b_file):
     return bb_file
 
 
-def fetch_bed_table(host, xcur, table_name, sorganism):
+def fetch_bed_table(host, xcur, table_name, organism):
     """
     Uses mySQL query to fetch columns from bed file
     """
-    location = './{}/build/{}.bed'.format(sorganism, table_name)
+    location = './{}/build/{}.bed'.format(organism, table_name)
     headers = ', '.join([val[0] for val in qups("SHOW columns FROM {}".format(table_name), xcur) if val[0] != 'bin'])
 
     # TODO: Use limit in case of testing
-    command = ("mysql -N -A -u genome -h {} -e 'Select {} from {}' {} >\"{}\" "
-               "2>/dev/null").format(host, headers, table_name, sorganism, location)
+    # FIXME: Replace this with downloading the .txt.gz files from 
+    #        http://hgdownload.cse.ucsc.edu/goldenpath/{organism}/database/
+    #        which are gzip'ed tab-delimited versions of these tables.
+    #        Can use `gzcat | awk` to rearrange the columns of these files, e.g. for a genePred track
+    #          gzcat refGene.txt.gz | awk -v OFS="\t" '{
+    #              split($11, exonEnds, ",")
+    #              split($10, exonStarts, ",")
+    #              for (i = 1; i <= $9; i++)
+    #                exonSizes[i] = exonEnds[i] - exonStarts[i]
+    #              blockSizes = exonSizes[1]
+    #              for (i = 2; i <= $9; i++)
+    #                blockSizes = blockSizes "," exonSizes[i]
+    #              sub(/,$/, "", $10)
+    #              print ($3, $5, $6, $2, $12, $4, $7, $8, "", $9, blockSizes, $10)
+    #            }'
+    #        or, to just clip off the "bin" field, `gzcat | cut`
+    #          gzcat stsMap.txt.gz | cut -f 2-
+    command = ("mysql -N -A -u genome -h {} -e 'SELECT {} FROM {}' {} >'{}' "
+               "2>/dev/null").format(host, headers, table_name, organism, location)
     try:
         sbp.check_call(command, shell=True)
-        print('DONE ({}): Fetched "{}" Bed file for organism "{}"'.format(print_time(), table_name, sorganism))
+        print('DONE ({}): Fetched "{}" BED file for organism "{}"'.format(print_time(), table_name, organism))
     except sbp.CalledProcessError:
-        print('FAILED ({}): couldn\'t fetch "{}" Bed file for organism "{}"'.format(print_time(), table_name,
-                                                                                    sorganism))
+        print('FAILED ({}): couldn\'t fetch "{}" BED file for organism "{}"'.format(print_time(), table_name,
+                                                                                    organism))
         print(command)
         return None
+    
     return location
 
 

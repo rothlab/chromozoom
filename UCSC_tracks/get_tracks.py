@@ -87,6 +87,8 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             else:
                 print('INFO ({}): [db {}] Updating table "{}".'.format(buildfun.print_time(), organism, tablename))
                 localcur.execute('DELETE FROM tracks WHERE name="{}";'.format(tablename))
+        else:
+            print('INFO ({}): [db {}] Need to fetch table "{}".'.format(buildfun.print_time(), organism, tablename))
 
         # BigWig and Bam processing
         if dbtype.startswith('bigWig ') or dbtype == 'bam':
@@ -126,8 +128,8 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             save_to_db = True
             
         else:
-            print('INFO ({}): [db {}] Unhandled dbtype {} for table "{}".'.format(buildfun.print_time(),
-                                                                                      organism, tablename))
+            print('INFO ({}): [db {}] Unhandled dbtype "{}" for table "{}".'.format(buildfun.print_time(), organism,
+                                                                                      dbtype, tablename))
             continue
 
         if save_to_db:
