@@ -10,7 +10,6 @@ import json
 import fileinput
 import time
 
-
 # Cache the parsed config file after the first access
 config_yaml = None
 
@@ -44,6 +43,8 @@ def get_mysql_host():
 def get_downloads_base_url():
     return open_ucsc_yaml()['data_urls']['downloads']
 
+def get_downloads_table_tsv():
+    return open_ucsc_yaml()['data_urls']['table_tsv']
 
 # Check if a given executable is on $PATH
 # For more on the `type` shell builtin, see https://bash.cyberciti.biz/guide/Type_command
@@ -185,6 +186,10 @@ def fetch_as_file(blocation, xcur, table_name):
     return as_file
 
 
+def fetch_table_fields(xcur, table_name):
+    return [val[0] for val in qups("SHOW columns FROM {}".format(table_name), xcur) if val[0] != 'bin']
+
+
 def fix_bed_as_files(blocation, btype):
     """
     Tries to fix Bed auto_sql if initial BigBed building failed
@@ -239,7 +244,7 @@ def generate_big_bed(organism, btype, as_file, b_file):
 
     # FIXME: Add -extraIndex parameter here for name field
     command = ('bedToBigBed -type="{1}" -as="{2}" -tab "{3}" "./{0}/build/chsize.txt" '
-               '"{4}" 2>/dev/null 1>&2').format(organism, btype, as_file, b_file, bb_file)
+               '"{4}"').format(organism, btype, as_file, b_file, bb_file)
     try:
         sbp.check_call(command, shell=True)
         print('DONE ({}): Constructed "{}" BigBed file for organism "{}"'.format(print_time(), bb_file, organism))
@@ -251,35 +256,50 @@ def generate_big_bed(organism, btype, as_file, b_file):
     return bb_file
 
 
-def fetch_bed_table(host, xcur, table_name, organism):
+def fetch_bed_table(host, xcur, table_name, organism, genePred=False):
     """
     Uses mySQL query to fetch columns from bed file
     """
+    gz_file = './{}/build/{}.txt.gz'.format(organism, table_name)
     location = './{}/build/{}.bed'.format(organism, table_name)
-    headers = ', '.join([val[0] for val in qups("SHOW columns FROM {}".format(table_name), xcur) if val[0] != 'bin'])
 
-    # TODO: Use limit in case of testing
-    # FIXME: Replace this with downloading the .txt.gz files from 
-    #        http://hgdownload.cse.ucsc.edu/goldenpath/{organism}/database/
-    #        which are gzip'ed tab-delimited versions of these tables.
-    #        Can use `gzcat | awk` to rearrange the columns of these files, e.g. for a genePred track
-    #          gzcat refGene.txt.gz | awk -v OFS="\t" '{
-    #              split($11, exonEnds, ",")
-    #              split($10, exonStarts, ",")
-    #              for (i = 1; i <= $9; i++)
-    #                exonSizes[i] = exonEnds[i] - exonStarts[i]
-    #              blockSizes = exonSizes[1]
-    #              for (i = 2; i <= $9; i++)
-    #                blockSizes = blockSizes "," exonSizes[i]
-    #              sub(/,$/, "", $10)
-    #              print ($3, $5, $6, $2, $12, $4, $7, $8, "", $9, blockSizes, $10)
-    #            }'
-    #        or, to just clip off the "bin" field, `gzcat | cut`
-    #          gzcat stsMap.txt.gz | cut -f 2-
-    command = ("mysql -N -A -u genome -h {} -e 'SELECT {} FROM {}' {} >'{}' "
-               "2>/dev/null").format(host, headers, table_name, organism, location)
+    url = get_downloads_table_tsv() % (organism, table_name)
+    
+    # FIXME: UCSC's server doesn't support Range requests, so --continue-at doesn't work
+    #        Should we bother retrying on an error code 18 (file shorter than expected)?
+    returncode = None
+    command = "curl '{}' --continue-at - --output '{}'".format(url, gz_file)
+    while returncode is None or returncode == 18:
+        try:
+            sbp.check_call(command, shell=True)
+        except sbp.CalledProcessError as err:
+            returncode = err.returncode
+    
+    if genePred:
+        awk_script = """
+        {
+          split($11, exonEnds, ",")
+          split($10, exonStarts, ",")
+          for (i = 1; i <= $9; i++)
+            exonSizes[i] = exonEnds[i] - exonStarts[i]
+          blockSizes = exonSizes[1]
+          for (i = 2; i <= $9; i++)
+            blockSizes = blockSizes "," exonSizes[i]
+          sub(/,$/, "", $10)
+          print ($3, $5, $6, $2, $12, $4, $7, $8, "", $9, blockSizes, $10)
+        }
+        """
+        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" '{}' >'{}'".format(gz_file, awk_script, location)
+    else:
+        command = "cat '{}' | zcat | cut -f 2- >'{}'".format(gz_file, location)
+
+    # Note: formerly, we attempted to fetch the data via MySQL, but this would time out for large tables
+    # command = ("mysql -N -A -u genome -h {} -e 'SELECT {} FROM {}' {} >'{}' "
+    #            "2>/dev/null").format(host, headers, table_name, organism, location)
+    
     try:
         sbp.check_call(command, shell=True)
+        os.remove(gz_file)
         print('DONE ({}): Fetched "{}" BED file for organism "{}"'.format(print_time(), table_name, organism))
     except sbp.CalledProcessError:
         print('FAILED ({}): couldn\'t fetch "{}" BED file for organism "{}"'.format(print_time(), table_name,
