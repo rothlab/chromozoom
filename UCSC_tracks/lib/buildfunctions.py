@@ -267,6 +267,9 @@ def fetch_bed_table(host, xcur, table_name, organism, genePred=False):
     
     # FIXME: UCSC's server doesn't support Range requests, so --continue-at doesn't work
     #        Should we bother retrying on an error code 18 (file shorter than expected)?
+    #
+    # Maybe try:
+    # rsync -avzP rsync://hgdownload.cse.ucsc.edu/goldenPath/%s/database/%s.txt.gz .
     returncode = None
     command = "curl '{}' --continue-at - --output '{}'".format(url, gz_file)
     while returncode is None or returncode == 18:
