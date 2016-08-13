@@ -2,7 +2,7 @@ from lxml import html
 import pymysql.cursors
 import sqlite3
 import urllib.request
-import os
+import os, sys
 import pymysql.cursors
 import subprocess as sbp
 import re
