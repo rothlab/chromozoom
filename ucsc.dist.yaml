@@ -81,7 +81,7 @@ data_urls:
     downloads: 'http://hgdownload.cse.ucsc.edu'
     all_genomes: 'http://hgdownload.cse.ucsc.edu/downloads.html'
     big_zips: 'bigZips'
-    table_tsv: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/%s.txt.gz'
+    table_tsv: 'rsync://hgdownload.cse.ucsc.edu/goldenPath/%s/database/%s.txt.gz'
     chrom_info: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/chromInfo.txt.gz'
     cyto_band: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/cytoBand.txt.gz'
     twobit: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/bigZips/%s.2bit'

@@ -161,33 +161,59 @@ def get_numrows(xcur, table_name):
     return qups("SELECT COUNT(*) FROM {}".format(table_name), xcur)[0][0]
 
 
-def fetch_as_file(blocation, xcur, table_name):
+def genepred_as_file(bed_location):
+    as_file = bed_location[:-4] + '.as'
+    as_contents = """table genePredExt
+"A gene prediction with some additional info."
+    (
+    string chrom;       "Reference sequence chromosome or scaffold"
+    uint   chromStart;  "Start position in chromosome"
+    uint   chromEnd;    "End position in chromosome"
+    string name;        "Name or ID of item, ideally both human readable and unique"
+    uint score;         "Score (0-1000)"
+    char[1] strand;     "+ or - for strand"
+    uint thickStart;    "Start of where display should be thick (start codon)"
+    uint thickEnd;      "End of where display should be thick (stop codon)"
+    uint reserved;      "RGB value (use R,G,B string in input file)"
+    int blockCount;     "Number of blocks"
+    int[blockCount] blockSizes; "Comma separated list of block sizes"
+    int[blockCount] chromStarts; "Start positions relative to chromStart"
+    )
+    """
+    
+    w_file = open(as_file, 'w')
+    w_file.write(as_contents)
+
+    return as_file
+
+
+def fetch_as_file(bed_location, xcur, table_name):
     """
     Creates an auto_sql file and returns its location
     """
 
-    as_file = blocation[:-4] + '.as'
-    asseq_cont = qups('SELECT autoSqlDef FROM tableDescriptions WHERE tableName="{}";'.format(table_name),
+    as_file = bed_location[:-4] + '.as'
+    as_contents = qups('SELECT autoSqlDef FROM tableDescriptions WHERE tableName="{}";'.format(table_name),
                       xcur)[0][0].decode()
 
     # Column bin removal
     bin_rows = re.compile('[\t\s]*(short|uint|string|ushort)[\t\s]+bin;')
-    if bin_rows.search(asseq_cont):
-        asseq_cont = '\n'.join([line for line in asseq_cont.split('\n') if not bin_rows.match(line)])
+    if bin_rows.search(as_contents):
+        as_contents = '\n'.join([line for line in as_contents.split('\n') if not bin_rows.match(line)])
 
     old_colors = 'uint itemRgb;'
-    if old_colors in asseq_cont:
+    if old_colors in as_contents:
         replace_line = '    uint reserved;     "Used as itemRgb as of 2004-11-22"'
-        asseq_cont = '\n'.join([replace_line if old_colors in line else line for line in asseq_cont.split('\n')])
+        as_contents = '\n'.join([replace_line if old_colors in line else line for line in as_contents.split('\n')])
 
     w_file = open(as_file, 'w')
-    w_file.write(asseq_cont)
+    w_file.write(as_contents)
 
     return as_file
 
 
 def fetch_table_fields(xcur, table_name):
-    return [val[0] for val in qups("SHOW columns FROM {}".format(table_name), xcur) if val[0] != 'bin']
+    return [val[0] for val in qups("SHOW columns FROM {}".format(table_name), xcur)]
 
 
 def fix_bed_as_files(blocation, btype):
@@ -262,51 +288,65 @@ def fetch_bed_table(host, xcur, table_name, organism, genePred=False):
     """
     gz_file = './{}/build/{}.txt.gz'.format(organism, table_name)
     location = './{}/build/{}.bed'.format(organism, table_name)
+    has_bin_column = fetch_table_fields(xcur, table_name)[0] == 'bin'
 
     url = get_downloads_table_tsv() % (organism, table_name)
+    # Note: formerly, we attempted to fetch the data via MySQL, but this would time out for large tables
+    # command = ("mysql -N -A -u genome -h {} -e 'SELECT {} FROM {}' {} >'{}' "
+    #            "2>/dev/null").format(host, headers, table_name, organism, location)
+    # The most robust fetching method is rsync.
     
-    # FIXME: UCSC's server doesn't support Range requests, so --continue-at doesn't work
-    #        Should we bother retrying on an error code 18 (file shorter than expected)?
-    #
-    # Maybe try:
-    # rsync -avzP rsync://hgdownload.cse.ucsc.edu/goldenPath/%s/database/%s.txt.gz .
+    if cmd_exists('rsync'):
+        command = "rsync -avzP --timeout=30 '{}' '{}'".format(url, os.path.dirname(gz_file))
+    else:
+        url = re.sub(r'^rsync://', 'http://', url)
+        command = "curl '{}' --output '{}'".format(url, gz_file)
+    
     returncode = None
-    command = "curl '{}' --continue-at - --output '{}'".format(url, gz_file)
-    while returncode is None or returncode == 18:
+    retries = 3
+    while returncode != 0 and retries > 0:
         try:
             sbp.check_call(command, shell=True)
         except sbp.CalledProcessError as err:
             returncode = err.returncode
+            retries -= 1
+        returncode = 0
     
     if genePred:
         awk_script = """
         {
-          split($11, exonEnds, ",")
-          split($10, exonStarts, ",")
-          for (i = 1; i <= $9; i++)
-            exonSizes[i] = exonEnds[i] - exonStarts[i]
+          split($11, chromEnds, ",")
+          split($10, chromStarts, ",")
+          for (i = 1; i <= $9; i++) {
+              exonSizes[i] = chromEnds[i] - chromStarts[i]
+              exonStarts[i] = chromStarts[i] - $5
+          }
           blockSizes = exonSizes[1]
-          for (i = 2; i <= $9; i++)
-            blockSizes = blockSizes "," exonSizes[i]
-          sub(/,$/, "", $10)
-          print ($3, $5, $6, $2, $12, $4, $7, $8, "", $9, blockSizes, $10)
+          blockStarts = exonStarts[1]
+          for (i = 2; i <= $9; i++) {
+              blockSizes = blockSizes "," exonSizes[i]
+              blockStarts = blockStarts "," exonStarts[i]
+          }
+          print ($3, $5, $6, $2, $12 + 0, $4, $7, $8, "0", $9, blockSizes, blockStarts)
         }
         """
-        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" '{}' >'{}'".format(gz_file, awk_script, location)
+        # FIXME: Also add name2, cdsStartStat, cdsEndStat, and exonFrames into a bed12+4 if available
+        # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html
+        if not has_bin_column:
+            awk_script = re.sub(r'\$(\d+)\b', lambda m: '$' + str(int(m.group(1)) - 1), awk_script)
+        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, awk_script, location)
     else:
-        command = "cat '{}' | zcat | cut -f 2- >'{}'".format(gz_file, location)
-
-    # Note: formerly, we attempted to fetch the data via MySQL, but this would time out for large tables
-    # command = ("mysql -N -A -u genome -h {} -e 'SELECT {} FROM {}' {} >'{}' "
-    #            "2>/dev/null").format(host, headers, table_name, organism, location)
+        if has_bin_column:
+            command = "cat '{}' | zcat | cut -f 2- >'{}'".format(gz_file, location)
+        else:
+            command = "cat '{}' | zcat >'{}'".format(gz_file, location)
     
     try:
         sbp.check_call(command, shell=True)
         os.remove(gz_file)
-        print('DONE ({}): Fetched "{}" BED file for organism "{}"'.format(print_time(), table_name, organism))
+        print('DONE ({}): [db {}] Fetched "{}" into a BED file'.format(print_time(), organism, table_name))
     except sbp.CalledProcessError:
-        print('FAILED ({}): couldn\'t fetch "{}" BED file for organism "{}"'.format(print_time(), table_name,
-                                                                                    organism))
+        print('FAILED ({}): [db {}] Couldn\'t fetch "{}" as a BED file.'.format(print_time(), organism, table_name))
         print(command)
         return None
     

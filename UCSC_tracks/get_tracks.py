@@ -77,6 +77,7 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
         print('INFO ({}): [db {}] Checking table "{}".'.format(buildfun.print_time(), organism, tablename))
         save_to_db = False
         update_date = buildfun.get_update_time(cur, organism, tablename)
+        is_genePred = dbtype.startswith('genePred')
 
         # check if we need to update the table
         if tablename in last_updates:
@@ -90,7 +91,7 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
         else:
             print('INFO ({}): [db {}] Need to fetch table "{}".'.format(buildfun.print_time(), organism, tablename))
 
-        # BigWig and Bam processing
+        # bigWig and BAM processing
         if dbtype.startswith('bigWig ') or dbtype == 'bam':
             file_location = buildfun.qups("SELECT fileName FROM {}".format(tablename), cur)
 
@@ -103,13 +104,17 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
                                                                                                  dbtype))
             save_to_db = True
 
-        # Bed processing
-        elif dbtype.startswith('bed '):
-            bed_location = buildfun.fetch_bed_table(mysql_host, cur, tablename, organism)
+        # BED and genePred processing
+        elif dbtype.startswith('bed ') or is_genePred:
+            bed_location = buildfun.fetch_bed_table(mysql_host, cur, tablename, organism, is_genePred)
             if bed_location is None:
                 continue
-            as_location = buildfun.fetch_as_file(bed_location, cur, tablename)
-            bedtype = dbtype.replace(' ', '').rstrip('.')
+            if is_genePred:
+                as_location = buildfun.genepred_as_file(bed_location)
+                bedtype = 'bed12'
+            else:
+                as_location = buildfun.fetch_as_file(bed_location, cur, tablename)
+                bedtype = dbtype.replace(' ', '').rstrip('.') 
             file_location = buildfun.generate_big_bed(organism, bedtype, as_location, bed_location)
 
             # Try fixing autosql_file
