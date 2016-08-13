@@ -4,6 +4,7 @@ import os
 import argparse
 import time
 import sys
+import re
 
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
 parser.add_argument('--all', action='store_true', default=False,
