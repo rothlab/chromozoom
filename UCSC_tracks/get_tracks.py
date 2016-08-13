@@ -112,10 +112,10 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             if bed_location is None:
                 continue
             if bedlike_format == 'genePred':
-                as_location = './autosql/genePredExt.as'
+                as_location = 'autosql/genePredExt.as'
                 bedtype = 'bed12'
             elif bedlike_format == 'psl':
-                as_location = './autosql/bigPsl.as'
+                as_location = 'autosql/bigPsl.as'
                 bedtype = 'bed12+12'
             else:
                 as_location = buildfun.fetch_as_file(bed_location, cur, tablename)
@@ -134,7 +134,7 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
 
             # Delete successful builds
             os.remove(bed_location)
-            os.remove(as_location)
+            if not as_location.startswith('autosql/'): os.remove(as_location)
             save_to_db = True
             
         else:
