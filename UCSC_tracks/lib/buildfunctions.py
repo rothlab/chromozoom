@@ -161,32 +161,6 @@ def get_numrows(xcur, table_name):
     return qups("SELECT COUNT(*) FROM {}".format(table_name), xcur)[0][0]
 
 
-def genepred_as_file(bed_location):
-    as_file = bed_location[:-4] + '.as'
-    as_contents = """table genePredExt
-"A gene prediction with some additional info."
-    (
-    string chrom;       "Reference sequence chromosome or scaffold"
-    uint   chromStart;  "Start position in chromosome"
-    uint   chromEnd;    "End position in chromosome"
-    string name;        "Name or ID of item, ideally both human readable and unique"
-    uint score;         "Score (0-1000)"
-    char[1] strand;     "+ or - for strand"
-    uint thickStart;    "Start of where display should be thick (start codon)"
-    uint thickEnd;      "End of where display should be thick (stop codon)"
-    uint reserved;      "RGB value (use R,G,B string in input file)"
-    int blockCount;     "Number of blocks"
-    int[blockCount] blockSizes; "Comma separated list of block sizes"
-    int[blockCount] chromStarts; "Start positions relative to chromStart"
-    )
-    """
-    
-    w_file = open(as_file, 'w')
-    w_file.write(as_contents)
-
-    return as_file
-
-
 def fetch_as_file(bed_location, xcur, table_name):
     """
     Creates an auto_sql file and returns its location
@@ -282,13 +256,14 @@ def generate_big_bed(organism, btype, as_file, b_file):
     return bb_file
 
 
-def fetch_bed_table(host, xcur, table_name, organism, genePred=False):
+def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
     """
     Uses mySQL query to fetch columns from bed file
     """
     gz_file = './{}/build/{}.txt.gz'.format(organism, table_name)
     location = './{}/build/{}.bed'.format(organism, table_name)
     has_bin_column = fetch_table_fields(xcur, table_name)[0] == 'bin'
+    cut_bin_column = '| cut -f 2- ' if has_bin_column else ''
 
     url = get_downloads_table_tsv() % (organism, table_name)
     # Note: formerly, we attempted to fetch the data via MySQL, but this would time out for large tables
@@ -312,7 +287,7 @@ def fetch_bed_table(host, xcur, table_name, organism, genePred=False):
             retries -= 1
         returncode = 0
     
-    if genePred:
+    if bedlike_format == 'genePred':
         awk_script = """
         {
           split($11, chromEnds, ",")
@@ -335,11 +310,17 @@ def fetch_bed_table(host, xcur, table_name, organism, genePred=False):
         if not has_bin_column:
             awk_script = re.sub(r'\$(\d+)\b', lambda m: '$' + str(int(m.group(1)) - 1), awk_script)
         command = "cat '{}' | zcat | awk -v OFS=\"\\t\" '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, awk_script, location)
+    elif bedlike_format == 'psl':
+        if not cmd_exists('pslToBigPsl'):
+            sys.exit("FATAL: must have pslToBigPsl installed on $PATH")
+        command = "cat '{}' | zcat {}| pslToBigPsl /dev/stdin stdout | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
+                                                                                                    cut_bin_column, location)
+    elif bedlike_format is None:
+        command = "cat '{}' | zcat {}>'{}'".format(gz_file, cut_bin_column, location)
     else:
-        if has_bin_column:
-            command = "cat '{}' | zcat | cut -f 2- >'{}'".format(gz_file, location)
-        else:
-            command = "cat '{}' | zcat >'{}'".format(gz_file, location)
+        print('FAILED ({}): [db {}] "{}" {} conversion to BED not handled.'.format(print_time(), organism, table_name, 
+                                                                                    bedlike_format))
+        return None
     
     try:
         sbp.check_call(command, shell=True)

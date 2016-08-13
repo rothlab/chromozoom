@@ -77,7 +77,8 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
         print('INFO ({}): [db {}] Checking table "{}".'.format(buildfun.print_time(), organism, tablename))
         save_to_db = False
         update_date = buildfun.get_update_time(cur, organism, tablename)
-        is_genePred = dbtype.startswith('genePred')
+        bedlike_format = re.match(r'^(genePred|psl)\b', dbtype)
+        bedlike_format = bedlike_format and bedlike_format.group(1)
 
         # check if we need to update the table
         if tablename in last_updates:
@@ -104,14 +105,17 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
                                                                                                  dbtype))
             save_to_db = True
 
-        # BED and genePred processing
-        elif dbtype.startswith('bed ') or is_genePred:
-            bed_location = buildfun.fetch_bed_table(mysql_host, cur, tablename, organism, is_genePred)
+        # BED, genePred, and PSL processing
+        elif dbtype.startswith('bed ') or bedlike_format:
+            bed_location = buildfun.fetch_bed_table(mysql_host, cur, tablename, organism, bedlike_format)
             if bed_location is None:
                 continue
-            if is_genePred:
-                as_location = buildfun.genepred_as_file(bed_location)
+            if bedlike_format == 'genePred':
+                as_location = './autosql/genePredExt.as'
                 bedtype = 'bed12'
+            elif bedlike_format == 'psl':
+                as_location = './autosql/bigPsl.as'
+                bedtype = 'bed12+12'
             else:
                 as_location = buildfun.fetch_as_file(bed_location, cur, tablename)
                 bedtype = dbtype.replace(' ', '').rstrip('.') 
