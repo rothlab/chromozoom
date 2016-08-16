@@ -93,8 +93,8 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
         else:
             print('INFO ({}): [db {}] Need to fetch table "{}".'.format(buildfun.print_time(), organism, tablename))
 
-        # bigWig and BAM processing
-        if dbtype.startswith('bigWig ') or dbtype == 'bam':
+        # bigWig, bigBed, and BAM processing
+        if dbtype.startswith('bigWig ') or dbtype.startswith('bigBed ') or dbtype == 'bam':
             file_location = buildfun.qups("SELECT fileName FROM {}".format(tablename), cur)
 
             if len(file_location) > 1:
