@@ -334,6 +334,15 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
     return location
 
 
+def fetch_wig_table(host, xcur, table_name, organism, bedlike_format=None):
+    # TODO by Fred
+    pass
+
+def generate_big_wig(organism, btype, as_file, b_file):
+    # TODO by Fred
+    pass
+
+
 def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
     """
     Fetches all tracks from UCSC specified database
@@ -344,11 +353,22 @@ def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
         xcur = xconn.cursor()     # get the cursor
 
     if selection:
-        selection = ','.join(['"' + element + '"' for element in selection])
-        return qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
-                     "FROM trackDb WHERE tableName in ({})").format(selection), xcur)
-    return qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
-                 "FROM trackDb"), xcur)
+        # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
+        # so we have to fix that here and then set it back (?)
+        fixed_selection = [re.sub(r'^all_', '', element) for element in selection]
+        in_clause = ','.join(['"' + element + '"' for element in fixed_selection])
+        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
+                     "FROM trackDb WHERE tableName in ({}) ORDER BY tableName").format(in_clause), xcur)
+    else:
+        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
+                     "FROM trackDb ORDER BY tableName"), xcur)
+    
+    tracks = [list(track) for track in tracks]
+    for track in tracks:
+        if "all_" + track[0] in selection:
+            track[0] = "all_" + track[0]
+    
+    return tracks
 
 
 def create_sqllite3_db(xorganism):
@@ -377,9 +397,11 @@ def filter_extractable_dbs(wanted_tracks, xcur):
     databases and returns a list of those
     """
     track_data = set([table[0] for table in qups("SELECT tableName FROM trackDb", xcur)])
+    # Allow some tables, like mrna, and est, to by prefixed by "all_"
+    track_data = track_data | set(["all_" + track for track in track_data])
     tracks_tables = set([table[0] for table in qups("SHOW TABLES", xcur)])
-    extractable = track_data & tracks_tables
-    return [track for track in wanted_tracks if track in extractable]
+    extractable = track_data & tracks_tables & set(wanted_tracks)
+    return sorted(extractable)
 
 
 def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php', prefix=''):

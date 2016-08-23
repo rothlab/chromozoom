@@ -62,12 +62,14 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
                 c_trackname = line.split('(', 1)[1][:-2]
             elif 'Table:' in line:
                 c_table = line.split()[1]
-                if c_track != line.split()[1] and not args.all:
+                if c_table == 'all_mrna':
+                    print([c_track, "all_" + c_track])
+                if c_table not in [c_track, "all_" + c_track] and not args.all:
                     continue
                 all_tracks.append(c_table)
                 track_info[c_table] = (line.split('(', 1)[1][:-2], c_trackname, c_tgroupname)
 
-    process_tracks = sorted(buildfun.filter_extractable_dbs(all_tracks, cur))
+    process_tracks = buildfun.filter_extractable_dbs(all_tracks, cur)
     local_db, localcur, localconn = buildfun.create_sqllite3_db(organism)
     my_tracks = buildfun.fetch_tracks(host=mysql_host, db_name=organism, xcur=cur, selection=process_tracks)
 
@@ -136,6 +138,10 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             os.remove(bed_location)
             if not as_location.startswith('autosql/'): os.remove(as_location)
             save_to_db = True
+        
+        elif dbtype.startswith('wig '):
+            print('ERROR: skipping for now, TODO by Fred!')
+            # TODO by Fred
             
         else:
             print('INFO ({}): [db {}] Unhandled dbtype "{}" for table "{}".'.format(buildfun.print_time(), organism,
