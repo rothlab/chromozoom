@@ -62,8 +62,6 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
                 c_trackname = line.split('(', 1)[1][:-2]
             elif 'Table:' in line:
                 c_table = line.split()[1]
-                if c_table == 'all_mrna':
-                    print([c_track, "all_" + c_track])
                 if c_table not in [c_track, "all_" + c_track] and not args.all:
                     continue
                 all_tracks.append(c_table)
