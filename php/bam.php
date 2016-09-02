@@ -29,8 +29,10 @@ function autoconvert_chrs(&$ranges, $output) {
 
 $ranges = array();
 $INFO_ONLY = FALSE;
+require_once('../lib/setup.php');
 
 if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
+passthru_basic_auth_for_GET_param('url');
 if (isset($_GET['info'])) { $INFO_ONLY = TRUE; } 
 $ranges = array_filter((array) $_GET['range'], 'valid_range');
 if (!isset($_GET['range']) || !count($ranges)) { bad_request(); }

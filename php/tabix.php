@@ -1,6 +1,6 @@
 <?php
 /**
- * This page runs a URL to a tabix-indexed file and a series of position through tabix.
+ * This page runs a URL to a tabix-indexed file and a series of positions through tabix.
  * Symlink tabix to the ../bin directory
  **/
 function bad_request() {

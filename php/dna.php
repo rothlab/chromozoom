@@ -11,7 +11,11 @@ require_once("../lib/setup.php");
 
 $REQ = $_SERVER['REQUEST_METHOD'] == 'POST' ? $_POST : $_GET;
 
-function forbidden($err) { header('HTTP/1.1 403 Forbidden'); if (strlen($err)) { echo json_encode(array('error'=>$err)); } exit; }
+function forbidden($err) { 
+  header('HTTP/1.1 403 Forbidden');
+  if (strlen($err)) { echo json_encode(array('error'=>$err)); }
+  exit;
+}
 
 $ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 $genome_config = array();
