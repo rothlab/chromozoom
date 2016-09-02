@@ -161,6 +161,7 @@ var BamFormat = {
           upperBound = 5000, 
           sampleIntervals, meanItemLength, hasAMatePair, chrScheme, meanItemsPerBp;
         
+        if (infoParts[0] == '') { throw new Error("samtools failed to retrieve data for this BAM track."); }
         _.each(infoParts[0].split("\n"), function(line) {
           var fields = line.split("\t"),
             readsMappedToContig = parseInt(fields[2], 10);
