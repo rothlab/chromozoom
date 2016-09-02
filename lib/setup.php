@@ -37,12 +37,6 @@ function passthru_basic_auth_for_GET_param($param) {
     $same_host = $_SERVER["SERVER_NAME"] === $parsed_url["host"];
     $same_port = isset($parsed_url["port"]) ? $_SERVER["SERVER_PORT"] == $parsed_url["port"] : 
         ($_SERVER["SERVER_PORT"] == (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== '' ? 443 : 80));
-    var_dump($same_scheme);
-    var_dump($same_host);
-    var_dump($same_port);
-    var_dump($no_user);
-    var_dump($same_user);
-    var_dump($no_password);
     if ($same_scheme && $same_host && $same_port && ($no_user || ($same_user && $no_password))) {
       $user = rawurlencode($_SERVER['PHP_AUTH_USER']);
       $pass = rawurlencode($_SERVER['PHP_AUTH_PW']);
