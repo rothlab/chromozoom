@@ -3,6 +3,8 @@
  * This page passes off a URL to a BAM file and a series of positions to `samtools view`.
  * Symlink samtools into the ../bin directory.
  **/
+require_once('../lib/setup.php');
+
 function bad_request() {
   header('HTTP/1.1 403 Forbidden');
   exit;
@@ -29,7 +31,6 @@ function autoconvert_chrs(&$ranges, $output) {
 
 $ranges = array();
 $INFO_ONLY = FALSE;
-require_once('../lib/setup.php');
 
 if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
 passthru_basic_auth_for_GET_param('url');

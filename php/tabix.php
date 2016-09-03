@@ -3,12 +3,15 @@
  * This page runs a URL to a tabix-indexed file and a series of positions through tabix.
  * Symlink tabix to the ../bin directory
  **/
+require_once('../lib/setup.php');
+
 function bad_request() {
   header('HTTP/1.1 403 Forbidden');
   exit;
 }
  
 if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
+passthru_basic_auth_for_GET_param('url');
 if (!isset($_GET['range'])) { bad_request(); } 
 else { $range = array_filter((array) $_GET['range']); }
 if (!count($range)) { bad_request(); }

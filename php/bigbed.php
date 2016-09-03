@@ -3,6 +3,8 @@
  * This page fetches a genomic range from a bigBed file available at a URL
  * bigBedSummary and bigBedToBed must be at ../bin/
  **/
+require_once('../lib/setup.php');
+
 function bad_request() {
   header('HTTP/1.1 403 Forbidden');
   exit;
@@ -15,6 +17,7 @@ function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 $INFO_ONLY = FALSE;
 
 if (!isset($_GET['url']) || !preg_match('#^(https?|cache)://#', $_GET['url'])) { bad_request(); }
+passthru_basic_auth_for_GET_param('url');
 $_GET['url'] = preg_replace('#^cache://#', dirname(dirname(__FILE__)) . "/", $_GET['url']);
 if (!isset($_GET['range'])) { $INFO_ONLY = TRUE; } 
 else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }

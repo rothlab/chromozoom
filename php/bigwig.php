@@ -1,8 +1,10 @@
 <?php
 /**
- * This page fetches a genomic range from a bigBed file available at a URL
- * bigBedSummary and bigBedToBed must be at ../bin/
+ * This page fetches a genomic range from a bigWig file available at a URL
+ * bigWigSummary and bigWigInfo must be at ../bin/
  **/
+require_once('../lib/setup.php');
+
 function bad_request() {
   header('HTTP/1.1 403 Forbidden');
   exit;
@@ -15,6 +17,7 @@ $WINFUNCS = array('minimum'=>'min', 'maximum'=>'max', 'mean'=>'mean', 'min'=>'mi
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
  
 if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
+passthru_basic_auth_for_GET_param('url');
 $SUMMARY = !isset($_GET['info']);
 if ($SUMMARY) {
   if (!isset($_GET['range'])) { bad_request(); } 

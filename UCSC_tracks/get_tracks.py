@@ -138,8 +138,8 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             save_to_db = True
         
         elif dbtype.startswith('wig '):
-            print('ERROR: skipping for now, TODO by Fred!')
-            # TODO by Fred
+            print('ERROR: skipping for now, TODO!')
+            # Can simply link to http://hgdownload.cse.ucsc.edu/goldenPath/hg38/{phyloP,phast}{7,20,100}way/*.bw
             
         else:
             print('INFO ({}): [db {}] Unhandled dbtype "{}" for table "{}".'.format(buildfun.print_time(), organism,

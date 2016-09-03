@@ -334,15 +334,6 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
     return location
 
 
-def fetch_wig_table(host, xcur, table_name, organism, bedlike_format=None):
-    # TODO by Fred
-    pass
-
-def generate_big_wig(organism, btype, as_file, b_file):
-    # TODO by Fred
-    pass
-
-
 def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
     """
     Fetches all tracks from UCSC specified database
