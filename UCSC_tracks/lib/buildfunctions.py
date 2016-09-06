@@ -3,7 +3,6 @@ import pymysql.cursors
 import sqlite3
 import urllib.request
 import os, sys
-import pymysql.cursors
 import subprocess as sbp
 import re
 import json
@@ -33,6 +32,29 @@ def print_time():
     return time.strftime('%X %x')
 
 
+def create_sqllite3_db(xorganism):
+    """
+    Checks if DB is created and
+    if not create it.
+    Returns DB location.
+    """
+    db_loc = './{}/tracks.db'.format(xorganism)
+
+    new_db = True
+    if os.path.isfile(db_loc):
+        new_db = False
+
+    xconn = sqlite3.connect(db_loc)
+    c = xconn.cursor()
+    if new_db:
+        c.execute("CREATE TABLE tracks (name, displayName, type, grp, grpLabel, parentTrack, trackLabel, "
+                  "shortLabel, longLabel, priority, location, html longblob, updateDate)")
+    return db_loc, c, xconn
+
+def get_last_local_updates(localcur):
+    localcur.execute('SELECT name, updateDate FROM tracks;')
+    return dict(localcur.fetchall())
+
 def get_remote_table():
     cfg = open_ucsc_yaml()
     return cfg['browser_hosts']['authoritative'] + cfg['browser_urls']['tables']
@@ -50,10 +72,50 @@ def get_remote_tracks():
     cfg = open_ucsc_yaml()
     return cfg['browser_hosts']['authoritative'] + cfg['browser_urls']['tracks']
 
-# Check if a given executable is on $PATH
-# For more on the `type` shell builtin, see https://bash.cyberciti.biz/guide/Type_command
+
 def cmd_exists(cmd):
+    """
+    Check if a given executable is on $PATH
+    For more on the `type` shell builtin, see https://bash.cyberciti.biz/guide/Type_command
+    """
     return sbp.call("type " + cmd, shell=True, stdout=sbp.PIPE, stderr=sbp.PIPE) == 0
+
+
+def qups(in_cmd, ucur):
+    """
+    Executes MySQL query and returns parsed results
+    """
+    ucur.connection.ping(reconnect=True)
+    ucur.execute(in_cmd)
+    return ucur.fetchall()
+
+
+def get_update_time(xcur, db, table_name):
+    """
+    Fetches table update time
+    """
+    return str(qups(("SELECT UPDATE_TIME FROM information_schema.tables "
+                     "WHERE TABLE_SCHEMA='{}' AND TABLE_NAME='{}'").format(db, table_name), xcur)[0][0])
+
+
+def get_numrows(xcur, table_name):
+    return qups("SELECT COUNT(*) FROM {}".format(table_name), xcur)[0][0]
+
+
+def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php', prefix=''):
+    """
+    Get list of organism databases that we may want to scrape from UCSC
+    """
+
+    with urllib.request.urlopen(url) as response:
+        my_html = response.read().decode()
+        my_html = json.loads(my_html)
+
+    org_names = [organism['name'] for organism in my_html]
+    if prefix != '':
+        org_names = [name for name in org_names if name.startswith(prefix)]
+    
+    return org_names
 
 
 def get_tables(db='', tgroup='', xtrack='', table_source=''):
@@ -64,7 +126,7 @@ def get_tables(db='', tgroup='', xtrack='', table_source=''):
     return dict(zip(search_taids, search_tanames))
 
 
-def get_tracks(db='', tgroup='', table_source=''):
+def get_tracks_in_group(db='', tgroup='', table_source=''):
     mytree = html.parse("{}?db={}&hgta_group={}".format(table_source, db, tgroup))
 
     search_tids = mytree.xpath('//select[@name="hgta_track"]/option/@value')
@@ -73,9 +135,9 @@ def get_tracks(db='', tgroup='', table_source=''):
     return dict(zip(search_tids, search_tnames))
 
 
-def get_groups(db='', table_source=''):
+def get_track_groups(db='', table_source=''):
     """
-    Returns dictionary of groups.
+    Returns dictionary of track groups => track names.
     """
     mytree = html.parse("{}?db={}".format(table_source, db))
     search_gids = mytree.xpath('//select[@name="hgta_group"]/option/@value')
@@ -94,9 +156,9 @@ def get_groups(db='', table_source=''):
     return groups_dict
 
 
-def get_priority(db, selection, tracks_source):
+def get_priority(db, selection, tracks_source, track_info):
     """
-    Returns dictionary of tracks -> priorities
+    Returns dictionary of tracks -> priorities, which are numbers (lower number means higher priority)
     
     The primary gene track(s) gets the highest priority and is visible by default;
     tracks that are visible in UCSC by default get medium priority and are loaded into the track list;
@@ -110,13 +172,20 @@ def get_priority(db, selection, tracks_source):
     priorities = {}
     
     for track in selection:
-        track_default_visibility = track_form.xpath('//select[@name="{}"]/option[@selected]/text()')
+        sel_name = re.sub(r'^all_', '', track)
+        track_default_visibility = track_form.xpath('//select[@name="{}"]/option[@selected]/text()'.format(sel_name))
         if track == gene_tracks[0] or track in special_high_priority:
-            priorities[track] = 100
-        elif len(track_default_visibility) > 0 && track_default_visibility[0] != 'hide':
+            priorities[track] = 1
+        elif len(track_default_visibility) > 0 and track_default_visibility[0] != 'hide':
             priorities[track] = 10
         else:
-            priorities[track] = 1
+            priorities[track] = 100
+            parent_track = track_info[track]['parentTrack']
+            if parent_track != sel_name:
+                # Complex track incurs additional penalty proportional to number of subtracks
+                num_subtracks = len([k for (k, v) in track_info.items() if v['parentTrack'] == parent_track])
+                penalty = 3 if num_subtracks > 10 else (2 if num_subtracks > 3 else 0.5)
+                priorities[track] = int(priorities[track] * penalty)
         
     return priorities
     
@@ -136,7 +205,7 @@ def create_hierarchy(organism, table_source):
     w_file = open(location, 'w')
 
     print('Organism: {}'.format(organism), file=w_file)
-    org_groups = get_groups(organism, table_source=table_source)
+    org_groups = get_track_groups(organism, table_source=table_source)
 
     if not org_groups:
         w_file.close()
@@ -145,17 +214,110 @@ def create_hierarchy(organism, table_source):
 
     for group in org_groups:
         print('\tTrackgroup: {} ({})'.format(group, org_groups[group]), file=w_file)
-        track_groups = get_tracks(organism, group, table_source)
+        tracks_in_group = get_tracks_in_group(organism, group, table_source)
 
-        for track in track_groups:
-            print('\t\tTrack: {} ({})'.format(track, track_groups[track]), file=w_file)
+        for track in tracks_in_group:
+            print('\t\tTrack: {} ({})'.format(track, tracks_in_group[track]), file=w_file)
             tables = get_tables(organism, group, track, table_source)
             for table in tables:
                 print('\t\t\tTable: {} ({})'.format(table, tables[table]), file=w_file)
     return location
 
 
-def setup(organism):
+def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
+    selected_tracks = []
+    track_info = dict()
+    curr_tgroupname = None
+    curr_track = None
+    curr_trackname = None
+    curr_table = None
+    curr_track_tables = []
+    curr_track_lines = dict()
+    
+    def process_tables():
+        nonlocal curr_track_tables, selected_tracks, track_info
+        if len(curr_track_tables) == 0: return
+        simple_table = [table for table in [curr_track, "all_" + curr_track] if table in curr_track_tables]
+        if len(simple_table) == 1:
+            selected_tracks.append(simple_table[0])
+            track_info[simple_table[0]] = {
+                'displayName': line.split('(', 1)[1][:-2],
+                'trackLabel': curr_trackname,
+                'groupLabel': curr_tgroupname,
+                'parentTrack': curr_track
+            }
+        else:
+            # Complex track
+            if include_composite_tracks:
+                selected_tracks += curr_track_tables
+                for table in curr_track_tables:
+                    table_line = curr_track_lines[curr_table]
+                    track_info[table] = {
+                        'displayName': table_line.split('(', 1)[1][:-2],
+                        'trackLabel': curr_trackname,
+                        'groupLabel': curr_tgroupname,
+                        'parentTrack': curr_track
+                    }
+        curr_track_tables = []
+
+    with open(hierarchy_location, 'r') as handle:
+        for line in handle:
+            if 'Trackgroup: ' in line:
+                process_tables()
+                curr_tgroupname = line.split('(', 1)[1][:-2]
+            elif 'Track:' in line:
+                process_tables()
+                curr_track = line.split()[1]
+                curr_trackname = line.split('(', 1)[1][:-2]
+            elif 'Table:' in line:
+                curr_table = line.split()[1]
+                curr_track_tables.append(curr_table)
+                curr_track_lines[curr_table] = line
+    process_tables() # Process last track's tables.
+    
+    return selected_tracks, track_info
+
+
+def filter_extractable_dbs(wanted_tracks, xcur):
+    """
+    Checks which tracks in wanted_tracks can be extracted from UCSC databases, returns a filtered list
+    """
+    track_data = set([table[0] for table in qups("SELECT tableName FROM trackDb", xcur)])
+    # Allow some tables, like mrna, and est, to by prefixed by "all_"
+    track_data = track_data | set(["all_" + track for track in track_data])
+    tracks_tables = set([table[0] for table in qups("SHOW TABLES", xcur)])
+    extractable = track_data & tracks_tables & set(wanted_tracks)
+    return extractable
+
+
+def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
+    """
+    Fetches track information from the specified UCSC database, which is in the trackDb table
+    :return:
+    """
+    if xcur is None:
+        xconn = pymysql.connect(host=host, user='genome', database=db_name)
+        xcur = xconn.cursor()     # get the cursor
+
+    if selection:
+        # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
+        fixed_selection = [re.sub(r'^all_', '', element) for element in selection]
+        in_clause = ','.join(['"' + element + '"' for element in fixed_selection])
+        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
+                     "FROM trackDb WHERE tableName in ({})").format(in_clause), xcur)
+    else:
+        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
+                     "FROM trackDb ORDER BY tableName"), xcur)
+    
+    tracks = [list(track) for track in tracks]
+    for track in tracks:
+        if "all_" + track[0] in selection:
+            track[0] = "all_" + track[0]
+    
+    return tracks
+
+
+def setup_directories(organism):
     """
     Sets up directories and files needed for track fetching
     """
@@ -169,27 +331,6 @@ def setup(organism):
 
     if not os.path.exists(organism + '/bigBed'):
         os.makedirs(organism + '/bigBed')
-
-
-def qups(in_cmd, ucur):
-    """
-    Executes mySQL query and returns parsed results
-    """
-    ucur.connection.ping(reconnect=True)
-    ucur.execute(in_cmd)
-    return ucur.fetchall()
-
-
-def get_update_time(xcur, db, table_name):
-    """
-    Fetches table update time
-    """
-    return str(qups(("SELECT UPDATE_TIME FROM information_schema.tables "
-                     "WHERE TABLE_SCHEMA='{}' AND TABLE_NAME='{}'").format(db, table_name), xcur)[0][0])
-
-
-def get_numrows(xcur, table_name):
-    return qups("SELECT COUNT(*) FROM {}".format(table_name), xcur)[0][0]
 
 
 def fetch_as_file(bed_location, xcur, table_name):
@@ -297,8 +438,6 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
     has_bin_column = table_fields[0] == 'bin'
     cut_bin_column = '| cut -f 2- ' if has_bin_column else ''
     has_genePred_fields = table_fields[-4:] == ['name2', 'cdsStartStat', 'cdsEndStat', 'exonFrames']
-    # FIXME: check if last 4 columns are name2, cdsStartStat, cdsEndStat, and exonFrames
-    #        and if so preserve them below
 
     url = get_downloads_table_tsv() % (organism, table_name)
     # Note: formerly, we attempted to fetch the data via MySQL, but this would time out for large tables
@@ -323,6 +462,7 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
         returncode = 0
     
     if bedlike_format == 'genePred':
+        # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html
         awk_script = """
         {
           split($11, chromEnds, ",")
@@ -333,22 +473,29 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
           }
           blockSizes = exonSizes[1]
           blockStarts = exonStarts[1]
+          blankExonFrames = "-1"
           for (i = 2; i <= $9; i++) {
               blockSizes = blockSizes "," exonSizes[i]
               blockStarts = blockStarts "," exonStarts[i]
+              blankExonFrames = blankExonFrames ",-1"
           }
-          print ($3, $5, $6, $2, $12 + 0, $4, $7, $8, "0", $9, blockSizes, blockStarts)
+          print ($3, $5, $6, $2, $12 + 0, $4, $7, $8, "0", $9, blockSizes, blockStarts,
+              %s, "", "", "", "")
         }
         """
-        # FIXME: Also add name2, cdsStartStat, cdsEndStat, and exonFrames into a bed12+4 if available
-        # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html
         if not has_bin_column:
             awk_script = re.sub(r'\$(\d+)\b', lambda m: '$' + str(int(m.group(1)) - 1), awk_script)
+        if has_genePred_fields:
+            col_vars = '$' + (", $".join(map(str, range(len(table_fields) - 3, len(table_fields) + 1))))
+            awk_script = awk_script.replace('%s', col_vars)
+        else:
+            awk_script = awk_script.replace('%s', '"", "unk", "unk", blankExonFrames')
         command = "cat '{}' | zcat | awk -v OFS=\"\\t\" '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, awk_script, location)
         # FIXME: For knownGene tracks, can get name2 from kgXref and the other three columns from knownCds
         #        Would have to manually glob on these columns with another function.
         #        Could further stuff the "description" into the 19th standard bigGenePred column (geneName2).
     elif bedlike_format == 'psl':
+        # See https://genome.ucsc.edu/goldenPath/help/bigPsl.html
         if not cmd_exists('pslToBigPsl'):
             sys.exit("FATAL: must have pslToBigPsl installed on $PATH")
         command = "cat '{}' | zcat {}| pslToBigPsl /dev/stdin stdout | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
@@ -370,80 +517,3 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
         return None
     
     return location
-
-
-def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
-    """
-    Fetches all tracks from UCSC specified database
-    :return:
-    """
-    if xcur is None:
-        xconn = pymysql.connect(host=host, user='genome', database=db_name)
-        xcur = xconn.cursor()     # get the cursor
-
-    if selection:
-        # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
-        # so we have to fix that here and then set it back (?)
-        fixed_selection = [re.sub(r'^all_', '', element) for element in selection]
-        in_clause = ','.join(['"' + element + '"' for element in fixed_selection])
-        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
-                     "FROM trackDb WHERE tableName in ({}) ORDER BY tableName").format(in_clause), xcur)
-    else:
-        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
-                     "FROM trackDb ORDER BY tableName"), xcur)
-    
-    tracks = [list(track) for track in tracks]
-    for track in tracks:
-        if "all_" + track[0] in selection:
-            track[0] = "all_" + track[0]
-    
-    return tracks
-
-
-def create_sqllite3_db(xorganism):
-    """
-    Checks if DB is created and
-    if not create it.
-    Returns DB location.
-    """
-    db_loc = './{}/tracks.db'.format(xorganism)
-
-    new_db = True
-    if os.path.isfile(db_loc):
-        new_db = False
-
-    xconn = sqlite3.connect(db_loc)
-    c = xconn.cursor()
-    if new_db:
-        c.execute("CREATE TABLE tracks (name, displayName, type, trackGroup, track, shortLabel, longLabel, location,"
-                  " html longblob, updateDate)")
-    return db_loc, c, xconn
-
-
-def filter_extractable_dbs(wanted_tracks, xcur):
-    """
-    Checks which tracks can be extracted from UCSC
-    databases and returns a list of those
-    """
-    track_data = set([table[0] for table in qups("SELECT tableName FROM trackDb", xcur)])
-    # Allow some tables, like mrna, and est, to by prefixed by "all_"
-    track_data = track_data | set(["all_" + track for track in track_data])
-    tracks_tables = set([table[0] for table in qups("SHOW TABLES", xcur)])
-    extractable = track_data & tracks_tables & set(wanted_tracks)
-    return sorted(extractable)
-
-
-def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php', prefix=''):
-    """
-    Get list of organisms
-    """
-
-    with urllib.request.urlopen(url) as response:
-        my_html = response.read().decode()
-        my_html = json.loads(my_html)
-
-    org_names = [organism['name'] for organism in my_html]
-    if prefix != '':
-        org_names = [name for name in org_names if name.startswith(prefix)]
-    
-    return org_names

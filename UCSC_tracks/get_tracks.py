@@ -7,8 +7,10 @@ import sys
 import re
 
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
-parser.add_argument('--all', action='store_true', default=False,
-                    help='Load all tables from UCSC.')
+parser.add_argument('--composite_tracks', action='store_true', default=False,
+                    help='Scrape both simple and composite tracks from UCSC (default is simple only).')
+parser.add_argument('--priority_below', action='store', type=float, default=None,
+                    help='Restrict scraping to tracks with calculated priority below this number (1-1000).')
 parser.add_argument('--org_source', action='store', type=str, default='http://beta.chromozoom.org/php/chromsizes.php',
                     help='Location of organisms list in JSON format.')
 parser.add_argument('--org_prefix', action='store', type=str, default='',
@@ -38,46 +40,31 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
         print('WARNING ({}): No tables for {} found. Omitting.'.format(buildfun.print_time(), organism))
         continue
 
-    # Try connecting to a database
+    # Try connecting to UCSC's MySQL database
     try:
         conn = pymysql.connect(host=mysql_host, user='genome', database=organism)
         cur = conn.cursor()
     except pymysql.err.InternalError:
         print('WARNING ({}): No MySQL tables found for "{}". Omitting.'.format(buildfun.print_time(), organism))
         continue
-    buildfun.setup(organism)
+    buildfun.setup_directories(organism)
 
-    all_tracks = []
-    track_info = dict()
-    c_tgroupname = None
-    c_track = None
-    c_trackname = None
-    c_table = None
-
-    with open(track_meta, 'r') as handle:
-        for line in handle:
-            if 'Trackgroup: ' in line:
-                c_tgroupname = line.split('(', 1)[1][:-2]
-            elif 'Track:' in line:
-                c_track = line.split()[1]
-                c_trackname = line.split('(', 1)[1][:-2]
-            elif 'Table:' in line:
-                c_table = line.split()[1]
-                if c_table not in [c_track, "all_" + c_track] and not args.all:
-                    continue
-                all_tracks.append(c_table)
-                track_info[c_table] = (line.split('(', 1)[1][:-2], c_trackname, c_tgroupname)
-
-    process_tracks = buildfun.filter_extractable_dbs(all_tracks, cur)
+    selected_tracks, track_info = buildfun.distill_hierarchy(track_meta, args.composite_tracks)
+    selected_tracks = buildfun.filter_extractable_dbs(selected_tracks, cur)
+    track_priority = buildfun.get_priority(db=organism, selection=selected_tracks, tracks_source=tracks_source, 
+                                           track_info=track_info)
+    if args.priority_below is not None:
+        selected_tracks = [t for t in selected_tracks if track_priority[t] <= args.priority_below]
+    
     local_db, localcur, localconn = buildfun.create_sqllite3_db(organism)
-    my_tracks = buildfun.fetch_tracks(host=mysql_host, db_name=organism, xcur=cur, selection=process_tracks)
-    track_priority = buildfun.get_priority(db=organism, selection=process_tracks, tracks_source=tracks_source)
-
-    localcur.execute('SELECT name, updateDate FROM tracks;')
-    last_updates = dict(localcur.fetchall())
+    last_updates = buildfun.get_last_local_updates(localcur)
+    
+    my_tracks = buildfun.fetch_tracks(host=mysql_host, db_name=organism, xcur=cur, selection=selected_tracks)
+    my_tracks = sorted(my_tracks, key=lambda row: (track_info[row[0]]['parentTrack'], row[0]))
 
     for tablename, dbtype, group, shortLabel, longLabel, htmlDescription, settings in my_tracks:
-        print('INFO ({}): [db {}] Checking table "{}".'.format(buildfun.print_time(), organism, tablename))
+        parent_track = track_info[tablename]['parentTrack']
+        print('INFO ({}): [db {}] Checking table "{}", track {}.'.format(buildfun.print_time(), organism, tablename, parent_track))
         save_to_db = False
         update_date = buildfun.get_update_time(cur, organism, tablename)
         bedlike_format = re.match(r'^(genePred|psl)\b', dbtype)
@@ -114,8 +101,8 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             if bed_location is None:
                 continue
             if bedlike_format == 'genePred':
-                as_location = 'autosql/genePredExt.as'
-                bedtype = 'bed12'
+                as_location = 'autosql/genePredFull.as'
+                bedtype = 'bed12+8'
             elif bedlike_format == 'psl':
                 as_location = 'autosql/bigPsl.as'
                 bedtype = 'bed12+12'
@@ -149,9 +136,9 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             continue
 
         if save_to_db:
-            command = 'INSERT INTO tracks VALUES (?,?,?,?,?,?,?,?,?,?)'
-            localcur.execute(command, (tablename, track_info[tablename][0], dbtype, track_info[tablename][2],
-                                       track_info[tablename][1], shortLabel, longLabel, file_location, htmlDescription,
-                                       update_date))
+            row_vals = (tablename, track_info[tablename]['displayName'], dbtype, group, track_info[tablename]['groupLabel'], 
+                    parent_track, track_info[tablename]['trackLabel'], shortLabel, longLabel, track_priority[tablename], 
+                    file_location, htmlDescription, update_date)
+            command = 'INSERT INTO tracks VALUES (' + (','.join(['?'] * len(row_vals))) + ')'
+            localcur.execute(command, row_vals)
         localconn.commit()
-        time.sleep(10)
