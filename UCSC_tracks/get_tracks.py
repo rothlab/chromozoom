@@ -23,6 +23,7 @@ args = parser.parse_args()
 
 
 table_source = buildfun.get_remote_table() if args.table_source == '' else args.table_source
+tracks_source = buildfun.get_remote_tracks()
 mysql_host = buildfun.get_mysql_host() if args.mysql_host == '' else args.mysql_host
 downloads_base_url = buildfun.get_downloads_base_url() if args.downloads_base_url == '' else args.downloads_base_url
 downloads_base_url = downloads_base_url.rstrip('/')
@@ -70,6 +71,7 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
     process_tracks = buildfun.filter_extractable_dbs(all_tracks, cur)
     local_db, localcur, localconn = buildfun.create_sqllite3_db(organism)
     my_tracks = buildfun.fetch_tracks(host=mysql_host, db_name=organism, xcur=cur, selection=process_tracks)
+    track_priority = buildfun.get_priority(db=organism, selection=process_tracks, tracks_source=tracks_source)
 
     localcur.execute('SELECT name, updateDate FROM tracks;')
     last_updates = dict(localcur.fetchall())

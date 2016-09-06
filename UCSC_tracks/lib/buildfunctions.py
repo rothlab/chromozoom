@@ -46,6 +46,10 @@ def get_downloads_base_url():
 def get_downloads_table_tsv():
     return open_ucsc_yaml()['data_urls']['table_tsv']
 
+def get_remote_tracks():
+    cfg = open_ucsc_yaml()
+    return cfg['browser_hosts']['authoritative'] + cfg['browser_urls']['tracks']
+
 # Check if a given executable is on $PATH
 # For more on the `type` shell builtin, see https://bash.cyberciti.biz/guide/Type_command
 def cmd_exists(cmd):
@@ -89,6 +93,33 @@ def get_groups(db='', table_source=''):
 
     return groups_dict
 
+
+def get_priority(db, selection, tracks_source):
+    """
+    Returns dictionary of tracks -> priorities
+    
+    The primary gene track(s) gets the highest priority and is visible by default;
+    tracks that are visible in UCSC by default get medium priority and are loaded into the track list;
+    all other tracks are low priority, and are searchable but not loaded into the track list by default
+    """
+    # The first gene track in the track UI is considered the primary gene track, with a couple exceptions
+    special_high_priority = ['sgdOther']
+    mytree = html.parse("{}?db={}".format(tracks_source, db))
+    track_form = mytree.xpath('//form[@id="TrackForm"]')[0]
+    gene_tracks = track_form.xpath('//tr[starts-with(@id,"genes-")]//select/@name')
+    priorities = {}
+    
+    for track in selection:
+        track_default_visibility = track_form.xpath('//select[@name="{}"]/option[@selected]/text()')
+        if track == gene_tracks[0] or track in special_high_priority:
+            priorities[track] = 100
+        elif len(track_default_visibility) > 0 && track_default_visibility[0] != 'hide':
+            priorities[track] = 10
+        else:
+            priorities[track] = 1
+        
+    return priorities
+    
 
 def create_hierarchy(organism, table_source):
     """
@@ -262,8 +293,12 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
     """
     gz_file = './{}/build/{}.txt.gz'.format(organism, table_name)
     location = './{}/build/{}.bed'.format(organism, table_name)
-    has_bin_column = fetch_table_fields(xcur, table_name)[0] == 'bin'
+    table_fields = fetch_table_fields(xcur, table_name)
+    has_bin_column = table_fields[0] == 'bin'
     cut_bin_column = '| cut -f 2- ' if has_bin_column else ''
+    has_genePred_fields = table_fields[-4:] == ['name2', 'cdsStartStat', 'cdsEndStat', 'exonFrames']
+    # FIXME: check if last 4 columns are name2, cdsStartStat, cdsEndStat, and exonFrames
+    #        and if so preserve them below
 
     url = get_downloads_table_tsv() % (organism, table_name)
     # Note: formerly, we attempted to fetch the data via MySQL, but this would time out for large tables
@@ -310,6 +345,9 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
         if not has_bin_column:
             awk_script = re.sub(r'\$(\d+)\b', lambda m: '$' + str(int(m.group(1)) - 1), awk_script)
         command = "cat '{}' | zcat | awk -v OFS=\"\\t\" '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, awk_script, location)
+        # FIXME: For knownGene tracks, can get name2 from kgXref and the other three columns from knownCds
+        #        Would have to manually glob on these columns with another function.
+        #        Could further stuff the "description" into the 19th standard bigGenePred column (geneName2).
     elif bedlike_format == 'psl':
         if not cmd_exists('pslToBigPsl'):
             sys.exit("FATAL: must have pslToBigPsl installed on $PATH")
