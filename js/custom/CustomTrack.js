@@ -10,16 +10,19 @@ module.exports = function(global) {
 var _ = require('../underscore.min.js');
 
 var utils = require('./track-types/utils/utils.js'),
+  strip = utils.strip;
   parseInt10 = utils.parseInt10;
 
 function CustomTrack(opts, browserOpts) {
   if (!opts) { return; } // This is an empty customTrack that will be hydrated with values from a serialized object
-  this._type = (opts.type && opts.type.toLowerCase()) || "bed";
+  var typeWithArgs = (opts.type && strip(opts.type.toLowerCase()).split(/\s+/)) || ["bed"];
+  opts.type = this._type = typeWithArgs[0];
   var type = this.type();
   if (type === null) { throw new Error("Unsupported track type '"+opts.type+"' encountered on line " + opts.lineNum); }
   this.opts = _.extend({}, this.constructor.defaults, type.defaults || {}, opts);
   _.extend(this, {
     browserOpts: browserOpts,
+    typeArgs: typeWithArgs.slice(1),
     stretchHeight: false,
     heights: {},
     sizes: ['dense'],

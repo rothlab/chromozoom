@@ -13,4 +13,4 @@ options.js
 !*.example.yaml
 **/venv
 **/__pycache__
-
+*.pyc

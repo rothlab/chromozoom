@@ -289,6 +289,9 @@ var BedFormat = {
       color = self.opts.color,
       areas = null;
     
+    if (urlTemplate.match(/%s/)) { urlTemplate.replace(/%s/, '$$'); }
+    else if (!urlTemplate.match(/\$\$/)) { urlTemplate += '$$'; }
+    
     if (!ctx) { throw "Canvas not supported"; }
     // TODO: I disabled regenerating areas here, which assumes that lineNum remains stable across re-renders. Should check on this.
     if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }

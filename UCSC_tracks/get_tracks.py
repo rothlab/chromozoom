@@ -9,6 +9,8 @@ import re
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
 parser.add_argument('--composite_tracks', action='store_true', default=False,
                     help='Scrape both simple and composite tracks from UCSC (default is simple only).')
+parser.add_argument('--dry_run', action='store_true', default=False,
+                    help='Don\'t actually fetch any data, just list the tracks and what would be updated.')
 parser.add_argument('--priority_below', action='store', type=float, default=None,
                     help='Restrict scraping to tracks with calculated priority below this number (1-1000).')
 parser.add_argument('--org_source', action='store', type=str, default='http://beta.chromozoom.org/php/chromsizes.php',
@@ -27,6 +29,7 @@ args = parser.parse_args()
 table_source = buildfun.get_remote_table() if args.table_source == '' else args.table_source
 tracks_source = buildfun.get_remote_tracks()
 mysql_host = buildfun.get_mysql_host() if args.mysql_host == '' else args.mysql_host
+wig_as_bigwig = buildfun.get_wig_as_bigwig()
 downloads_base_url = buildfun.get_downloads_base_url() if args.downloads_base_url == '' else args.downloads_base_url
 downloads_base_url = downloads_base_url.rstrip('/')
 
@@ -62,83 +65,93 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
     my_tracks = buildfun.fetch_tracks(host=mysql_host, db_name=organism, xcur=cur, selection=selected_tracks)
     my_tracks = sorted(my_tracks, key=lambda row: (track_info[row[0]]['parentTrack'], row[0]))
 
-    for tablename, dbtype, group, shortLabel, longLabel, htmlDescription, settings in my_tracks:
-        parent_track = track_info[tablename]['parentTrack']
-        print('INFO ({}): [db {}] Checking table "{}", track {}.'.format(buildfun.print_time(), organism, tablename, parent_track))
+    for table_name, tr_type, group, short_label, long_label, html_description, remote_settings, url in my_tracks:
+        parent_track = track_info[table_name]['parentTrack']
+        print('INFO ({}): [db {}] Checking table "{}" (track {}).'.format(buildfun.print_time(), organism, table_name, parent_track))
         save_to_db = False
-        update_date = buildfun.get_update_time(cur, organism, tablename)
-        bedlike_format = re.match(r'^(genePred|psl)\b', dbtype)
-        bedlike_format = bedlike_format and bedlike_format.group(1)
+        bed_plus_fields = None
+        update_date = buildfun.get_update_time(cur, organism, table_name)
+        bedlike_format = buildfun.is_bedlike_format(tr_type)
 
         # check if we need to update the table
-        if tablename in last_updates:
-            if last_updates[tablename] == update_date:
+        if table_name in last_updates:
+            if last_updates[table_name] == update_date:
                 print('INFO ({}): [db {}] data for table "{}" is up to date.'.format(buildfun.print_time(),
-                                                                                          organism, tablename))
+                                                                                          organism, table_name))
                 continue
             else:
-                print('INFO ({}): [db {}] Updating table "{}".'.format(buildfun.print_time(), organism, tablename))
-                localcur.execute('DELETE FROM tracks WHERE name="{}";'.format(tablename))
+                print('INFO ({}): [db {}] Need to update table "{}".'.format(buildfun.print_time(), organism, table_name))
+                if not args.dry_run: localcur.execute('DELETE FROM tracks WHERE name="{}";'.format(table_name))
         else:
-            print('INFO ({}): [db {}] Need to fetch table "{}".'.format(buildfun.print_time(), organism, tablename))
+            print('INFO ({}): [db {}] Need to fetch table "{}".'.format(buildfun.print_time(), organism, table_name))
+        if args.dry_run: continue
 
-        # bigWig, bigBed, and BAM processing
-        if dbtype.startswith('bigWig ') or dbtype.startswith('bigBed ') or dbtype == 'bam':
-            file_location = buildfun.qups("SELECT fileName FROM {}".format(tablename), cur)
+        # bigWig, bigBed, and BAM processing - these files are already in big format and accessible by URL, so little work to do
+        if tr_type.startswith('bigWig ') or tr_type.startswith('bigBed ') or tr_type == 'bam':
+            file_location = buildfun.qups("SELECT fileName FROM {}".format(table_name), cur)
 
             if len(file_location) > 1:
                 print('WARNING ({}): [db {}] Multiple files are associated with "{}" "({})" file.'
-                      .format(buildfun.print_time(), organism, tablename, dbtype))
+                      .format(buildfun.print_time(), organism, table_name, tr_type))
             file_location = downloads_base_url + file_location[0][0]
             print('DONE ({}): [db {}] Fetched remote location for "{}" "{}" file.'.format(buildfun.print_time(),
-                                                                                                 organism, tablename, 
-                                                                                                 dbtype))
+                                                                                                 organism, table_name, 
+                                                                                                 tr_type))
             save_to_db = True
 
-        # BED, genePred, and PSL processing
-        elif dbtype.startswith('bed ') or bedlike_format:
-            bed_location = buildfun.fetch_bed_table(mysql_host, cur, tablename, organism, bedlike_format)
+        # wig - these tracks are luckily accessible as bigWig files, so again we simply link to their URL
+        elif tr_type.startswith('wig '):
+            file_location = wig_as_bigwig % (organism, table_name, organism, table_name)
+            if not buildfun.url_exists(file_location):
+                print('FAILED ({}): [db {}] URL for "{}" "{}" file (as bigWig) is not reachable: {}'
+                      .format(buildfun.print_time(), organism, table_name, tr_type, file_location))
+                continue
+            print('DONE ({}): [db {}] Fetched remote location for "{}" "wig" file, as bigWig.'.format(buildfun.print_time(),
+                                                                                                 organism, table_name))
+            save_to_db = True
+
+        # BED, genePred, and PSL processing - need to save and convert these to bigBed
+        elif bedlike_format:
+            bed_location = buildfun.fetch_bed_table(cur, table_name, organism, bedlike_format)
             if bed_location is None:
                 continue
             if bedlike_format == 'genePred':
                 as_location = 'autosql/genePredFull.as'
-                bedtype = 'bed12+8'
+                bed_type = 'bed12+8'
             elif bedlike_format == 'psl':
                 as_location = 'autosql/bigPsl.as'
-                bedtype = 'bed12+12'
+                bed_type = 'bed12+12'
             else:
-                as_location = buildfun.fetch_as_file(bed_location, cur, tablename)
-                bedtype = dbtype.replace(' ', '').rstrip('.') 
-            file_location = buildfun.generate_big_bed(organism, bedtype, as_location, bed_location)
+                as_location = buildfun.fetch_as_file(bed_location, cur, table_name)
+                bed_type = tr_type.replace(' ', '').rstrip('.')
+            bed_plus_fields = buildfun.extract_bed_plus_fields(tr_type, as_location)
+            file_location = buildfun.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
 
-            # Try fixing autosql_file
+            # If bigBed building failed, try fixing the autosql file once and retrying
             if file_location is None:
                 try:
-                    buildfun.fix_bed_as_files(bed_location, bedtype)
-                    file_location = buildfun.generate_big_bed(organism, bedtype, as_location, bed_location)
+                    buildfun.fix_bed_as_files(bed_location, bed_type)
+                    file_location = buildfun.generate_big_bed(organism, bed_type, as_location, bed_location)
                 except:
                     pass
             if file_location is None:
                 continue
-
-            # Delete successful builds
+            
+            # Delete interim files for successful builds
             os.remove(bed_location)
             if not as_location.startswith('autosql/'): os.remove(as_location)
             save_to_db = True
-        
-        elif dbtype.startswith('wig '):
-            print('ERROR: skipping for now, TODO!')
-            # Can simply link to http://hgdownload.cse.ucsc.edu/goldenPath/hg38/{phyloP,phast}{7,20,100}way/*.bw
             
         else:
-            print('INFO ({}): [db {}] Unhandled dbtype "{}" for table "{}".'.format(buildfun.print_time(), organism,
-                                                                                      dbtype, tablename))
+            print('INFO ({}): [db {}] Unhandled track type "{}" for table "{}".'.format(buildfun.print_time(), organism,
+                                                                                      tr_type, table_name))
             continue
 
         if save_to_db:
-            row_vals = (tablename, track_info[tablename]['displayName'], dbtype, group, track_info[tablename]['groupLabel'], 
-                    parent_track, track_info[tablename]['trackLabel'], shortLabel, longLabel, track_priority[tablename], 
-                    file_location, htmlDescription, update_date)
+            local_settings = buildfun.translate_settings(remote_settings, bed_plus_fields, url)
+            row_vals = (table_name, track_info[table_name]['displayName'], tr_type, group, track_info[table_name]['groupLabel'], 
+                    parent_track, track_info[table_name]['trackLabel'], short_label, long_label, track_priority[table_name], 
+                    file_location, html_description, update_date, remote_settings, local_settings)
             command = 'INSERT INTO tracks VALUES (' + (','.join(['?'] * len(row_vals))) + ')'
             localcur.execute(command, row_vals)
         localconn.commit()

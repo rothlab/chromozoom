@@ -85,6 +85,7 @@ data_urls:
     chrom_info: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/chromInfo.txt.gz'
     cyto_band: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/cytoBand.txt.gz'
     twobit: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/bigZips/%s.2bit'
+    wig_as_bigwig: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/%s/%s.%s.bw'
 
 # 
 custom_tracks:

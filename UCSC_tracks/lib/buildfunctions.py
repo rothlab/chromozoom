@@ -2,12 +2,15 @@ from lxml import html
 import pymysql.cursors
 import sqlite3
 import urllib.request
+from urllib.error import URLError
 import os, sys
 import subprocess as sbp
 import re
 import json
 import fileinput
 import time
+import gzip
+from .autosql import AutoSqlDeclaration
 
 # Cache the parsed config file after the first access
 config_yaml = None
@@ -48,7 +51,8 @@ def create_sqllite3_db(xorganism):
     c = xconn.cursor()
     if new_db:
         c.execute("CREATE TABLE tracks (name, displayName, type, grp, grpLabel, parentTrack, trackLabel, "
-                  "shortLabel, longLabel, priority, location, html longblob, updateDate)")
+                  "shortLabel, longLabel, priority, location, html longblob, updateDate, "
+                  "remoteSettings, localSettings)")
     return db_loc, c, xconn
 
 def get_last_local_updates(localcur):
@@ -67,6 +71,9 @@ def get_downloads_base_url():
 
 def get_downloads_table_tsv():
     return open_ucsc_yaml()['data_urls']['table_tsv']
+    
+def get_wig_as_bigwig():
+    return open_ucsc_yaml()['data_urls']['wig_as_bigwig']
 
 def get_remote_tracks():
     cfg = open_ucsc_yaml()
@@ -80,6 +87,13 @@ def cmd_exists(cmd):
     """
     return sbp.call("type " + cmd, shell=True, stdout=sbp.PIPE, stderr=sbp.PIPE) == 0
 
+def url_exists(url):
+    req = urllib.request.Request(url, method="HEAD")
+    try:
+        urllib.request.urlopen(req)
+    except URLError:
+        return False
+    return True
 
 def qups(in_cmd, ucur):
     """
@@ -173,19 +187,23 @@ def get_priority(db, selection, tracks_source, track_info):
     
     for track in selection:
         sel_name = re.sub(r'^all_', '', track)
+        parent_track = track_info[track]['parentTrack']
         track_default_visibility = track_form.xpath('//select[@name="{}"]/option[@selected]/text()'.format(sel_name))
+        parent_default_visibility = track_form.xpath('//select[@name="{}"]/option[@selected]/text()'.format(parent_track))
         if track == gene_tracks[0] or track in special_high_priority:
             priorities[track] = 1
         elif len(track_default_visibility) > 0 and track_default_visibility[0] != 'hide':
             priorities[track] = 10
+        elif len(parent_default_visibility) > 0 and parent_default_visibility[0] != 'hide':
+            priorities[track] = 30
         else:
             priorities[track] = 100
-            parent_track = track_info[track]['parentTrack']
-            if parent_track != sel_name:
-                # Complex track incurs additional penalty proportional to number of subtracks
-                num_subtracks = len([k for (k, v) in track_info.items() if v['parentTrack'] == parent_track])
-                penalty = 3 if num_subtracks > 10 else (2 if num_subtracks > 3 else 0.5)
-                priorities[track] = int(priorities[track] * penalty)
+        
+        if parent_track != sel_name:
+            # Complex track incurs additional penalty proportional to number of subtracks
+            num_subtracks = len([k for (k, v) in track_info.items() if v['parentTrack'] == parent_track])
+            penalty = 3 if num_subtracks > 10 else (2 if num_subtracks > 3 else 0.5)
+            priorities[track] = int(priorities[track] * penalty)
         
     return priorities
     
@@ -262,14 +280,14 @@ def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
 
     with open(hierarchy_location, 'r') as handle:
         for line in handle:
-            if 'Trackgroup: ' in line:
+            if re.match(r'^\s*Trackgroup:', line):
                 process_tables()
                 curr_tgroupname = line.split('(', 1)[1][:-2]
-            elif 'Track:' in line:
+            elif re.match(r'^\s*Track:', line):
                 process_tables()
                 curr_track = line.split()[1]
                 curr_trackname = line.split('(', 1)[1][:-2]
-            elif 'Table:' in line:
+            elif re.match(r'^\s*Table:', line):
                 curr_table = line.split()[1]
                 curr_track_tables.append(curr_table)
                 curr_track_lines[curr_table] = line
@@ -290,10 +308,18 @@ def filter_extractable_dbs(wanted_tracks, xcur):
     return extractable
 
 
+def is_bedlike_format(track_type):
+    """
+    Is the given track type convertable to BED/bigBed? 
+    If so, returns the track type (minus its arguments), otherwise returns False.
+    """
+    track_match = re.match(r'^(genePred|psl|bed)\b', track_type)
+    return track_match.group(1) if track_match else False
+
+
 def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
     """
     Fetches track information from the specified UCSC database, which is in the trackDb table
-    :return:
     """
     if xcur is None:
         xconn = pymysql.connect(host=host, user='genome', database=db_name)
@@ -303,11 +329,11 @@ def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
         # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
         fixed_selection = [re.sub(r'^all_', '', element) for element in selection]
         in_clause = ','.join(['"' + element + '"' for element in fixed_selection])
-        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
-                     "FROM trackDb WHERE tableName in ({})").format(in_clause), xcur)
+        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url "
+                       "FROM trackDb WHERE tableName in ({})").format(in_clause), xcur)
     else:
-        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings "
-                     "FROM trackDb ORDER BY tableName"), xcur)
+        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url "
+                       "FROM trackDb ORDER BY tableName"), xcur)
     
     tracks = [list(track) for track in tracks]
     for track in tracks:
@@ -319,7 +345,7 @@ def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
 
 def setup_directories(organism):
     """
-    Sets up directories and files needed for track fetching
+    Sets up directories and files needed for track fetching for one organism
     """
 
     # Build directory
@@ -340,7 +366,7 @@ def fetch_as_file(bed_location, xcur, table_name):
 
     as_file = bed_location[:-4] + '.as'
     as_contents = qups('SELECT autoSqlDef FROM tableDescriptions WHERE tableName="{}";'.format(table_name),
-                      xcur)[0][0].decode()
+                      xcur)[0][0].decode('latin1')
 
     # Column bin removal
     bin_rows = re.compile('[\t\s]*(short|uint|string|ushort)[\t\s]+bin;')
@@ -362,13 +388,13 @@ def fetch_table_fields(xcur, table_name):
     return [val[0] for val in qups("SHOW columns FROM {}".format(table_name), xcur)]
 
 
-def fix_bed_as_files(blocation, btype):
+def fix_bed_as_files(blocation, bed_type):
     """
     Tries to fix Bed auto_sql if initial BigBed building failed
     """
     def_types = ['string', 'uint', 'uint', 'string', 'uint', 'char[1]', 'uint', 'uint', 'uint']
     def_names = ['chrom', 'chromStart', 'chromEnd', 'name', 'score', 'strand', 'thickStart', 'thickEnd', 'reserved']
-    bed_num = int(re.findall(r'\d+', btype)[0])
+    bed_num = int(re.findall(r'\d+', bed_type)[0])
     as_file = blocation[:-4] + '.as'
     all_lines = open(as_file, 'r').read().split('\n')
     elements_lines = all_lines[3:][:bed_num]
@@ -395,56 +421,8 @@ def fix_bed_as_files(blocation, btype):
             print('\t'.join(line))
 
 
-def generate_big_bed(organism, btype, as_file, b_file):
-    """
-    Generates BigBed file. Make sure you have 'fetchChromSizes' and 'bedToBigBed' in your $PATH
-    """
-    if not cmd_exists('fetchChromSizes'):
-        sys.exit("FATAL: must have fetchChromSizes installed on $PATH")
-    if not cmd_exists('bedToBigBed'):
-        sys.exit("FATAL: must have bedToBigBed installed on $PATH")
-        
-    bb_file = organism + '/bigBed/' + os.path.basename(b_file)[:-4] + '.bb'
-
-    if not os.path.isfile("./{0}/build/chsize.txt".format(organism)):
-        command = 'fetchChromSizes "{0}" > "./{0}/build/chsize.txt" 2>/dev/null'.format(organism)
-        try:
-            sbp.check_call(command, shell=True)
-        except sbp.CalledProcessError:
-            print('FAILED: Couldn\'t fetch chromosome info')
-            return None
-
-    # FIXME: Add -extraIndex parameter here for name field
-    command = ('bedToBigBed -type="{1}" -as="{2}" -tab "{3}" "./{0}/build/chsize.txt" '
-               '"{4}"').format(organism, btype, as_file, b_file, bb_file)
-    try:
-        sbp.check_call(command, shell=True)
-        print('DONE ({}): Constructed "{}" BigBed file for organism "{}"'.format(print_time(), bb_file, organism))
-    except sbp.CalledProcessError:
-        print(('FAILED ({}): Couldn\'t construct "{}" BigBed file for organism "{}". '
-              'Used command: `{}`').format(print_time(), organism, bb_file, command))
-        return None
-
-    return bb_file
-
-
-def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
-    """
-    Uses mySQL query to fetch columns from bed file
-    """
-    gz_file = './{}/build/{}.txt.gz'.format(organism, table_name)
-    location = './{}/build/{}.bed'.format(organism, table_name)
-    table_fields = fetch_table_fields(xcur, table_name)
-    has_bin_column = table_fields[0] == 'bin'
-    cut_bin_column = '| cut -f 2- ' if has_bin_column else ''
-    has_genePred_fields = table_fields[-4:] == ['name2', 'cdsStartStat', 'cdsEndStat', 'exonFrames']
-
+def fetch_table_tsv_gz(organism, table_name, gz_file, retries=3):
     url = get_downloads_table_tsv() % (organism, table_name)
-    # Note: formerly, we attempted to fetch the data via MySQL, but this would time out for large tables
-    # command = ("mysql -N -A -u genome -h {} -e 'SELECT {} FROM {}' {} >'{}' "
-    #            "2>/dev/null").format(host, headers, table_name, organism, location)
-    # The most robust fetching method is rsync.
-    
     if cmd_exists('rsync'):
         command = "rsync -avzP --timeout=30 '{}' '{}'".format(url, os.path.dirname(gz_file))
     else:
@@ -456,10 +434,26 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
     while returncode != 0 and retries > 0:
         try:
             sbp.check_call(command, shell=True)
+            returncode = 0
         except sbp.CalledProcessError as err:
             returncode = err.returncode
             retries -= 1
-        returncode = 0
+    return returncode == 0
+
+
+def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
+    """
+    Uses mySQL query to fetch columns from bed file
+    """
+    gz_file = './{}/build/{}.txt.gz'.format(organism, table_name)
+    location = './{}/build/{}.bed'.format(organism, table_name)
+    table_fields = fetch_table_fields(xcur, table_name)
+    has_bin_column = table_fields[0] == 'bin'
+    cut_bin_column = '| cut -f 2- ' if has_bin_column else ''
+    has_genePred_fields = table_fields[-4:] == ['name2', 'cdsStartStat', 'cdsEndStat', 'exonFrames']
+
+    if not fetch_table_tsv_gz(organism, table_name, gz_file):
+        print('FAILED ({}): [db {}] Couldn\'t download .tsv.gz for table "{}".'.format(print_time(), organism, table_name))
     
     if bedlike_format == 'genePred':
         # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html
@@ -490,25 +484,25 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
             awk_script = awk_script.replace('%s', col_vars)
         else:
             awk_script = awk_script.replace('%s', '"", "unk", "unk", blankExonFrames')
-        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, awk_script, location)
-        # FIXME: For knownGene tracks, can get name2 from kgXref and the other three columns from knownCds
-        #        Would have to manually glob on these columns with another function.
-        #        Could further stuff the "description" into the 19th standard bigGenePred column (geneName2).
+        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
+                                                                                                    awk_script, location)
     elif bedlike_format == 'psl':
         # See https://genome.ucsc.edu/goldenPath/help/bigPsl.html
         if not cmd_exists('pslToBigPsl'):
             sys.exit("FATAL: must have pslToBigPsl installed on $PATH")
         command = "cat '{}' | zcat {}| pslToBigPsl /dev/stdin stdout | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
-                                                                                                    cut_bin_column, location)
-    elif bedlike_format is None:
+                                                                                                  cut_bin_column, location)
+    elif bedlike_format == 'bed':
         command = "cat '{}' | zcat {}>'{}'".format(gz_file, cut_bin_column, location)
     else:
         print('FAILED ({}): [db {}] "{}" {} conversion to BED not handled.'.format(print_time(), organism, table_name, 
-                                                                                    bedlike_format))
+                                                                                   bedlike_format))
         return None
     
     try:
         sbp.check_call(command, shell=True)
+        if table_name == 'knownGene':
+            location = augment_knownGene_bed_file(organism, location)
         os.remove(gz_file)
         print('DONE ({}): [db {}] Fetched "{}" into a BED file'.format(print_time(), organism, table_name))
     except sbp.CalledProcessError:
@@ -517,3 +511,126 @@ def fetch_bed_table(host, xcur, table_name, organism, bedlike_format=None):
         return None
     
     return location
+
+
+def augment_knownGene_bed_file(organism, old_location):
+    """
+    knownGene tracks, which are extremely high priority, unfortunately have things in a slightly different format.
+    We must get `name2` from the kgXref table, and `cdsStartStat`, `cdsEndStat` and `exonFrames` from the knownCds table.
+    Furthermore, we stuff the `description` field from kgXref into the 19th standard bigGenePred column (geneName2).
+    """
+    print('INFO ({}): [db {}] Augmenting knownGene table.'.format(print_time(), organism))
+    new_location = old_location[:-4] + '.fixed.bed'
+    kgXref_gz_file = './{}/build/kgXref.txt.gz'.format(organism)
+    knownCds_gz_file = './{}/build/knownCds.txt.gz'.format(organism)
+    kgXref = dict()
+    knownCds = dict()
+    
+    if not fetch_table_tsv_gz(organism, 'kgXref', kgXref_gz_file):
+        print('FAILED ({}): [db {}] Couldn\'t download .tsv.gz for table "kgXref".'.format(print_time(), organism))
+    if not fetch_table_tsv_gz(organism, 'knownCds', knownCds_gz_file):
+        print('FAILED ({}): [db {}] Couldn\'t download .tsv.gz for table "knownCds".'.format(print_time(), organism))
+        
+    with gzip.open(kgXref_gz_file, 'rt', newline="\n") as kgXref_handle:
+        for line in kgXref_handle:
+            fields = line.strip("\n").split("\t")
+            kgXref[fields[0]] = (fields[4], re.sub(r'[\t\r\n]', ' ', fields[7]))
+    
+    with gzip.open(knownCds_gz_file, 'rt', newline="\n") as knownCds_handle:
+        for line in knownCds_handle:
+            fields = line.strip("\n").split("\t")
+            knownCds[fields[0]] = (fields[1], fields[2], fields[4])
+    
+    with open(old_location, 'r') as read_handle:
+        with open(new_location, 'w') as write_handle:
+            for line in read_handle:
+                fields = line.strip("\n").split("\t")
+                name = fields[3]                
+                if name in kgXref:
+                    fields[12] = kgXref[name][0]
+                    fields[18] = kgXref[name][1]
+                if name in knownCds:
+                    fields[13:16] = knownCds[name]
+                print("\t".join(fields), file=write_handle)
+            
+    os.remove(kgXref_gz_file)
+    os.remove(knownCds_gz_file)
+    os.remove(old_location)
+    return new_location
+
+
+def extract_bed_plus_fields(track_type, as_location):
+    num_standard_fields = 12
+    track_type = re.split(r'\s+', track_type)
+    if not is_bedlike_format(track_type[0]): return None
+    
+    with open(as_location, 'r') as f:
+        as_parsed = AutoSqlDeclaration(f.read())
+        field_names = list(as_parsed.field_comments.keys())
+        if len(track_type) > 1 and re.match(r'^\d+$', track_type[1]):
+            num_standard_fields = int(track_type[1])
+        return field_names[num_standard_fields:]
+
+
+def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
+    """
+    Generates BigBed file. Make sure you have 'fetchChromSizes' and 'bedToBigBed' in your $PATH
+    """
+    if not cmd_exists('fetchChromSizes'):
+        sys.exit("FATAL: must have fetchChromSizes installed on $PATH")
+    if not cmd_exists('bedToBigBed'):
+        sys.exit("FATAL: must have bedToBigBed installed on $PATH")
+        
+    bb_file = organism + '/bigBed/' + os.path.basename(bed_file)[:-4] + '.bb'
+    indexable_fields = ['name'] if int(re.search(r'\d+', bed_type).group(0)) >= 4 else []
+    indexable_whitelist = ['name2', 'id']
+    indexable_fields += [field for field in bed_plus_fields if field in indexable_whitelist]
+
+    if not os.path.isfile("./{0}/build/chrom.sizes.txt".format(organism)):
+        command = 'fetchChromSizes "{0}" > "./{0}/build/chrom.sizes.txt" 2>/dev/null'.format(organism)
+        try:
+            sbp.check_call(command, shell=True)
+        except sbp.CalledProcessError:
+            print('FAILED: Couldn\'t fetch chromosome info')
+            return None
+
+    extra_index = ''
+    if len(indexable_fields) > 0:
+        extra_index = '-extraIndex="{}"'.format(",".join(indexable_fields))
+
+    command = ('bedToBigBed -type="{1}" -as="{2}" {5} -tab "{3}" "./{0}/build/chrom.sizes.txt" '
+               '"{4}"').format(organism, bed_type, as_file, bed_file, bb_file, extra_index)
+    try:
+        sbp.check_call(command, shell=True)
+        print('DONE ({}): Constructed "{}" BigBed file for organism "{}"'.format(print_time(), bb_file, organism))
+    except sbp.CalledProcessError:
+        print(('FAILED ({}): Couldn\'t construct "{}" BigBed file for organism "{}". '
+              'Used command: `{}`').format(print_time(), organism, bb_file, command))
+        return None
+
+    return bb_file
+    
+
+def translate_settings(settings, bed_plus_fields=None, url=None):
+    """
+    Translates the settings field in UCSC's trackDb into a JSON-encoded object with track settings supported by chromozoom
+    """
+    whitelisted_keys = ['autoScale', 'altColor', 'alwaysZero', 'color', 'colorByStrand', 'itemRgb', 'maxHeightPixels', 'url', 
+                        'useScore', 'viewLimits', 'windowingFunction']
+    new_settings = dict()
+    old_settings = dict()
+    
+    for line in settings.decode("latin1").split("\n"):
+        try: key, value = re.split(r'\s+', line, 1)
+        except ValueError: continue
+        old_settings[key] = value
+    
+    for key, value in old_settings.items():
+        if key in whitelisted_keys:
+            new_settings[key] = value
+            
+    if bed_plus_fields is not None: new_settings['bedPlusFields'] = ",".join(bed_plus_fields)
+    if 'directUrl' in old_settings: new_settings['url'] = old_settings['directUrl']
+    elif url: new_settings['url'] = url.decode('latin1')
+    
+    return json.dumps(new_settings)

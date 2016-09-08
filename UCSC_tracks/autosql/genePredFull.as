@@ -19,6 +19,7 @@ table genePredExt
     int[blockCount] exonFrames; "Exon frame {0,1,2}, or -1 if no frame for exon"
     string type;        "Transcript type"
     string geneName;    "Primary identifier for gene"
-    string geneName2;   "Alternative/human readable gene name"
+    lstring geneName2;   "Alternative/human readable gene name"
     string geneType;    "Gene type"
     )
+    

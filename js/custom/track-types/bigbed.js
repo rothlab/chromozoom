@@ -28,6 +28,7 @@ var BigBedFormat = {
     if (!this.opts.bigDataUrl) {
       throw new Error("Required parameter bigDataUrl not found for bigBed track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
     }
+    this.type('bed').initOpts.call(this);
   },
   
   parse: function(lines) {

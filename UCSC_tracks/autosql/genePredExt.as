@@ -14,3 +14,4 @@ table genePredExt
     int[blockCount] blockSizes; "Comma separated list of block sizes"
     int[blockCount] chromStarts; "Start positions relative to chromStart"
     )
+    
