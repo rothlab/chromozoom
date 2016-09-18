@@ -1,5 +1,16 @@
 var _ = require('../../../underscore.min.js');
 
+// Faster than Math.floor (http://webdood.com/?p=219)
+module.exports.floorHack = function(num) { return (num << 0) - (num < 0 ? 1 : 0); }
+
+// Other tiny functions that we need for odds and ends...
+var strip = module.exports.strip = function(str) { return str.replace(/^\s+|\s+$/g, ''); }
+module.exports.parseInt10 = function(val) { return parseInt(val, 10); }
+module.exports.deepClone = function(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+// The default way by which we derive a name to be printed next to a range feature
+var defaultNameFunc = module.exports.defaultNameFunc = function(d) { return strip(d.name || d.id || ''); }
+
 // Parse a track declaration line, which is in the format of:
 // track name="blah" optname1="value1" optname2="value2" ...
 // into a hash of options
@@ -33,7 +44,7 @@ module.exports.parseDeclarationLine = function(line, start) {
 
 // Constructs a mapping function that converts bp intervals into pixel intervals, with optional calculations for text too
 module.exports.pixIntervalCalculator = function(start, width, bppp, withText, nameFunc, startkey, endkey) {
-  if (!_.isFunction(nameFunc)) { nameFunc = function(d) { return d.name || ''; }; }
+  if (!_.isFunction(nameFunc)) { nameFunc = defaultNameFunc; }
   if (_.isUndefined(startkey)) { startkey = 'start'; }
   if (_.isUndefined(endkey)) { endkey = 'end'; }
   return function(d) {
@@ -77,11 +88,3 @@ module.exports.wigBinFunctions = {
   mean: function(bin) { return _.reduce(bin, function(a,b) { return a + b; }, 0) / bin.length; },
   maximum: function(bin) { return bin.length ? Math.max.apply(Math, bin) : 0; }
 };
-
-// Faster than Math.floor (http://webdood.com/?p=219)
-module.exports.floorHack = function(num) { return (num << 0) - (num < 0 ? 1 : 0); }
-
-// Other tiny functions that we need for odds and ends...
-module.exports.strip = function(str) { return str.replace(/^\s+|\s+$/g, ''); }
-module.exports.parseInt10 = function(val) { return parseInt(val, 10); }
-module.exports.deepClone = function(obj) { return JSON.parse(JSON.stringify(obj)); }

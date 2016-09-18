@@ -15,6 +15,16 @@ from .autosql import AutoSqlDeclaration
 # Cache the parsed config file after the first access
 config_yaml = None
 
+BEDLIKE_FORMATS = {
+    # format: (as_location, bed_type)
+    'bed': (None, None),
+    'genePred': ('autosql/genePredFull.as', 'bed12+8'),
+    'psl': ('autosql/bigPsl.as', 'bed12+12'),
+    'gvf': ('autosql/bigGvf.as', 'bed8+3'),
+    'narrowPeak': ('autosql/bigNarrowPeak.as', 'bed6+4')
+}
+
+
 def open_ucsc_yaml():
     global config_yaml
     if config_yaml is not None:
@@ -59,9 +69,11 @@ def get_last_local_updates(localcur):
     localcur.execute('SELECT name, updateDate FROM tracks;')
     return dict(localcur.fetchall())
 
+def get_ucsc_base_url():
+    return open_ucsc_yaml()['browser_hosts']['authoritative']
+
 def get_remote_table():
-    cfg = open_ucsc_yaml()
-    return cfg['browser_hosts']['authoritative'] + cfg['browser_urls']['tables']
+    return get_ucsc_base_url() + open_ucsc_yaml()['browser_urls']['tables']
 
 def get_mysql_host():
     return open_ucsc_yaml()['browser_mysql']['authoritative']
@@ -76,8 +88,7 @@ def get_wig_as_bigwig():
     return open_ucsc_yaml()['data_urls']['wig_as_bigwig']
 
 def get_remote_tracks():
-    cfg = open_ucsc_yaml()
-    return cfg['browser_hosts']['authoritative'] + cfg['browser_urls']['tracks']
+    return get_ucsc_base_url() + open_ucsc_yaml()['browser_urls']['tracks']
 
 
 def cmd_exists(cmd):
@@ -222,7 +233,7 @@ def create_hierarchy(organism, table_source):
 
     w_file = open(location, 'w')
 
-    print('Organism: {}'.format(organism), file=w_file)
+    print("Organism: {}".format(organism), file=w_file)
     org_groups = get_track_groups(organism, table_source=table_source)
 
     if not org_groups:
@@ -308,15 +319,6 @@ def filter_extractable_dbs(wanted_tracks, xcur):
     return extractable
 
 
-def is_bedlike_format(track_type):
-    """
-    Is the given track type convertable to BED/bigBed? 
-    If so, returns the track type (minus its arguments), otherwise returns False.
-    """
-    track_match = re.match(r'^(genePred|psl|bed)\b', track_type)
-    return track_match.group(1) if track_match else False
-
-
 def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
     """
     Fetches track information from the specified UCSC database, which is in the trackDb table
@@ -359,11 +361,50 @@ def setup_directories(organism):
         os.makedirs(organism + '/bigBed')
 
 
+
+def is_bedlike_format(track_type):
+    """
+    Is the given track type convertable to BED/bigBed? 
+    If so, returns the track type (minus its arguments), otherwise returns False.
+    """
+    track_type = re.split(r'\s+', track_type)
+    return track_type[0] if track_type[0] in BEDLIKE_FORMATS else False
+
+
+def get_as_and_bed_type_for_bedlike_format(track_type):
+    """
+    Is the given track type convertable to BED/bigBed? 
+    If so, returns the location of the autoSql file for this type, and the BED subtype (bedN+N).
+    Otherwise, raises a KeyError.
+    """
+    track_type = re.split(r'\s+', track_type)
+    return BEDLIKE_FORMATS[track_type[0]]
+
+
+def fetch_autosql_for_bigbed(bb_location):
+    command = "bigBedInfo '{}'".format(bb_location)
+    command_with_as = "bigBedInfo -as '{}'".format(bb_location)
+    try:
+        bb_info = sbp.check_output(command, shell=True)
+        bb_info_with_as = sbp.check_output(command_with_as, shell=True)
+        as_finder = re.compile(b'^basesCovered: ', re.MULTILINE)
+        match = as_finder.search(bb_info)
+        if match is None or b'as:\n' not in bb_info_with_as:
+            print('WARNING ({}): Couldn\'t fetch autoSql for bigbed file at "{}"'.format(print_time(), bb_location))
+            return None
+        # Clips out the b"as:\n"
+        return bb_info_with_as[match.start() + 4 : -len(bb_info) + match.start()].decode('latin1')
+    except sbp.CalledProcessError:
+        print('WARNING ({}): Couldn\'t fetch bigBedInfo for location "{}"'.format(print_time(), bb_location))
+        print(command)
+        return None
+    return None
+
+
 def fetch_as_file(bed_location, xcur, table_name):
     """
-    Creates an auto_sql file and returns its location
+    Creates an autoSql file and returns its location
     """
-
     as_file = bed_location[:-4] + '.as'
     as_contents = qups('SELECT autoSqlDef FROM tableDescriptions WHERE tableName="{}";'.format(table_name),
                       xcur)[0][0].decode('latin1')
@@ -492,7 +533,7 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
             sys.exit("FATAL: must have pslToBigPsl installed on $PATH")
         command = "cat '{}' | zcat {}| pslToBigPsl /dev/stdin stdout | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
                                                                                                   cut_bin_column, location)
-    elif bedlike_format == 'bed':
+    elif bedlike_format in BEDLIKE_FORMATS:
         command = "cat '{}' | zcat {}>'{}'".format(gz_file, cut_bin_column, location)
     else:
         print('FAILED ({}): [db {}] "{}" {} conversion to BED not handled.'.format(print_time(), organism, table_name, 
@@ -559,17 +600,31 @@ def augment_knownGene_bed_file(organism, old_location):
     return new_location
 
 
-def extract_bed_plus_fields(track_type, as_location):
+def extract_bed_plus_fields(track_type, as_location=None, as_string=None):
     num_standard_fields = 12
+    as_parsed = None
     track_type = re.split(r'\s+', track_type)
-    if not is_bedlike_format(track_type[0]): return None
     
-    with open(as_location, 'r') as f:
-        as_parsed = AutoSqlDeclaration(f.read())
-        field_names = list(as_parsed.field_comments.keys())
-        if len(track_type) > 1 and re.match(r'^\d+$', track_type[1]):
-            num_standard_fields = int(track_type[1])
-        return field_names[num_standard_fields:]
+    try: _, bed_type = get_as_and_bed_type_for_bedlike_format(track_type[0])
+    except KeyError: bed_type = None
+    
+    if bed_type is not None:
+        num_standard_fields = int(re.search(r'\d+', bed_type).group(0))
+    elif len(track_type) > 1 and re.match(r'^\d+$', track_type[1]):
+        num_standard_fields = int(track_type[1])
+    
+    if as_string is None:
+        with open(as_location, 'r') as f:
+            as_string = f.read()
+    
+    try:
+        as_parsed = AutoSqlDeclaration(as_string)
+    except:
+        print('WARNING ({}): Can\'t parse autoSql file: {}.'.format(print_time(), as_location or as_string))
+        return None
+    
+    field_names = list(as_parsed.field_comments.keys())
+    return field_names[num_standard_fields:]
 
 
 def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
@@ -583,8 +638,9 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
         
     bb_file = organism + '/bigBed/' + os.path.basename(bed_file)[:-4] + '.bb'
     indexable_fields = ['name'] if int(re.search(r'\d+', bed_type).group(0)) >= 4 else []
-    indexable_whitelist = ['name2', 'id']
-    indexable_fields += [field for field in bed_plus_fields if field in indexable_whitelist]
+    whitelist = ['name2', 'id']
+    if bed_plus_fields is not None:
+        indexable_fields += [field for field in bed_plus_fields if field in whitelist]
 
     if not os.path.isfile("./{0}/build/chrom.sizes.txt".format(organism)):
         command = 'fetchChromSizes "{0}" > "./{0}/build/chrom.sizes.txt" 2>/dev/null'.format(organism)
@@ -632,5 +688,7 @@ def translate_settings(settings, bed_plus_fields=None, url=None):
     if bed_plus_fields is not None: new_settings['bedPlusFields'] = ",".join(bed_plus_fields)
     if 'directUrl' in old_settings: new_settings['url'] = old_settings['directUrl']
     elif url: new_settings['url'] = url.decode('latin1')
+    if not re.match(r'^https://', new_settings['url']):
+        new_settings['url'] = get_ucsc_base_url() + new_settings['url']
     
     return json.dumps(new_settings)

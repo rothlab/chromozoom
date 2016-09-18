@@ -28,10 +28,15 @@ var ChromSizesFormat = {
       o = self.opts;
       
     _.each(tracks, function(t) {
-      var trackOpts;
+      var trackOpts, visible = true;
       t.lines = t.lines || [];
       trackOpts = /^track\s+/i.test(t.lines[0]) ? global.CustomTracks.parseDeclarationLine(t.lines.shift()) : {};
-      t.lines.unshift('track ' + optsAsTrackLine(_.extend(trackOpts, t.opts, {name: t.name, type: t.type})) + '\n');
+      _.extend(trackOpts, t.opts, {name: t.name, type: t.type});
+      if (trackOpts.visibility) {
+        if (trackOpts.visibility == 'hide') { visible = false; }
+        delete trackOpts.visibility;
+      }
+      t.lines.unshift('track ' + optsAsTrackLine(trackOpts) + '\n');
       o.availTracks.push({
         fh: {},
         n: t.name,
@@ -40,10 +45,10 @@ var ChromSizesFormat = {
         m: ['pack'],
         customData: t.lines
       });
-      o.tracks.push({n: t.name});
+      if (visible) { o.tracks.push({n: t.name}); }
       o.trackDesc[t.name] = {
         cat: "Feature Tracks",
-        sm: t.name,
+        sm: t.shortLabel || t.name,
         lg: t.description || t.name
       };
     });

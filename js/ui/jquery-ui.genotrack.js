@@ -600,7 +600,8 @@ $.widget('ui.genotrack', {
       $a.css({right: (100 - area[0] * scaleToPct) + '%', color: 'rgb(' + (area[7] || defaultColor) + ')'}).addClass('label');
       if (area[8]) { $a.html(area[8]) } else { $a.text(area[4]); }
       $a.mouseover({self: this, bppp: bppp, density: density, hrefHash: hash, areaId: $tile.attr('id') + '.' + flags.i}, this._areaMouseOver);
-    } else { 
+    } else {
+      // FIXME: We'd need to respect area[10] if set, see FIXME in _drawAreaLabels below
       $a.addClass('rect').css({left: (area[0] * scaleToPct) + '%', width: ((area[2] - area[0]) * scaleToPct) + '%'});
       if (flags.flashme) {
         $a.addClass('flashing').effect("pulsate", {times: 2}, 1000, function() {
@@ -647,12 +648,14 @@ $.widget('ui.genotrack', {
       ctx.fillText((area[8] || area[4]), area[0] * canvasXScale - xPad + leftOverhang, floorHack((area[1] + area[3]) * 0.5));
       if (area[7]) { ctx.fillStyle = 'rgb(' + defaultColor + ')'; }
       // FIXME: add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
+      //        This allows the user to mouseover the text instead of just the feature itself (which can be very small)
       //        Can measure text width with ctx.measureText(text).
       //        _tileMouseMove then needs to check the *right-adjacent* tile's area data for any areas with area[10] < 0.
       //        This adjacent tile can be found via manipulating the tile ID.
       //          - $tile.data('tileId') has the leftmost bp position;
       //          - adding bppp * o.tileWidth to this gives the position of the next tile;
       //          - substituting $tile.attr('id')'s last number with this number gets the HTML ID of the next tile.
+      //        Finally, makeAnchor() above needs to respect area[10] when actually positioning the <a>
     });
     
     $c.toggleClass('dens-best', density == bestDensity);

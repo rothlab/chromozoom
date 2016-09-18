@@ -22,4 +22,3 @@ table genePredExt
     lstring geneName2;   "Alternative/human readable gene name"
     string geneType;    "Gene type"
     )
-    

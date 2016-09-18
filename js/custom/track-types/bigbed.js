@@ -45,7 +45,7 @@ var BigBedFormat = {
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
           var intervals = _.map(lines, function(l) { 
-            var itvl = self.type('bed').parseLine.call(self, l); 
+            var itvl = self.type('bed').parseLine.call(self, l);
             // Use BioPerl's Bio::DB:BigBed strategy for deduplicating re-fetched intervals:
             // "Because BED files don't actually use IDs, the ID is constructed from the feature's name (if any), chromosome coordinates, strand and block count."
             if (_.isUndefined(itvl.id)) {

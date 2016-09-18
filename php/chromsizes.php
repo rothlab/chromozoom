@@ -25,7 +25,7 @@ $all_genomes_url = $ucsc_config['data_urls']['all_genomes'];
 $chrom_info_url = $ucsc_config['data_urls']['chrom_info'];
 $prefix = parse_url(preg_replace('/%s.*$/', '', $chrom_info_url), PHP_URL_PATH);
 $big_zips = $ucsc_config['data_urls']['big_zips'];
-$track_list_path = $ucsc_config['ucsc_cached_track_lists'];
+$track_db_path = $ucsc_config['ucsc_cached_track_db'];
 $chromozoom_port = $_SERVER["SERVER_PORT"] != 80 ? ":".$_SERVER["SERVER_PORT"] : '';
 $chromozoom_uri = "http://" . $_SERVER["SERVER_NAME"] . $chromozoom_port . dirname(dirname($_SERVER['REQUEST_URI']));
 
@@ -54,21 +54,26 @@ function getAllGenomes() {
 }
 
 function getTracksForDb($db) {
-  global $track_list_path, $chromozoom_uri;
+  global $track_db_path, $chromozoom_uri;
   $tracks = array();
-  $track_list_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $track_list_path, $db));  
+  $track_db_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $track_db_path, $db)); 
   try { 
-    @$track_list_xe = new SimpleXMLElement(file_get_contents($track_list_file)); 
+    @$track_db = new SQLite3($track_db_file, SQLITE3_OPEN_READONLY);
   } catch (Exception $e) { return $tracks; }
-  foreach ($track_list_xe->trackInfo as $track_info_xe) {
-    $name = (string) $track_info_xe->tableName;
+  $result = $track_db->query('SELECT * FROM tracks WHERE priority <= 100');
+  while ($row = $result->fetchArray()) {
+    $name = $row['name'];
+    $location = (preg_match('#^https?://#', $row['location']) ? "" : "cache://UCSC_tracks/") . $row['location'];
+    $local_settings = json_decode($row['localSettings'], TRUE);
     $track = array(
       'name' => $name,
-      'description' => (string) $track_info_xe->shortLabel,
-      'type' => 'bigBed',
-      'opts' => array(
-        'bigDataUrl' => "cache://" . dirname($track_list_path) . "/" . "$db.$name.bb"
-      )
+      'description' => $row['longLabel'],
+      'shortLabel' => $row['shortLabel'],
+      'type' => littleToBigFormat($row['type']),
+      'opts' => array_merge($local_settings, array(
+        'bigDataUrl' => $location,
+        'visibility' => $row['priority'] <= 1 ? 'show' : 'hide'
+      ))
     );
     $tracks[] = $track;
   }
@@ -93,6 +98,7 @@ if (isset($_GET['db'])) {
     $response['mem'] = memory_get_usage();
     $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
     $response['tracks'] = getTracksForDb($db);
+    
   
     if (isset($_GET['meta'])) {
       foreach (getAllGenomes() as $genome) {

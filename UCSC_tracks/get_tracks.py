@@ -17,6 +17,8 @@ parser.add_argument('--org_source', action='store', type=str, default='http://be
                     help='Location of organisms list in JSON format.')
 parser.add_argument('--org_prefix', action='store', type=str, default='',
                     help='Restrict scraping to organism database names matching this prefix.')
+parser.add_argument('--skip_prefix', action='store', type=str, default=None,
+                    help='Don\'t scrape tables with names matching this prefix.')
 parser.add_argument('--table_source', action='store', type=str, default='',
                     help='Location of Track tables. Leave blank to retrieve it from the ../ucsc.yaml config file')
 parser.add_argument('--mysql_host', action='store', type=str, default='',
@@ -58,6 +60,8 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
                                            track_info=track_info)
     if args.priority_below is not None:
         selected_tracks = [t for t in selected_tracks if track_priority[t] <= args.priority_below]
+    if args.skip_prefix is not None:
+        selected_tracks = [t for t in selected_tracks if not t.startswith(args.skip_prefix)]
     
     local_db, localcur, localconn = buildfun.create_sqllite3_db(organism)
     last_updates = buildfun.get_last_local_updates(localcur)
@@ -93,7 +97,12 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             if len(file_location) > 1:
                 print('WARNING ({}): [db {}] Multiple files are associated with "{}" "({})" file.'
                       .format(buildfun.print_time(), organism, table_name, tr_type))
-            file_location = downloads_base_url + file_location[0][0]
+            file_location = file_location[0][0]
+            if not re.match(r'^https?://', file_location):
+                file_location = downloads_base_url + file_location
+            if tr_type.startswith('bigBed '):
+                as_string = buildfun.fetch_autosql_for_bigbed(file_location)
+                bed_plus_fields = buildfun.extract_bed_plus_fields(tr_type, as_string=as_string)
             print('DONE ({}): [db {}] Fetched remote location for "{}" "{}" file.'.format(buildfun.print_time(),
                                                                                                  organism, table_name, 
                                                                                                  tr_type))
@@ -110,21 +119,18 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
                                                                                                  organism, table_name))
             save_to_db = True
 
-        # BED, genePred, and PSL processing - need to save and convert these to bigBed
+        # BED, genePred, PSL, GVF, and narrowPeak processing - need to save and convert these to bigBed
         elif bedlike_format:
             bed_location = buildfun.fetch_bed_table(cur, table_name, organism, bedlike_format)
             if bed_location is None:
                 continue
-            if bedlike_format == 'genePred':
-                as_location = 'autosql/genePredFull.as'
-                bed_type = 'bed12+8'
-            elif bedlike_format == 'psl':
-                as_location = 'autosql/bigPsl.as'
-                bed_type = 'bed12+12'
-            else:
+            
+            as_location, bed_type = buildfun.get_as_and_bed_type_for_bedlike_format(bedlike_format)
+            if as_location is None: # Generic BED tracks have autoSql specifying their fields on UCSC's MySQL server
                 as_location = buildfun.fetch_as_file(bed_location, cur, table_name)
                 bed_type = tr_type.replace(' ', '').rstrip('.')
-            bed_plus_fields = buildfun.extract_bed_plus_fields(tr_type, as_location)
+            
+            bed_plus_fields = buildfun.extract_bed_plus_fields(tr_type, as_location=as_location)
             file_location = buildfun.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
 
             # If bigBed building failed, try fixing the autosql file once and retrying

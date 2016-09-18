@@ -39,8 +39,9 @@ var WiggleFormat = {
     o.yLineOnOff = this.isOn(o.yLineOnOff);
     o.yLineMark = parseFloat(o.yLineMark);
     o.autoScale = this.isOn(o.autoScale);
+    o.windowingFunction = o.windowingFunction.toLowerCase();
     if (_binFunctions && !_binFunctions[o.windowingFunction]) {
-      throw new Error("invalid windowingFunction at line " + o.lineNum); 
+      throw new Error("invalid windowingFunction `" + o.windowingFunction + "` at line " + o.lineNum); 
     }
     if (_.isNaN(o.yLineMark)) { o.yLineMark = 0.0; }
   },

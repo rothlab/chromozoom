@@ -49,6 +49,7 @@ function ranges_to_args(&$ranges) {
 header('Content-type: text/plain');
 if ($SUMMARY) {
   ranges_to_args($ranges);
+  header('X-Cmd: ' . "$BIGWIG_BIN $WINFUNC " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $ranges[0])));
   foreach ($ranges as $range) {
     $cmd = "$BIGWIG_BIN $WINFUNC " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range));
     $output = array();
