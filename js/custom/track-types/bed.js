@@ -29,7 +29,7 @@ var BedFormat = {
     url: '',
     htmlUrl: '',
     drawLimit: {squish: null, pack: null},
-    bedPlusFields: BED_DETAIL_FIELDS
+    bedPlusFields: null
   },
   
   init: function() {
@@ -51,7 +51,6 @@ var BedFormat = {
     }
     if (/%s/.test(self.opts.url)) { self.opts.url = self.opts.url.replace(/%s/, '$$$$'); }
     else if (self.opts.url && !(/\$\$/).test(self.opts.url)) { self.opts.url += '$$'; }
-    console.log(self.opts.url);
     if (!validColorByStrand) { self.opts.colorByStrand = ''; self.opts.altColor = null; }
     else { self.opts.altColor = altColors[1]; }
   },
@@ -59,7 +58,7 @@ var BedFormat = {
   parseLine: function(line, lineno) {
     var cols = BED_STANDARD_FIELDS,
       numStandardCols = this.numStandardColumns,
-      bedPlusFields = this.opts.bedPlusFields,
+      bedPlusFields = this.opts.bedPlusFields || BED_DETAIL_FIELDS,
       feature = {extra: {}},
       fields = /\t/.test(line) ? line.split("\t") : line.split(/\s+/),
       chrPos, blockSizes;
@@ -187,19 +186,21 @@ var BedFormat = {
   
   addArea: function(areas, data, i, lineHeight, urlTemplate) {
     var tipTipData = {},
-      tipTipDataCallback = this.type().tipTipData,
-      nameFunc = this.type().nameFunc || utils.defaultNameFunc,
-      autoId = (/\t/).test(data.d.id); // Only automatically generated id's could contain a tab character
+      tipTipDataCallback = this.type().tipTipData,   // this permits inheriting track formats to override these
+      customNameFunc = this.type().nameFunc,         // " "
+      nameFunc = _.isFunction(customNameFunc) ? customNameFunc : utils.defaultNameFunc,
+      autoId = (/\t/).test(data.d.id);               // Only automatically generated id's could contain a tab character
     if (!areas) { return; }
     if (_.isFunction(tipTipDataCallback)) {
       tipTipData = tipTipDataCallback.call(this, data);
     } else {
       if (!_.isUndefined(data.d.description)) { tipTipData.description = data.d.description; }
-      if (!_.isUndefined(data.d.score)) { tipTipData.score = data.d.score; }
+      if (!_.isUndefined(data.d.score) && data.d.score > 0) { tipTipData.score = data.d.score; }
       _.extend(tipTipData, {
         position: data.d.chrom + ':' + data.d.chromStart, 
         size: data.d.chromEnd - data.d.chromStart
       });
+      if (this.opts.bedPlusFields) { _.extend(tipTipData, _.omit(data.d.extra, function(v) { return v === ''; })); }
       // Display the ID column (from bedDetail) unless it was automatically generated
       if (!_.isUndefined(data.d.id) && !autoId) { tipTipData.id = data.d.id; }
     }

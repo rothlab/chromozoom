@@ -45,6 +45,7 @@ module.exports = (function($){
       tracks: [
         {n:'ruler', h:50, s:['dense']}
       ],
+      groupTracksByCategory: false,
       chrOrder: [],
       chrLengths: {},
       chrBands: [],
@@ -379,19 +380,23 @@ module.exports = (function($){
       var self = this,
         o = self.options,
         d = o.trackDesc,
+        groups = {},
+        ungrouped = {},
         $toggleBtn = $(o.trackPicker[0]),
         $trackPicker = $(o.trackPicker[1]).empty(),
         $ul = $('<ul/>').appendTo($trackPicker),
         $div = $('<div class="button-line"/>').appendTo($trackPicker),
         $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div);
-      _.each(self.availTracks, function(t, n) {
+      
+      function addTrack(t, n) {
         // TODO: This needs to distinguish between traditional image tracks and custom tracks brought in
-        //       by custom genomes. The latter should have an options dialog and download links instead of "more info".
+        //       by custom genomes. The latter should have an options dialog and download links instead of "more info";
         var $l = $('<label class="clickable"/>').appendTo($('<li class="choice"/>').appendTo($ul)),
           $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
           $d = $('<div class="desc"></div>').appendTo($l),
-          href = o.trackDescURL + '?db=' + o.genome + '&g=' + n + '#TRACK_HTML',
+          db = o.genome.split(':'),
+          href = o.trackDescURL + '?db=' + (db[0] === 'ucsc' ? db[1] : db[0]) + '&g=' + n + '#TRACK_HTML',
           $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '';
         $('<h3/>').addClass('name').text(d[n].sm).append($a).appendTo($d);
         if (d[n].lg) { $('<p/>').addClass('long-desc').text(d[n].lg).appendTo($d); }
@@ -400,7 +405,26 @@ module.exports = (function($){
         $l.attr('title', n);
         $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
         $c.bind('change', _.bind(self._fixTracks, self));
-      });
+      }
+      function addHeader(cat) {
+        var $li = $('<li class="header"/>').appendTo($ul);
+        $li.text(cat);
+      }
+      
+      if (o.groupTracksByCategory) {
+        _.each(self.availTracks, function(t, n) {
+          var cat = d[n].cat;
+          if (!cat) { ungrouped[n] = t; return; }
+          groups[cat] = groups[cat] || {};
+          groups[cat][n] = t;
+        });
+        _.each(ungrouped, addTrack);
+        _.each(groups, function(tracks, cat) { 
+          addHeader(cat);
+          _.each(tracks, addTrack); 
+        });
+      } else { _.each(self.availTracks, addTrack); }
+      
       if (o.tracks.length === 1) { $ul.find('input[name='+o.tracks[0].n+']').attr('disabled', true); }
       $reset.click(function(e) { self._resetToDefaultTracks(); });
       return self._createPicker($toggleBtn, $trackPicker, $b).hide();

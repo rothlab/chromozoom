@@ -74,12 +74,11 @@ var BigWigFormat = {
 
   render: function(canvas, start, end, density, callback) {
     var self = this,
-      height = canvas.height,
       width = canvas.width,
       ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) { throw "Canvas not supported"; }
-    self.prerender(start, end, density, {width: width, height: height}, function(drawSpec) {
-      self.type('wiggle_0').drawBars.call(self, ctx, drawSpec, height, width);
+    self.prerender(start, end, density, {width: width}, function(drawSpec) {
+      self.type('wiggle_0').drawBars.call(self, ctx, drawSpec, canvas.height, width);
       _.isFunction(callback) && callback();
     });
   },

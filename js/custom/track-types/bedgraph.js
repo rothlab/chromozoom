@@ -3,10 +3,13 @@
 // =========================================================================
 
 var utils = require('./utils/utils.js'),
+  wiggle_0 = require('./wiggle_0.js'),
   parseInt10 = utils.parseInt10;
 
 // Intended to be loaded into CustomTrack.types.bedgraph
-var BedGraphFormat = {
+// Because bedgraph is functionally equivalent to wiggle_0, we inherit from it and 
+// only override the .parse() function
+var BedGraphFormat = _.extend({}, wiggle_0, {
   defaults: {
     altColor: '',
     priority: 100,
@@ -21,14 +24,6 @@ var BedGraphFormat = {
     windowingFunction: 'maximum',
     smoothingWindow: 'off'
   },
-
-  init: function() { return this.type('wiggle_0').init.call(this); },
-  
-  _binFunctions: utils.wigBinFunctions,
-  
-  initOpts: function() { return this.type('wiggle_0').initOpts.call(this); },
-  
-  applyOpts: function() { return this.type('wiggle_0').applyOpts.apply(this, arguments); },
   
   parse: function(lines) {
     var self = this,
@@ -53,24 +48,8 @@ var BedGraphFormat = {
     });
 
     return self.type('wiggle_0').finishParse.call(self, data);
-  },
+  }
   
-  initDrawSpec: function() { return this.type('wiggle_0').initDrawSpec.apply(this, arguments); },
-  
-  drawBars: function() { return this.type('wiggle_0').drawBars.apply(this, arguments); },
-
-  prerender: function(start, end, density, precalc, callback) {
-    return this.type('wiggle_0').prerender.call(this, start, end, density, precalc, callback);
-  },
-
-  render: function(canvas, start, end, density, callback) {
-    this.type('wiggle_0').render.call(this, canvas, start, end, density, callback);
-  },
-  
-  loadOpts: function() { return this.type('wiggle_0').loadOpts.apply(this, arguments); },
-  
-  saveOpts: function() { return this.type('wiggle_0').saveOpts.apply(this, arguments); }
-  
-};
+});
 
 module.exports = BedGraphFormat;

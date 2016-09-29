@@ -50,7 +50,8 @@ CustomTrack.types = {
   vcftabix: require('./track-types/vcftabix.js'),
   bigbed: require('./track-types/bigbed.js'),
   bam: require('./track-types/bam.js'),
-  bigwig: require('./track-types/bigwig.js')
+  bigwig: require('./track-types/bigwig.js'),
+  biggenepred: require('./track-types/biggenepred.js')
 };
 
 // ==========================================================================

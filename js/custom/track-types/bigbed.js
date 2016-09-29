@@ -109,7 +109,7 @@ var BigBedFormat = {
     
     // Don't even attempt to fetch the data if density is not 'dense' and we can reasonably
     // estimate that we will fetch too many rows (>500 features), as this will only delay other requests.
-    if (density != 'dense' && (end - start) > self.opts.maxFetchWindow) {
+    if (density != 'dense' && self.opts.maxFetchWindow > 0 && (end - start) > self.opts.maxFetchWindow) {
       callback({tooMany: true});
     } else {
       if (density == 'dense') {

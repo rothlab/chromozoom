@@ -25,10 +25,13 @@ var ChromSizesFormat = {
   
   createTracks: function(tracks) {
     var self = this,
-      o = self.opts;
+      o = self.opts,
+      categories = {};
       
     _.each(tracks, function(t) {
-      var trackOpts, visible = true;
+      var trackOpts, 
+        visible = true,
+        cat = t.grp || "Feature Tracks";
       t.lines = t.lines || [];
       trackOpts = /^track\s+/i.test(t.lines[0]) ? global.CustomTracks.parseDeclarationLine(t.lines.shift()) : {};
       _.extend(trackOpts, t.opts, {name: t.name, type: t.type});
@@ -47,11 +50,14 @@ var ChromSizesFormat = {
       });
       if (visible) { o.tracks.push({n: t.name}); }
       o.trackDesc[t.name] = {
-        cat: "Feature Tracks",
+        cat: cat,
         sm: t.shortLabel || t.name,
         lg: t.description || t.name
       };
+      categories[cat] = true;
     });
+    
+    if (_.keys(categories).length > 1) { o.groupTracksByCategory = true; }
   },
   
   parse: function(text) {

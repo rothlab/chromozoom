@@ -691,4 +691,9 @@ def translate_settings(settings, bed_plus_fields=None, url=None):
     if not re.match(r'^https://', new_settings['url']):
         new_settings['url'] = get_ucsc_base_url() + new_settings['url']
     
+    # FIXME: May want to try to autodetect and support item detail URLs to UCSC of the form...
+    # https://genome.ucsc.edu/cgi-bin/hgc?db=hg38&c=chr9&o=133186402&g=est&i=BI003541
+    # or as per `url` in https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings
+    # https://genome.ucsc.edu/cgi-bin/hgc?db=$D&c=$S&o=${&g=$T&i=$$
+    
     return json.dumps(new_settings)

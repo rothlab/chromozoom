@@ -770,9 +770,14 @@ $.widget('ui.genotrack', {
   },
   
   _reposTile: function($tile, tileId, zoom, bppp) {
-    var o = this.options;
-    $tile.css('left', (tileId - o.line.genoline('option', 'origin')) / zoom);
-    $tile.css('width', Math.ceil(o.tileWidth * bppp / zoom));
+    var o = this.options,
+      left = (tileId - o.line.genoline('option', 'origin')) / zoom,
+      width = Math.ceil(o.tileWidth * bppp / zoom);
+    // Absolutely ugly hack to preclude strange re-painting bug on Chrome that only occurs for the tile just left of 0
+    // at the highest zoom level. It's a blank tile, so it doesn't matter that we stretch it a teensy bit.
+    if (left === -o.tileWidth && zoom === o.bppps[0]) { width += 0.1; }
+    $tile.css('left', left);
+    $tile.css('width', width);
     
     if (this.ruler && bppp <= o.ntsBelow[0]) {
       $tile.find('svg').each(function() {

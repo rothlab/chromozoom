@@ -158,7 +158,7 @@ var WiggleFormat = {
   },
   
   initDrawSpec: function(precalc) {
-    var vScale = (this.drawRange[1] - this.drawRange[0]) / precalc.height,
+    var vScale = (this.drawRange[1] - this.drawRange[0]),
       drawSpec = {
         bars: [],
         vScale: vScale,
@@ -195,21 +195,22 @@ var WiggleFormat = {
   },
   
   drawBars: function(ctx, drawSpec, height, width) {
-    var zeroLine = drawSpec.zeroLine, // pixel position of the data value 0
+    var zeroLine = drawSpec.zeroLine * height, // pixel position of the data value 0
       color = "rgb("+this.opts.color+")",
       altColor = "rgb("+(this.opts.altColor || this.altColor)+")",
       pointGraph = this.opts.graphType==='points';
     
     ctx.fillStyle = color;
     _.each(drawSpec.bars, function(d, x) {
+      var y = d * height;
       if (d === null) { return; }
-      else if (d > zeroLine) { 
-        if (pointGraph) { ctx.fillRect(x, height - d, 1, 1); }
-        else { ctx.fillRect(x, height - d, 1, zeroLine > 0 ? (d - zeroLine) : d); }
+      else if (y > zeroLine) { 
+        if (pointGraph) { ctx.fillRect(x, height - y, 1, 1); }
+        else { ctx.fillRect(x, height - y, 1, zeroLine > 0 ? (y - zeroLine) : y); }
       } else {
         ctx.fillStyle = altColor;
-        if (pointGraph) { ctx.fillRect(x, zeroLine - d - 1, 1, 1); } 
-        else { ctx.fillRect(x, height - zeroLine, 1, zeroLine - d); }
+        if (pointGraph) { ctx.fillRect(x, zeroLine - y - 1, 1, 1); } 
+        else { ctx.fillRect(x, height - zeroLine, 1, zeroLine - y); }
         ctx.fillStyle = color;
       }
     });
@@ -221,12 +222,11 @@ var WiggleFormat = {
 
   render: function(canvas, start, end, density, callback) {
     var self = this,
-      height = canvas.height,
       width = canvas.width,
       ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) { throw "Canvas not supported"; }
-    self.prerender(start, end, density, {width: width, height: height}, function(drawSpec) {
-      self.type().drawBars.call(self, ctx, drawSpec, height, width);
+    self.prerender(start, end, density, {width: width}, function(drawSpec) {
+      self.type().drawBars.call(self, ctx, drawSpec, canvas.height, width);
       if (_.isFunction(callback)) { callback(); }
     });
   },

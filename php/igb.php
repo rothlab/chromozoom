@@ -142,6 +142,13 @@ function getAnnotsAsTracks($url) {
           . hex2rgb((string) $file['negative_strand_color']);
       }
     }
+    // annots.xml allows for an undocumented view_mode attribute that we co-opt to supply extra track options
+    // that allows for better parity with all of our supported UCSC track options
+    // For our purposes, we permit JSON in this attribute, which adds/overrides any track options.
+    if ((string) $file['view_mode']) {
+      $more_opts = @json_decode((string) $file['view_mode'], TRUE);
+      $track['opts'] = array_replace($track['opts'], is_array($more_opts) ? $more_opts : array()); 
+    }
 
     array_push($tracks, $track);
   }

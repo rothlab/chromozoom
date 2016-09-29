@@ -67,10 +67,11 @@ CustomGenome.defaults = {
   tracks: [{n: "ruler"}],
   trackDesc: {
     ruler: {
-      cat: "Mapping and Sequencing Tracks",
+      cat: "Mapping and Sequencing",
       sm: "Base Position"
     }
   },
+  groupTracksByCategory: false,
   // These last three will be overridden using knowledge of the window's width
   bppps: [],
   bpppNumbersBelow: [],

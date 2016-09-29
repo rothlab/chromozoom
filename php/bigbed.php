@@ -11,6 +11,7 @@ function bad_request() {
 }
 
 define('RANGE_PATTERN', '/^(\\w+[^:]*):(\\d+)-(\\d+)$/');
+define('TOO_FEW_PIXELS', 3); // Not worth calling bigBedSummary for this small of an output range
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 
@@ -45,8 +46,16 @@ function ranges_to_args(&$ranges) {
     } else { $total_bps += intval($matches[2]) - intval($matches[1]); }
     $range = $matches;
   }
-  if ($SUMMARY) foreach($ranges as &$range) {
-    $range[3] = round((intval($range[2]) - intval($range[1])) / $total_bps * $WIDTH);
+  if ($SUMMARY) {
+    $cumulative_bps = 0;
+    $cumulative_pixels = 0;
+    foreach($ranges as &$range) {
+      // Number of summary values to request for this range, which we try to align to the nearest cumulative pixel
+      $bp_width = intval($range[2]) - intval($range[1]);
+      $range[3] = max(round((($cumulative_bps + $bp_width) / $total_bps * $WIDTH) - $cumulative_pixels), 0);
+      $cumulative_bps += $bp_width;
+      $cumulative_pixels += $range[3];
+    }
   }
 }
 
@@ -73,6 +82,10 @@ if ($INFO_ONLY) {
   
   ranges_to_args($ranges);
   foreach ($ranges as $range) {
+    if ($SUMMARY) {
+      if ($range[3] <= 0) { continue; }
+      if ($range[3] <= TOO_FEW_PIXELS) { echo implode("\t", array_fill(0, $range[3], "n/a")) . "\n"; continue; }
+    }
     $CMD_SUFFIX = $SUMMARY ? ' 2>&1' : ' /dev/stdout';
     $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range)) . $CMD_SUFFIX);
     if ($SUMMARY && preg_match('/^no data in region|^needLargeMem/', $out)) {

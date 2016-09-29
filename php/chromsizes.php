@@ -69,6 +69,7 @@ function getTracksForDb($db) {
       'name' => $name,
       'description' => $row['longLabel'],
       'shortLabel' => $row['shortLabel'],
+      'grp' => $row['grpLabel'],
       'type' => littleToBigFormat($row['type']),
       'opts' => array_merge($local_settings, array(
         'bigDataUrl' => $location,
@@ -98,7 +99,6 @@ if (isset($_GET['db'])) {
     $response['mem'] = memory_get_usage();
     $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
     $response['tracks'] = getTracksForDb($db);
-    
   
     if (isset($_GET['meta'])) {
       foreach (getAllGenomes() as $genome) {

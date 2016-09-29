@@ -79,8 +79,8 @@ body {
 .picker ul {
   max-height: 500px;
   overflow-y: auto;
-  margin: 0.5em 0.5em 0 0.5em;
-  padding: 0;
+  margin: 0;
+  padding: 6px 0 0 0;
   list-style-type: none;
   font-size: 0.8em;
 }
@@ -96,10 +96,29 @@ body {
     border: 2px solid white; /* should match background, can't be transparent */
     background-color: rgba(0, 0, 0, .5);
 }
-.picker ul, .picker ul * { cursor: pointer; }
+.picker .header { 
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 80%;
+  color: #fff;
+  text-shadow: 0 1px 1px #3e6790;
+  border: 1px solid #456f9a;
+  border-left-width: 0;
+  border-right-width: 0;
+  background: #45507F;
+  background-image: -webkit-gradient(linear,left top,left bottom,from(#6facd5), to(#497bae));
+  background-image: -webkit-linear-gradient(#6facd5,#497bae);
+  background-image: -moz-linear-gradient(#6facd5,#497bae);
+  background-image: -ms-linear-gradient(#6facd5,#497bae);
+  background-image: -o-linear-gradient(#6facd5,#497bae);
+  background-image: linear-gradient(#6facd5,#497bae);
+  padding: 4px 0 4px 8px;
+  margin: 0;
+}
 .picker .choice { clear: both; }
+.picker .choice * { cursor: pointer; }
 .picker .choice a.clickable { text-decoration: none; }
-.picker .choice .clickable { display: block; padding: 0.3em 0; }
+.picker .choice .clickable { display: block; padding: 0.3em 6px; }
 .picker .choice .more { display: none; font-size: 0.8em; font-weight: normal; padding-top: 2px; color: #346; }
 .picker .choice .clickable.hover { background: #f3f6fa; }
 .picker .choice .clickable.hover .more { display: block; float: right; }
@@ -437,6 +456,7 @@ body {
   color: #444;
   overflow-y: hidden;
 }
+.side.ui-sortable-helper .subtrack-cont .scales { display: none; }  /* hide scales while dragging track up/down */
 .browser-line .subtrack-cont .scale { 
   position: absolute;
   left: 0;
