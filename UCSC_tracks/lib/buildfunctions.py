@@ -12,6 +12,7 @@ import time
 import gzip
 from .autosql import AutoSqlDeclaration
 
+script_directory = os.path.dirname(os.path.dirname(__file__))
 # Cache the parsed config file after the first access
 config_yaml = None
 
@@ -31,10 +32,10 @@ def open_ucsc_yaml():
         return config_yaml
     try:
         import yaml
-        with open('../ucsc.yaml', 'r') as handle:
+        with open(os.path.join(os.path.dirname(__file__), '../../ucsc.yaml'), 'r') as handle:
             config_yaml = yaml.load(handle)
-    except ImportError:
-        sys.exit('FATAL: could not read ../config.yaml.')
+    except (ImportError, FileNotFoundError) as e:
+        sys.exit('FATAL: could not read ../ucsc.yaml.')
     return config_yaml
     
 
@@ -89,6 +90,9 @@ def get_wig_as_bigwig():
 
 def get_remote_tracks():
     return get_ucsc_base_url() + open_ucsc_yaml()['browser_urls']['tracks']
+
+def get_remote_item_url():
+    return get_ucsc_base_url() + open_ucsc_yaml()['browser_urls']['item_detail']
 
 
 def cmd_exists(cmd):
@@ -223,8 +227,8 @@ def create_hierarchy(organism, table_source):
     """
     Creates a file with tables hierarchy for a given organism.
     """
-    save_dir = './_hierarchy/'
-    location = save_dir + '{}.txt'.format(organism)
+    save_dir = './{}'.format(organism)
+    location = save_dir + '/table_hierarchy.txt'.format(organism)
 
     if not os.path.isdir(save_dir):
         os.mkdir(save_dir)
@@ -361,7 +365,6 @@ def setup_directories(organism):
         os.makedirs(organism + '/bigBed')
 
 
-
 def is_bedlike_format(track_type):
     """
     Is the given track type convertable to BED/bigBed? 
@@ -372,13 +375,17 @@ def is_bedlike_format(track_type):
 
 
 def get_as_and_bed_type_for_bedlike_format(track_type):
+    global script_directory
     """
     Is the given track type convertable to BED/bigBed? 
     If so, returns the location of the autoSql file for this type, and the BED subtype (bedN+N).
     Otherwise, raises a KeyError.
     """
     track_type = re.split(r'\s+', track_type)
-    return BEDLIKE_FORMATS[track_type[0]]
+    location, bed_subtype = BEDLIKE_FORMATS[track_type[0]]
+    if location is not None:
+        location = os.path.normpath(os.path.join(script_directory, location))
+    return location, bed_subtype
 
 
 def fetch_autosql_for_bigbed(bb_location):
@@ -494,7 +501,8 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     has_genePred_fields = table_fields[-4:] == ['name2', 'cdsStartStat', 'cdsEndStat', 'exonFrames']
 
     if not fetch_table_tsv_gz(organism, table_name, gz_file):
-        print('FAILED ({}): [db {}] Couldn\'t download .tsv.gz for table "{}".'.format(print_time(), organism, table_name))
+        print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "{}".'.format(print_time(), organism, table_name))
+        return None
     
     if bedlike_format == 'genePred':
         # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html
@@ -556,46 +564,67 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
 
 def augment_knownGene_bed_file(organism, old_location):
     """
-    knownGene tracks, which are extremely high priority, unfortunately have things in a slightly different format.
+    knownGene tracks, which are very high priority, unfortunately have things in a slightly different format.
     We must get `name2` from the kgXref table, and `cdsStartStat`, `cdsEndStat` and `exonFrames` from the knownCds table.
+    We can also get the itemRgb from the kgColor table.
     Furthermore, we stuff the `description` field from kgXref into the 19th standard bigGenePred column (geneName2).
     """
     print('INFO ({}): [db {}] Augmenting knownGene table.'.format(print_time(), organism))
     new_location = old_location[:-4] + '.fixed.bed'
     kgXref_gz_file = './{}/build/kgXref.txt.gz'.format(organism)
+    kgColor_gz_file = './{}/build/kgColor.txt.gz'.format(organism)
     knownCds_gz_file = './{}/build/knownCds.txt.gz'.format(organism)
     kgXref = dict()
+    kgColor = dict()
     knownCds = dict()
     
     if not fetch_table_tsv_gz(organism, 'kgXref', kgXref_gz_file):
-        print('FAILED ({}): [db {}] Couldn\'t download .tsv.gz for table "kgXref".'.format(print_time(), organism))
+        print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "kgXref".'.format(print_time(), organism))
+    if not fetch_table_tsv_gz(organism, 'kgColor', kgColor_gz_file):
+        print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "kgColor".'.format(print_time(), organism))
     if not fetch_table_tsv_gz(organism, 'knownCds', knownCds_gz_file):
-        print('FAILED ({}): [db {}] Couldn\'t download .tsv.gz for table "knownCds".'.format(print_time(), organism))
+        print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "knownCds".'.format(print_time(), organism))
         
     with gzip.open(kgXref_gz_file, 'rt', newline="\n") as kgXref_handle:
         for line in kgXref_handle:
             fields = line.strip("\n").split("\t")
             kgXref[fields[0]] = (fields[4], re.sub(r'[\t\r\n]', ' ', fields[7]))
     
-    with gzip.open(knownCds_gz_file, 'rt', newline="\n") as knownCds_handle:
-        for line in knownCds_handle:
+    with gzip.open(kgColor_gz_file, 'rt', newline="\n") as kgColor_handle:
+        for line in kgColor_handle:
             fields = line.strip("\n").split("\t")
-            knownCds[fields[0]] = (fields[1], fields[2], fields[4])
+            kgColor[fields[0]] = ",".join(map(str, fields[1:4]))
+    
+    if os.path.isfile(knownCds_gz_file):
+        with gzip.open(knownCds_gz_file, 'rt', newline="\n") as knownCds_handle:
+            for line in knownCds_handle:
+                fields = line.strip("\n").split("\t")
+                knownCds[fields[0]] = (fields[1], fields[2], fields[4])
     
     with open(old_location, 'r') as read_handle:
         with open(new_location, 'w') as write_handle:
             for line in read_handle:
                 fields = line.strip("\n").split("\t")
-                name = fields[3]                
+                name = fields[3]
                 if name in kgXref:
                     fields[12] = kgXref[name][0]
                     fields[18] = kgXref[name][1]
+                if name in kgColor:
+                    fields[8] = kgColor[name]
                 if name in knownCds:
                     fields[13:16] = knownCds[name]
+                # Fixes pathological case of >1024 exons breaking bedToBigBed (see uc031qqx.1 in hg19)
+                if int(fields[9]) > 1024:
+                    fields[9] = 1
+                    fields[10] = int(fields[2]) - int(fields[1])
+                    fields[11] = 0
+                    fields[15] = -1
+                    fields = map(str, fields)
                 print("\t".join(fields), file=write_handle)
             
     os.remove(kgXref_gz_file)
-    os.remove(knownCds_gz_file)
+    os.remove(kgColor_gz_file)
+    if os.path.isfile(knownCds_gz_file): os.remove(knownCds_gz_file)
     os.remove(old_location)
     return new_location
 
@@ -667,7 +696,7 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
     return bb_file
     
 
-def translate_settings(settings, bed_plus_fields=None, url=None):
+def translate_settings(table_name, settings, bed_plus_fields=None, url=None):
     """
     Translates the settings field in UCSC's trackDb into a JSON-encoded object with track settings supported by chromozoom
     """
@@ -684,16 +713,22 @@ def translate_settings(settings, bed_plus_fields=None, url=None):
     for key, value in old_settings.items():
         if key in whitelisted_keys:
             new_settings[key] = value
-            
+    
+    if table_name == 'knownGene': new_settings['itemRgb'] = 'on'
+    
     if bed_plus_fields is not None: new_settings['bedPlusFields'] = ",".join(bed_plus_fields)
     if 'directUrl' in old_settings: new_settings['url'] = old_settings['directUrl']
     elif url: new_settings['url'] = url.decode('latin1')
-    if not re.match(r'^https://', new_settings['url']):
+    if 'url' in new_settings and not re.match(r'^https://', new_settings['url']):
         new_settings['url'] = get_ucsc_base_url() + new_settings['url']
-    
+
     # FIXME: May want to try to autodetect and support item detail URLs to UCSC of the form...
-    # https://genome.ucsc.edu/cgi-bin/hgc?db=hg38&c=chr9&o=133186402&g=est&i=BI003541
+    # https://genome.ucsc.edu/cgi-bin/hgc?db=hg38&c=chr9&o=133186402&l=&r=&g=est&i=BI003541
     # or as per `url` in https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings
-    # https://genome.ucsc.edu/cgi-bin/hgc?db=$D&c=$S&o=${&g=$T&i=$$
+    # https://genome.ucsc.edu/cgi-bin/hgc?db=$D&c=$S&l=${&r=$}&o=${&g=$T&i=$$
+    if 'url' not in new_settings:
+        get_remote_item_url() % (organism, 
+         % ('$D', '$S', '${', '$}', '${', '$T', '$$')
+
     
     return json.dumps(new_settings)

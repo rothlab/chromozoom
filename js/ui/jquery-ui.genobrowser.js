@@ -46,6 +46,7 @@ module.exports = (function($){
         {n:'ruler', h:50, s:['dense']}
       ],
       groupTracksByCategory: false,
+      searchableTracks: false,  // can set to a URL to allow even more tracks to be added via AJAX
       chrOrder: [],
       chrLengths: {},
       chrBands: [],
@@ -77,7 +78,6 @@ module.exports = (function($){
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
       trackDescURL: 'http://genome.ucsc.edu/cgi-bin/hgTrackUi',
       bpppFormat: function(bppp) { return bppp.toExponential(2).replace(/(\+|-)(\d)$/, '$10$2'); },
-      useCanvasTicks: true,
       savableParams: {session: ['position', 'tracks'], persistent: ['mode']}
       //,snapZoom: true
       //,snapZoomAfter: 200
@@ -92,6 +92,9 @@ module.exports = (function($){
       var self = this,
         $elem = self.element, 
         o = self.options;
+      
+      // Some user agents need some minor style tweaking
+      $.browser.actuallySafari = $.browser.safari && navigator && !(/chrome/i).test(navigator.userAgent);
       
       // Setup internal variables
       self._initInstanceVars();
@@ -165,6 +168,7 @@ module.exports = (function($){
         return {
           bppps: o.bppps,
           chrPos: self.chrPos,
+          genome: o.genome,
           pos: pos,
           chrLengths: o.chrLengths,
           genomeSize: o.genomeSize,
@@ -173,7 +177,7 @@ module.exports = (function($){
       }
       
       function finishSetup() {
-        _.each(o.tracks, function(t){ 
+        _.each(o.tracks, function(t) { 
           $.extend(t, self.availTracks[t.n]);
         });
         
@@ -296,11 +300,12 @@ module.exports = (function($){
         $elem = $(self.element),
         closePicker = function() { $picker.slideUp(100); };
       $picker.unbind('remaxheight.genobrowser').bind('remaxheight.genobrowser', function() {
-        var $ul = $(this).children('ul'),
+        var $notUl = $(this).children().not('ul'),
+          $ul = $(this).children('ul').eq(0),
           visible = $(this).is(':visible'),
           formLineHeights;
         if (!visible) { $(this).show(); } // can't make measurements while hidden
-        formLineHeights = _.map($ul.nextAll(), function(el) { 
+        formLineHeights = _.map($notUl, function(el) { 
           return Math.max($(el).outerHeight(), $(el).find('textarea').outerHeight()); 
         });
         $ul.css('max-height', $elem.outerHeight() - _.sum(formLineHeights));
@@ -314,6 +319,7 @@ module.exports = (function($){
             $('body').unbind('mousedown.picker');
           });
           if ($btn.is('a.ui-button')) { $btn.addClass('ui-state-active'); }
+          _.defer(function() { $picker.find('[type=search]').focus().select(); });
           $picker.trigger('remaxheight');
         }
         $picker.slideToggle(100);
@@ -384,10 +390,12 @@ module.exports = (function($){
         ungrouped = {},
         $toggleBtn = $(o.trackPicker[0]),
         $trackPicker = $(o.trackPicker[1]).empty(),
+        $searchBar = $('<div class="search-bar"/>').appendTo($trackPicker),
         $ul = $('<ul/>').appendTo($trackPicker),
         $div = $('<div class="button-line"/>').appendTo($trackPicker),
         $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
-        $b = $('<input type="button" name="done" value="done"/>').appendTo($div);
+        $b = $('<input type="button" name="done" value="done"/>').appendTo($div),
+        $search;
       
       function addTrack(t, n) {
         // TODO: This needs to distinguish between traditional image tracks and custom tracks brought in
@@ -397,8 +405,9 @@ module.exports = (function($){
           $d = $('<div class="desc"></div>').appendTo($l),
           db = o.genome.split(':'),
           href = o.trackDescURL + '?db=' + (db[0] === 'ucsc' ? db[1] : db[0]) + '&g=' + n + '#TRACK_HTML',
-          $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '';
-        $('<h3/>').addClass('name').text(d[n].sm).append($a).appendTo($d);
+          $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '',
+          $span = $('<span/>').text(d[n].sm);
+        $('<h3/>').addClass('name').append($span).append($a).appendTo($d);
         if (d[n].lg) { $('<p/>').addClass('long-desc').text(d[n].lg).appendTo($d); }
         if (_.find(o.tracks, function(trk) { return trk.n==n; })) { $c.attr('checked', true); }
         $l.bind('click', function(e) { if ($(e.target).is('a')) { e.stopPropagation(); }});
@@ -410,7 +419,7 @@ module.exports = (function($){
         var $li = $('<li class="header"/>').appendTo($ul);
         $li.text(cat);
       }
-      
+            
       if (o.groupTracksByCategory) {
         _.each(self.availTracks, function(t, n) {
           var cat = d[n].cat;
@@ -424,6 +433,18 @@ module.exports = (function($){
           _.each(tracks, addTrack); 
         });
       } else { _.each(self.availTracks, addTrack); }
+      
+      if (o.searchableTracks) {
+        $search = $('<input type="search"/>').appendTo($searchBar);
+        $search.bind('keyup click', function(e) { _.defer(function() { self._searchTracks($search.val()); }); });
+        $search.attr('placeholder', o.searchableTracks === true ? 'Filter available tracks...' 
+            : 'Find more tracks for this genome...');
+        $('<li class="search-warn"/>').hide().appendTo($ul);
+        if (!$.browser.actuallySafari) { 
+          $search.addClass('search');
+          $('<span class="search-icon"/>').appendTo($searchBar);
+        }
+      } else { $searchBar.hide(); }
       
       if (o.tracks.length === 1) { $ul.find('input[name='+o.tracks[0].n+']').attr('disabled', true); }
       $reset.click(function(e) { self._resetToDefaultTracks(); });
@@ -451,6 +472,7 @@ module.exports = (function($){
         return {
           bppps: o.bppps,
           chrPos: self.chrPos,
+          genome: o.genome,
           pos: pos,
           chrLengths: o.chrLengths,
           genomeSize: o.genomeSize,
@@ -1044,6 +1066,8 @@ module.exports = (function($){
           chromSizes = remoteMetadata.chromsizes;
           metadata.name = remoteMetadata.db;
           metadata.tracks = remoteMetadata.tracks;
+          metadata.moreTracks = remoteMetadata.moreTracks;
+          metadata.cytoBandIdeo = remoteMetadata.cytoBandIdeo;
           origMetadata = remoteMetadata;
           if (chose == 'ucsc') {
             $origOption = $chromSizesDialog.find('[name=ucscGenome] > option[value='+metadata.name+']');
@@ -1074,7 +1098,7 @@ module.exports = (function($){
         $overlayMessage = $(o.overlay[1]),
         fileInputHTML = '<input type="file" name="genomeFile"/>',
         urlInputHTML = '<input type="url" name="genomeUrl" class="url"/>' +
-                       '<input type="button" name="genomeUrlGet" value="Load"/>';
+                       '<input type="button" name="genomeUrlGet" value="load"/>';
       
       self._initChromSizesDialog();
       
@@ -1432,7 +1456,9 @@ module.exports = (function($){
       // Now, add any tracks that are in the new set but aren't in the old set
       _.each(newTracks, function(name, i) {
         var spec = trackSpec[i];
-        if (!_.include(prevTracks, name)) { o.tracks.splice(i, 0, $.extend({}, self.availTracks[name], spec.h ? {h: spec.h} : {})); } 
+        if (!_.include(prevTracks, name)) { 
+          o.tracks.splice(i, 0, $.extend({}, self.availTracks[name], spec.h ? {h: spec.h} : {}));
+        } 
       });
       
       self.$lines.genoline('fixTracks');
@@ -1479,6 +1505,42 @@ module.exports = (function($){
     _resetToDefaultTracks: function() {
       this._fixTracks(false, this.defaultTracks);
       this._saveParamsDebounced();
+    },
+    
+    // Filters the tracks within the track list, and if o.searchableTracks is a URL, fetches more tracks that can be added
+    _searchTracks: function(query) {
+      var self = this,
+        o = self.options,
+        lastQuery = self._lastTrackSearch,
+        $list = $(o.trackPicker[1]).children('ul').eq(0),
+        $warn = $list.children('.search-warn'),
+        numResults, warnText;
+      
+      query = query.toLowerCase();
+      if (!o.searchableTracks) { return; }
+      if (query === lastQuery) { return; }
+      
+      function matches(elem) {
+        var $elem = $(elem),
+            text = "" + $elem.find('h3.name>span').text() + " " + $elem.find('.long-desc').text();
+        text += " " + $elem.find('input').attr('name');
+        text += " " + $elem.prevUntil('.header').prev('.header').text();
+      	return (("" + text).toLowerCase().indexOf(query) !== -1 );
+      }
+      
+      $list.children('.choice').each(function() {
+        $(this).toggle(matches(this));
+      });
+      $list.children('.header').each(function() {
+        $(this).toggle($(this).nextUntil('.header').filter('.choice').is(':visible'));
+      });
+      numResults = $list.find('.choice:visible').length;
+      warnText = numResults > 0 ? 'Showing only tracks matching the search query.' : 'No tracks match this search query.';
+      $warn.toggle(query !== '').text(warnText);
+      
+      if (o.searchableTracks !== true) {
+        
+      }
     },
     
     // After a custom track file is parsed, this function is called to add them to the custom track picker and each
@@ -2096,7 +2158,7 @@ module.exports = (function($){
       _.each(o.tracks, function(t) {
         self.densityOrder(t.n, t.h, $elem.find('.browser-track-'+t.n).genotrack('bppps'));
         if (t.custom) { $elem.find('.browser-track-'+t.n).genotrack('redrawAreaLabels'); }
-        if (t.n === 'ruler') { $elem.find('.browser-track-'+t.n).genotrack('redrawRulerCanvasTicks'); }
+        if (t.n === 'ruler') { $elem.find('.browser-track-'+t.n).genotrack('redrawRulerCanvasTicksAndBands'); }
       });
     },
     

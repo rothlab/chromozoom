@@ -10,7 +10,7 @@ function bad_request() {
   exit;
 }
  
-if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
+if (!!validate_URL_in_GET_param('url', FALSE)) { bad_request(); }
 passthru_basic_auth_for_GET_param('url');
 if (!isset($_GET['range'])) { bad_request(); } 
 else { $range = array_filter((array) $_GET['range']); }

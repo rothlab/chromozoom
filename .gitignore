@@ -2,6 +2,7 @@
 bin/
 vendor/
 tracks/
+UCSC_tracks/data
 .bundle/
 docs/examples/wgEncodeBroadHistone*.bigWig
 *.tch

@@ -63,8 +63,18 @@ var BigBedFormat = {
     self.sizes = ['dense', 'squish', 'pack'];
     self.mapSizes = ['pack'];
     
-    // Get general info on the bigBed and setup the binning scheme for the RemoteTrack
-    $.ajax(ajaxUrl, {
+    return true;
+  },
+  
+  // Before the RemoteTrack can start caching data, we need to use general info on the bigBed track to setup its binning scheme.
+  // We defer this in a .finishSetup() method because it's potentially expensive HTTP GET that is only necessary if the track
+  // is actually going to be displayed in the browser.
+  finishSetup: function() {
+    var self = this,
+      ajaxUrl = self.ajaxDir() + 'bigbed.php',
+      remote = self.data.remote;
+    
+      $.ajax(ajaxUrl, {
       data: { url: self.opts.bigDataUrl },
       success: function(data) {
         // Set maxFetchWindow to avoid overfetching data.
@@ -77,8 +87,6 @@ var BigBedFormat = {
         remote.setupBins(self.browserOpts.genomeSize, self.opts.optimalFetchWindow, self.opts.maxFetchWindow);
       }
     });
-    
-    return true;
   },
 
   prerender: function(start, end, density, precalc, callback) {

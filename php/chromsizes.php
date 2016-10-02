@@ -10,6 +10,7 @@ header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
 require_once("../lib/spyc.php");
 require_once("../lib/setup.php");
 require_once("../lib/chromsizes.php");
+require_once("../lib/ucsc_tracks.php");
 
 function forbidden($err) { 
   header('HTTP/1.1 403 Forbidden'); 
@@ -26,8 +27,10 @@ $chrom_info_url = $ucsc_config['data_urls']['chrom_info'];
 $prefix = parse_url(preg_replace('/%s.*$/', '', $chrom_info_url), PHP_URL_PATH);
 $big_zips = $ucsc_config['data_urls']['big_zips'];
 $track_db_path = $ucsc_config['ucsc_cached_track_db'];
+$cytoband_bed_path = $ucsc_config['ucsc_cached_track_cytoband'];
 $chromozoom_port = $_SERVER["SERVER_PORT"] != 80 ? ":".$_SERVER["SERVER_PORT"] : '';
 $chromozoom_uri = "http://" . $_SERVER["SERVER_NAME"] . $chromozoom_port . dirname(dirname($_SERVER['REQUEST_URI']));
+
 
 function getAllGenomes() {
   global $all_genomes_url, $prefix, $big_zips;
@@ -53,33 +56,6 @@ function getAllGenomes() {
   return $genomes;
 }
 
-function getTracksForDb($db) {
-  global $track_db_path, $chromozoom_uri;
-  $tracks = array();
-  $track_db_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $track_db_path, $db)); 
-  try { 
-    @$track_db = new SQLite3($track_db_file, SQLITE3_OPEN_READONLY);
-  } catch (Exception $e) { return $tracks; }
-  $result = $track_db->query('SELECT * FROM tracks WHERE priority <= 100');
-  while ($row = $result->fetchArray()) {
-    $name = $row['name'];
-    $location = (preg_match('#^https?://#', $row['location']) ? "" : "cache://UCSC_tracks/") . $row['location'];
-    $local_settings = json_decode($row['localSettings'], TRUE);
-    $track = array(
-      'name' => $name,
-      'description' => $row['longLabel'],
-      'shortLabel' => $row['shortLabel'],
-      'grp' => $row['grpLabel'],
-      'type' => littleToBigFormat($row['type']),
-      'opts' => array_merge($local_settings, array(
-        'bigDataUrl' => $location,
-        'visibility' => $row['priority'] <= 1 ? 'show' : 'hide'
-      ))
-    );
-    $tracks[] = $track;
-  }
-  return $tracks;
-}
 
 if (isset($_GET['db'])) {
   // If the db parameter is provided, provide a sorted chrom.sizes file for this genome
@@ -98,7 +74,12 @@ if (isset($_GET['db'])) {
     $response['skipped'] = $top_chroms['skipped'];
     $response['mem'] = memory_get_usage();
     $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
-    $response['tracks'] = getTracksForDb($db);
+    
+    $response['tracks'] = getTracksForDb($track_db_path, $chromozoom_uri, $db, 100);
+    $more_tracks = getTracksForDb($track_db_path, $chromozoom_uri, $db, 1000000, TRUE) > count($response['tracks']);
+    $response['moreTracks'] = $more_tracks ? (dirname($_SERVER['REQUEST_URI']) . '/ucsc_tracks.php') : FALSE;
+    
+    $response['cytoBandIdeo'] = getCytoBandIdeo($cytoband_bed_path, $db);
   
     if (isset($_GET['meta'])) {
       foreach (getAllGenomes() as $genome) {

@@ -101,7 +101,8 @@ igb_dirs:
 
 # We can scrape UCSC track data into a cache that can be served alongside chromosome layout data pulled directly from UCSC
 ucsc_cached_track_lists: 'tracks/UCSC/%s.geneMain.trackList.xml'
-ucsc_cached_track_db: 'UCSC_tracks/%s/tracks.db'
+ucsc_cached_track_db: 'UCSC_tracks/data/%s/tracks.db'
+ucsc_cached_track_cytoband: 'UCSC_tracks/data/%s/cytoBandIdeo.bed'
 
 # The genome configuration options that are more likely to be customized by the user should be put toward the top.
 genome_config_key_order:

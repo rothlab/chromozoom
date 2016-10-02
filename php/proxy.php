@@ -34,7 +34,7 @@ function valid_content_type($content_type) {
   return preg_match('#text/plain|vnd.realvnc.bed#', $content_type)===1;
 }
 
-if (!isset($_GET['url']) || !preg_match('#^(https?|ftp)://#', $_GET['url'])) { forbidden(); }
+if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
 
 // First check if this is actually a bigBed, bigWig, or vcfTabix file
 // If the corresponding tool returns a exit code of 0, we guess that it is, and proxy back

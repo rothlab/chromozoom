@@ -17,7 +17,7 @@ define('TOO_FEW_PIXELS', 3); // Not worth calling bigWigSummary for this small o
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
  
-if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
+if (!validate_URL_in_GET_param('url', FALSE)) { bad_request(); }
 passthru_basic_auth_for_GET_param('url');
 $SUMMARY = !isset($_GET['info']);
 if ($SUMMARY) {

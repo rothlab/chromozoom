@@ -37,6 +37,8 @@ $.widget('ui.genotrack', {
     self.fixClippedDebounced = _.debounce(self.fixClipped, 500);
     if (self.custom) {
       o.scales = o.track.custom.scales;
+      // Some custom track types defer expensive parts of setup until they're about to be displayed
+      o.track.custom.finishSetupAsync();
       o.track.custom.onSyncProps = function(props) { self._customTrackPropsUpdated(props); }; 
     }
     
@@ -313,9 +315,6 @@ $.widget('ui.genotrack', {
     if (!found) {
       bppps.nearest = possibleBppps.slice(-2);
       bppps.top = possibleBppps.slice(-1)[0];
-    }
-    if (this.ruler && zoom <= o.ideogramsAbove) {
-      bppps.nearest = bppps.nearest.slice(-1);
     }
     bppps.topFormatted = this._bpppFormat(bppps.top);
     return (this._bppps = bppps);
@@ -829,6 +828,7 @@ $.widget('ui.genotrack', {
       bppps = this.bppps(),
       labelsNeeded = _.filter(o.chrLabels, function(v) { return v.p > leftMarg && v.p < rightMarg; }),
       labelElements = [];
+
     _.each(labelsNeeded, function(v) {
       var repos = false, $l = $elem.children('.label-' + v.p);
       if (!$l.length) { $l = self._addLabel(v, zoom); repos = true; }
@@ -836,22 +836,6 @@ $.widget('ui.genotrack', {
       labelElements.push($l.get(0));
     });
     $elem.children('.label').not(labelElements).remove();
-    
-    if (o.chrBands && zoom <= o.ideogramsAbove) {
-      var firstBandIndex = _.sortedIndex(o.chrBands, [0, 0, leftMarg], function(v) { return v[2]; }),
-        lastBandIndex = _.sortedIndex(o.chrBands, [0, rightMarg], function(v) { return v[1]; }),
-        bandsNeeded = o.chrBands.slice(firstBandIndex, lastBandIndex),
-        bandElements = [];
-      _.each(bandsNeeded, function(v) {
-        var repos = false, $b = $('#' + self._tileId(v[1], 'band'));
-        if (!$b.length) { $b = self._addBand(v, zoom); repos = true; }
-        if (repos || forceRepos) { self._reposBand($b, v, zoom); }
-        bandElements.push($b.get(0));
-      });
-      $elem.children('.band').not(bandElements).remove();
-    } else {
-      $elem.children('.band').remove();
-    }
   },
   
   _rulerTile: function($t, tileId, bppp) {
@@ -862,6 +846,7 @@ $.widget('ui.genotrack', {
     $t.addClass('tile-ruler bppp-'+classFriendly(bppp)).data('bppp', bppp);
     
     self._drawRulerCanvasTicks($t, tileId, bppp, zoom);
+    self._drawRulerCanvasChrBands($t, tileId, bppp, zoom);
     
     if (bppp <= o.ntsBelow[0]) {
       var showNtText = bppp <= o.ntsBelow[1],
@@ -892,86 +877,132 @@ $.widget('ui.genotrack', {
       newChr;
     
     if (bppp <= o.bpppNumbersBelow[0]) {
-      $t.toggleClass('tile-halfway', bppp == o.bpppNumbersBelow[0]);
+      $t.toggleClass('tile-halfway', bppp <= o.bpppNumbersBelow[0] && bppp > o.bpppNumbersBelow[1]);
       $t.toggleClass('tile-loaded', bppp <= o.bpppNumbersBelow[1]);
-      if (o.useCanvasTicks) {
-        // This may alleviate some of the excessive element creation that occurs with the HTML method
-        start -= step;
-        var offsetForNtText = !o.chrBands && bppp <= o.ntsBelow[1],
-          canvasHeight = o.chrBands ? 23 : (offsetForNtText ? 12 : 23),
-          canvasWidth = bppp / zoom * o.tileWidth,
-          $oldC = $t.children('canvas.ticks'),
-          canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": "ticks" + ($oldC.length ? ' hidden' : '')},
-          $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
-          ctx = $c.get(0).getContext && $c.get(0).getContext('2d'),
-          textY = o.chrBands ? 16 : (offsetForNtText ? 10 : 16),
-          defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif";
-        if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
-        if (!ctx) { return; }
-        $c.attr(canvasAttrs);
-        ctx.font = defaultFont;
-        for (var t = start; t + chr.p < tileId + bppp * o.tileWidth + step; t += step) {
-          if (t > o.chrLengths[chr.n]) {
-            newChr = o.browser.genobrowser('chrAt', chr.p + t);
-            if (chr === newChr) { break; } // off the end of the last chromosome
-            t = 0;
-            chr = newChr;
-            continue; // the label for 0 is never shown
+      start -= step;
+      var offsetForNtText = !o.chrBands && bppp <= o.ntsBelow[1],
+        canvasHeight = o.chrBands ? 23 : (offsetForNtText ? 12 : 23),
+        canvasWidth = bppp / zoom * o.tileWidth,
+        $oldC = $t.children('canvas.ticks'),
+        canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": "ticks" + ($oldC.length ? ' hidden' : '')},
+        $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
+        ctx = $c.get(0).getContext && $c.get(0).getContext('2d'),
+        textY = o.chrBands ? 16 : (offsetForNtText ? 10 : 16),
+        defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif";
+      if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
+      if (!ctx) { return; }
+
+      // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
+      $c.attr(canvasAttrs);
+      ctx.font = defaultFont;
+      for (var t = start; t + chr.p < tileId + bppp * o.tileWidth + step; t += step) {
+        if (t > o.chrLengths[chr.n]) {
+          newChr = o.browser.genobrowser('chrAt', chr.p + t);
+          if (chr === newChr) { break; } // off the end of the last chromosome
+          t = 0;
+          chr = newChr;
+          continue; // the label for 0 is never shown
+        }
+        var unit = _.find([[1000000, 'm'], [1000, 'k'], [1, '']], function(v) { return v[0] <= step; }),
+          major = floorHack(t / majorStep[1]),
+          minor = (t / unit[0]).toString().substr(major > 0 ? major.toString().length : 0),
+          isMajor = !(t % majorStep[0]),
+          x = ((t + chr.p - tileId + 0.5) / bpPerTile * canvasWidth);
+        if (isMajor) {
+          ctx.font = "bold " + defaultFont;
+          if (major) {
+            ctx.textAlign = 'end';
+            ctx.fillText(major, x - 1, textY);
           }
-          var unit = _.find([[1000000, 'm'], [1000, 'k'], [1, '']], function(v) { return v[0] <= step; }),
-            major = floorHack(t / majorStep[1]),
-            minor = (t / unit[0]).toString().substr(major > 0 ? major.toString().length : 0),
-            isMajor = !(t % majorStep[0]),
-            x = ((t + chr.p - tileId + 0.5) / bpPerTile * canvasWidth);
-          if (isMajor) {
-            ctx.font = "bold " + defaultFont;
-            if (major) {
-              ctx.textAlign = 'end';
-              ctx.fillText(major, x - 1, textY);
-            }
-            ctx.textAlign = 'start';
-            ctx.fillRect(x, offsetForNtText ? 1 : 3, 1, 19); 
-          } else {
-            ctx.fillStyle = '#666666';
-            ctx.fillRect(x, offsetForNtText ? 1 : 7, 1, 14);
-            ctx.fillStyle = '#000000';
-          }
-          ctx.fillText(minor + (isMajor ? unit[1] : ''), x + 2, textY);
-          if (isMajor) { ctx.font = defaultFont; }
+          ctx.textAlign = 'start';
+          ctx.fillRect(x, offsetForNtText ? 1 : 3, 1, 19); 
+        } else {
+          ctx.fillStyle = '#666666';
+          ctx.fillRect(x, offsetForNtText ? 1 : 7, 1, 14);
+          ctx.fillStyle = '#000000';
         }
-        if ($oldC.length) { 
-          $oldC.addClass('hidden');
-          $c.removeClass('hidden');
-          setTimeout(function() { $oldC.remove(); }, 1000);
-        }
-      } else {
-        function ghostify(text) {
-          text = text.toString();
-          return text;
-        }
-        
-        for (var t = start; t + chr.p < tileId + bppp * o.tileWidth; t += step) {
-          if (t > o.chrLengths[chr.n]) {
-            newChr = o.browser.genobrowser('chrAt', chr.p + t);
-            if (chr === newChr) { break; } // off the end of the last chromosome
-            t = 0;
-            chr = newChr;
-            continue; // the label for 0 is never shown
-          }
-          var unit = _.find([[1000000, 'm'], [1000, 'k'], [1, '']], function(v) { return v[0] <= step; }),
-            major = floorHack(t / majorStep[1]),
-            minor = (t / unit[0]).toString().substr(major > 0 ? major.toString().length : 0),
-            isMajor = !(t % majorStep[0]),
-            tickHTML = '<div class="tick' + (isMajor ? ' major">' + ghostify(major ? major : '') : '">') + 
-              '<span class="minor">' + ghostify(minor + (isMajor ? unit[1] : '')) + '</span></div>',
-            $tick = $(tickHTML).appendTo($t);
-          $tick.css('right', ((1 - (t + chr.p - tileId + 0.5) / bpPerTile) * 100)+'%'); // The 0.5 centers it over the base.
-        }
+        ctx.fillText(minor + (isMajor ? unit[1] : ''), x + 2, textY);
+        if (isMajor) { ctx.font = defaultFont; }
+      }
+
+      // fade between the old & new canvas elements
+      if ($oldC.length) { 
+        $oldC.addClass('hidden');
+        $c.removeClass('hidden');
+        setTimeout(function() { $oldC.remove(); }, 1000);
       }
     }
   },
   
-  redrawRulerCanvasTicks: function() {
+  _drawRulerCanvasChrBands: function($t, tileId, bppp, zoom) {
+    var self = this,
+      o = self.options,
+      leftMarg = tileId,
+      bpPerTile = bppp * o.tileWidth,
+      rightMarg = tileId + bpPerTile,
+      giemsaColors = {gneg: '#e3e3e3', gpos25: '#8e8e8e', gpos50: '#555', stalk: '#555', gpos75: '#393939', 
+          gpos100: '#000', gvar: '#000', acen: '#963232'},
+      whiteLabel = {gpos50: true, stalk: true, gpos75: true, gpos100: true, gvar: true};
+      
+    if (!o.chrBands) { return; }
+    if (zoom <= o.ideogramsAbove) {
+      var firstBandIndex = _.sortedIndex(o.chrBands, [0, 0, leftMarg], function(v) { return v[2]; }),
+        lastBandIndex = _.sortedIndex(o.chrBands, [0, rightMarg], function(v) { return v[1]; }),
+        bandsToDraw = o.chrBands.slice(firstBandIndex, lastBandIndex),
+        canvasHeight = 25,
+        canvasWidth = bppp / zoom * o.tileWidth,
+        $oldC = $t.children('canvas.bands'),
+        canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": 'bands' + ($oldC.length ? ' hidden' : '')},
+        $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
+        ctx = $c.get(0).getContext && $c.get(0).getContext('2d'),
+        defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif";
+      if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
+      if (!ctx) { return; }
+      
+      // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
+      $c.attr(canvasAttrs);
+      ctx.font = defaultFont;
+      ctx.textAlign = 'center';
+      _.each(bandsToDraw, function(band) {
+        var left = (band[1] - tileId) / zoom,
+          right = (band[2] - tileId) / zoom,
+          width = right - left;
+        
+        if (band[4] == 'acen') {
+          var base = left, tip = right;
+          if (band[3].substr(0, 1) == 'q') { base = right; tip = left; }
+          ctx.fillStyle = '#963232';
+          ctx.beginPath();
+          ctx.moveTo(base, 2);
+          ctx.lineTo(tip, 9);
+          ctx.lineTo(tip, 10);
+          ctx.lineTo(base, 17);
+          ctx.lineTo(base, 2);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.fillStyle = '#000';
+          ctx.fillRect(left, 2, width, 1);
+          ctx.fillRect(left, 16, width, 1);
+          ctx.fillStyle = giemsaColors[band[4]];
+          ctx.fillRect(left, 3, width, 13);
+          if (width > band[3].length * 10) {
+            ctx.fillStyle = whiteLabel[band[4]] ? '#fff' : '#000';
+            ctx.fillText(band[3], left + width / 2, 14);
+          }
+        }
+      });
+      
+      // fade between the old & new canvas elements
+      if ($oldC.length) { 
+        $oldC.addClass('hidden');
+        $c.removeClass('hidden');
+        setTimeout(function() { $oldC.remove(); }, 1000);
+      }
+    }
+  },
+  
+  redrawRulerCanvasTicksAndBands: function() {
     var self = this,
       $elem = self.element, 
       o = self.options,
@@ -979,6 +1010,7 @@ $.widget('ui.genotrack', {
     $elem.children('.tile-ruler').each(function() {
       var $t = $(this);
       self._drawRulerCanvasTicks($t, $t.data('tileId'), $t.data('bppp'), zoom);
+      self._drawRulerCanvasChrBands($t, $t.data('tileId'), $t.data('bppp'), zoom);
     });
   },
   
@@ -1036,22 +1068,6 @@ $.widget('ui.genotrack', {
     $l.css('left', (label.p + 1 - this.options.line.genoline('option', 'origin')) / zoom - 1);
   },
   
-  _addBand: function(band, zoom) {
-    var o = this.options,
-      $b = $('<div class="band band-'+band[4]+' band-'+band[3].substr(0,1)+'"/>');
-    $b.attr('id', this._tileId(band[1], 'band'));
-    if (band[5] === 0) { $b.prepend('<div class="chr-start"/>'); }
-    $b.append($('<div class="band-name"/>').text(band[0].substr(3) + band[3]));
-    return $b.appendTo(this.element);
-  },
-  
-  _reposBand: function($b, band, zoom) { 
-    var o = this.options, 
-      prop = band[4] == 'acen' ? (/^p/.test(band[3]) ? 'border-left-width' : 'border-right-width'): 'width';
-    $b.css('left', (band[1] - o.line.genoline('option', 'origin')) / zoom);
-    $b.css(prop, (band[2] - band[1]) / zoom + 1); 
-  },
-  
   _customTileRender: function(e, callback) {
     var canvas = this,
       $canvas = $(this),
@@ -1070,7 +1086,7 @@ $.widget('ui.genotrack', {
       d.self.fixClippedDebounced();
       // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
       // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoom
-      if ($canvas.hasClass('too-many')) { $canvas.parent().addClass('too-many'); }
+      if ($canvas.hasClass('too-many') && d.density != 'pack') { $canvas.parent().addClass('too-many'); }
       if ($canvas.hasClass('too-many') && d.density == 'dense') { $canvas.parent().addClass('too-many-for-dense'); }
       _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
       $canvas.data('rendering', false);

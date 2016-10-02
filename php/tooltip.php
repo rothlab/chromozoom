@@ -11,7 +11,7 @@ function bad_request() {
   exit;
 }
 
-if (!isset($_GET['url']) || !preg_match('#^https?://#', $_GET['url'])) { bad_request(); }
+if (!validate_URL_in_GET_param('url', FALSE)) { bad_request(); }
 $url = $_GET['url'];
 $ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 if (strpos($url, $ucsc_config['browser_hosts']['authoritative']) !== 0) { bad_request(); }

@@ -89,7 +89,6 @@ var BamFormat = {
     this.scales = _.mapObject({dense: 0, squish: 0, pack: 0}, function(v, k) {
       return [{limits: self.drawRange, specialTicks: [Math.round(self.drawRange[1] / 2)], top: 0, height: o.covHeight[k] || 24}];
     });
-    // TODO: Setup this.scales here
     
     // Ensures that options and derived properties set by the above are equal across Web Worker and DOM contexts
     this.syncProps(['opts', 'drawRange', 'coverageRange', 'scales']);

@@ -5,8 +5,12 @@ import argparse
 import time
 import sys
 import re
+from shutil import copyfile
+
 
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
+parser.add_argument('--out', action='store', type=str, default='./data',
+                    help='Directory where finished data will be stored (default is ./data).')
 parser.add_argument('--composite_tracks', action='store_true', default=False,
                     help='Scrape both simple and composite tracks from UCSC (default is simple only).')
 parser.add_argument('--dry_run', action='store_true', default=False,
@@ -20,13 +24,16 @@ parser.add_argument('--org_prefix', action='store', type=str, default='',
 parser.add_argument('--skip_prefix', action='store', type=str, default=None,
                     help='Don\'t scrape tables with names matching this prefix.')
 parser.add_argument('--table_source', action='store', type=str, default='',
-                    help='Location of Track tables. Leave blank to retrieve it from the ../ucsc.yaml config file')
+                    help='URL for the Table Browser webpage. Leave blank to retrieve it from the ../ucsc.yaml config file')
 parser.add_argument('--mysql_host', action='store', type=str, default='',
                     help='Hostname for UCSC\'s MySQL server. Leave blank to retrieve it from the ../ucsc.yaml config file')
 parser.add_argument('--downloads_base_url', action='store', type=str, default='',
                     help='Base URL for bulk downloads from UCSC. Leave blank to retrieve it from the ../ucsc.yaml config file')
 args = parser.parse_args()
 
+
+if not os.path.exists(args.out): os.makedirs(args.out)
+os.chdir(args.out)
 
 table_source = buildfun.get_remote_table() if args.table_source == '' else args.table_source
 tracks_source = buildfun.get_remote_tracks()
@@ -38,7 +45,7 @@ downloads_base_url = downloads_base_url.rstrip('/')
 
 for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
     print('#####################################')
-    print('INFO ({}): FETCHING DATA FOR NEW ORGANISM: {}'.format(buildfun.print_time(), organism))
+    print('INFO ({}): FETCHING DATA FOR ORGANISM: {}'.format(buildfun.print_time(), organism))
     print('INFO ({}): EXTRACTING TRACK HIERARCHY!'.format(buildfun.print_time()))
     track_meta = buildfun.create_hierarchy(organism, table_source)
     if not track_meta:
@@ -124,6 +131,9 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             bed_location = buildfun.fetch_bed_table(cur, table_name, organism, bedlike_format)
             if bed_location is None:
                 continue
+            # An uncompressed copy of the cytoBandIdeo track is kept alongside tracks.db
+            if table_name == 'cytoBandIdeo':
+                copyfile(bed_location, './{}/cytoBandIdeo.bed'.format(organism))
             
             as_location, bed_type = buildfun.get_as_and_bed_type_for_bedlike_format(bedlike_format)
             if as_location is None: # Generic BED tracks have autoSql specifying their fields on UCSC's MySQL server
@@ -154,7 +164,7 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             continue
 
         if save_to_db:
-            local_settings = buildfun.translate_settings(remote_settings, bed_plus_fields, url)
+            local_settings = buildfun.translate_settings(table_name, remote_settings, bed_plus_fields, url)
             row_vals = (table_name, track_info[table_name]['displayName'], tr_type, group, track_info[table_name]['groupLabel'], 
                     parent_track, track_info[table_name]['trackLabel'], short_label, long_label, track_priority[table_name], 
                     file_location, html_description, update_date, remote_settings, local_settings)

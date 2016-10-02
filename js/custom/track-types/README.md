@@ -9,6 +9,10 @@ A few quick notes on defining a custom track format.
 
 + .loadOpts() and .saveOpts() MAY be defined to handle dynamic updating of options via the Custom Track options dialog.
 
++ .finishSetup() MAY be defined, and it will be called right before the custom track is about to display. It is useful for
+    deferring expensive setup operations for a custom track that may not be initially visible. See the "bigbed" format for
+    an example of how to use this.
+
 + Defaults for track options can be put in .defaults.
 
 + The point of a format definition is to store data parsed from the track during .parse() and then draw it to a canvas

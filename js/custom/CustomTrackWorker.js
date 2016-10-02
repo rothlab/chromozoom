@@ -37,6 +37,12 @@ var CustomTrackWorker = {
       track = this._tracks[id];
     track.applyOpts.apply(track, _.rest(args));
   },
+  finishSetup: function() {
+    var args = _.toArray(arguments),
+      id = _.first(args),
+      track = this._tracks[id];
+    track.finishSetup.apply(track, _.rest(args));
+  },
   syncPropsAsync: function(track, props) {
     global.postMessage({id: track.id, syncProps: props});
   },

@@ -52,11 +52,13 @@ module.exports.pixIntervalCalculator = function(start, width, bppp, withText, na
       itvlEnd = _.isUndefined(d[endkey]) ? d.end : d[endkey];
     var pInt = {
       x: Math.round((itvlStart - start) / bppp),
-      w: Math.round((itvlEnd - itvlStart) / bppp) + 1,
+      w: (itvlEnd - itvlStart) / bppp,
       t: 0,          // calculated width of text
       oPrev: false,  // overflows into previous tile?
       oNext: false   // overflows into next tile?
     };
+    // small positive intervals get forcibly rounded up to 1 (so they are drawn), everything else to the nearest whole pixel
+    pInt.w = pInt.w > 0 && pInt.w < 1 ? 1 : Math.round(pInt.w);
     pInt.tx = pInt.x;
     pInt.tw = pInt.w;
     if (pInt.x < 0) { pInt.w += pInt.x; pInt.x = 0; pInt.oPrev = true; }
@@ -88,3 +90,14 @@ module.exports.wigBinFunctions = {
   mean: function(bin) { return _.reduce(bin, function(a,b) { return a + b; }, 0) / bin.length; },
   maximum: function(bin) { return bin.length ? Math.max.apply(Math, bin) : 0; }
 };
+
+// Converts a URL template with %s, %s, %d etc. specifiers, which are used for `directUrl` in UCSC trackDb's
+// https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html
+// into one that is compatible with the `url` parameter on the same page, which uses $$, $T, $S, etc.
+module.exports.convertUrlTemplateFormat = function(url) {
+  var toReplace = {"$$$$": '%s', "$S": '%s', "${": '%d', "$}": '%d', "$T": "%s", "$D": "%s"}
+  _.each(toReplace, function(placeholder, replacement) {
+    url = url.replace(placeholder, replacement);
+  });
+  return url;
+}

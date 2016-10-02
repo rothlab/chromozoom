@@ -29,15 +29,27 @@ var BigWigFormat = {
   
   _binFunctions: {'minimum':1, 'maximum':1, 'mean':1, 'min':1, 'max':1, 'std':1, 'coverage':1},
   
-  applyOpts: function() { return this.type('wiggle_0').applyOpts.apply(this, arguments); },
+  applyOpts: function() { 
+    this.type('wiggle_0').applyOpts.apply(this, arguments);
+    // this.scales needs to be synched back to the DOM side so the $.ui.genotrack can update it
+    this.syncProps(['opts', 'drawRange', 'scales']); // FIXME: Move to wiggle_0?
+  },
 
   parse: function(lines) {
     var self = this;
     self.stretchHeight = true;
     self.range = self.isOn(self.opts.alwaysZero) ? [0, 0] : [Infinity, -Infinity];
+    return true;
+  },
+  
+  // The only gain of getting info on the bigWig file is that we can grab the range of the data and set this.scales.
+  // But it's expensive to do this unless the track is going to be displayed, so this is deferred until .finishSetup().
+  finishSetup: function() {
+    var self = this;
+    
     $.ajax(self.ajaxDir() + 'bigwig.php', {
-      data: {info: 1, url: this.opts.bigDataUrl},
-      async: false,  // This is cool since parsing normally happens in a Web Worker
+      data: {info: 1, url: self.opts.bigDataUrl},
+      async: false,  // This is alright since parsing normally happens in a Web Worker
       success: function(data) {
         var rows = data.split("\n");
         _.each(rows, function(r) {
@@ -47,8 +59,7 @@ var BigWigFormat = {
         });
       }
     });
-    self.type('wiggle_0').applyOpts.apply(self);
-    return true;
+    self.type().applyOpts.apply(self);
   },
 
   prerender: function(start, end, density, precalc, callback) {

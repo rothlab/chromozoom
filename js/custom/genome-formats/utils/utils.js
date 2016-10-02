@@ -10,6 +10,14 @@ var strip = module.exports.strip = trackUtils.strip;
 
 module.exports.roundToPlaces = function(num, dec) { return Math.round(num * Math.pow(10, dec)) / Math.pow(10, dec); }
 
+// Take a guess at a reasonable initial height for a given track type
+module.exports.trackHeightForType = function(type) {
+  type = type.toLowerCase().split(/\s+/)[0];
+  if (type == 'wiggle_0' || type == 'bigwig' || type == 'bedgraph') { return 30; }
+  if (type == 'bam') { return 100; }
+  return 15;
+}
+
 /****
  * These functions are common subroutines for parsing GenBank and other formats based on column positions
  ****/

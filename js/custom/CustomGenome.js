@@ -62,7 +62,7 @@ CustomGenome.defaults = {
   chrBands: null,
   tileWidth: 1000,
   subdirForBpppsUnder: 330,
-  ideogramsAbove: 1000,
+  ideogramsAbove: 0,
   maxNtRequest: 20000,
   tracks: [{n: "ruler"}],
   trackDesc: {
@@ -127,6 +127,7 @@ CustomGenome.prototype.setBppps = function(windowOpts) {
     windowWidth = (windowOpts.width * 0.6) || 1000,
     bppp = Math.round(o.genomeSize / windowWidth),
     lowestBppp = windowOpts.lowestBppp || 0.1,
+    longestContig = _.max(o.chrLengths),
     maxBppps = 100,
     bppps = [], i = 0, log;
   
@@ -138,8 +139,11 @@ CustomGenome.prototype.setBppps = function(windowOpts) {
     i++;
   }
   o.bppps = bppps;
-  o.bpppNumbersBelow = bppps.slice(0, 2);
+  o.bpppNumbersBelow = [bppps[0], _.find(bppps, function(x) { return x < longestContig / 500; })];
   o.initZoom = bppps[0];
+  
+  // if custom genomes have ideograms, we draw them at all zoom levels
+  o.ideogramsAbove = o.ideogramsAbove ? bppps[0] : 0;
 };
 
 // Construct a complete configuration for $.ui.genobrowser based on the information parsed from the genome file

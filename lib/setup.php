@@ -1,5 +1,5 @@
 <?php
-  
+
 function not_symlinked_or_found_on_path($bin) {
   $symlink = dirname(dirname(__FILE__)) . '/bin/' . $bin;
   if (@is_executable($symlink)) { return false; }
@@ -22,6 +22,19 @@ function where_is_ucsc_yaml() {
   $ucsc_dist_yaml = dirname(dirname(__FILE__)) . "/ucsc.dist.yaml";
   $ucsc_yaml = dirname(dirname(__FILE__)) . "/ucsc.yaml";
   return file_exists($ucsc_yaml) ? $ucsc_yaml : $ucsc_dist_yaml;
+}
+
+// check that $_GET[$param] contains a valid URL, optionally translating cache:// URLs to local file paths
+function validate_URL_in_GET_param($param, $allow_cache=FALSE) {
+  if (!isset($_GET[$param])) { return FALSE; }
+  $validator = $allow_cache ? '#^(https?|cache)://#' : '#^https?://#';
+  $valid = preg_match($validator, $_GET[$param], $matches);
+  if (!$valid) { return FALSE; }
+  if ($valid && $allow_cache && $matches[1] == 'cache') {
+    if (strpos($_GET[$param], '/../') !== FALSE) { return FALSE; } // prevents directory traversal shenanigans
+    $_GET[$param] = preg_replace('#^cache://#', dirname(dirname(__FILE__)) . "/", $_GET[$param]);
+  }
+  return $valid;
 }
 
 // This function takes a GET param containing a URL, e.g. 'url', and passes through HTTP Basic 

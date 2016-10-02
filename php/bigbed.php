@@ -17,9 +17,8 @@ function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 
 $INFO_ONLY = FALSE;
 
-if (!isset($_GET['url']) || !preg_match('#^(https?|cache)://#', $_GET['url'])) { bad_request(); }
+if (!validate_URL_in_GET_param('url', TRUE)) { bad_request(); }
 passthru_basic_auth_for_GET_param('url');
-$_GET['url'] = preg_replace('#^cache://#', dirname(dirname(__FILE__)) . "/", $_GET['url']);
 if (!isset($_GET['range'])) { $INFO_ONLY = TRUE; } 
 else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
 if (isset($_GET['range']) && !count($ranges)) { bad_request(); }

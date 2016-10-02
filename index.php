@@ -45,11 +45,15 @@
     <div id="navbar" class="shadow">
       <div id="controls">
         <div class="control-seg">
-          <button id="tracks" name="tracks">show<span class="even-less"> tracks</span><span class="less">&hellip;</span></button>
+          <button id="tracks" name="tracks">
+            <span>show<span class="even-less"> tracks</span><span class="less">&hellip;</span></span>
+          </button>
           <div id="track-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow picker"></div>
         </div>
         <div class="control-seg">
-          <button id="custom-tracks" name="custom-tracks">custom<span class="even-less"> tracks</span><span class="less">&hellip;</span></button>
+          <button id="custom-tracks" name="custom-tracks">
+            <span>custom<span class="even-less"> tracks</span><span class="less">&hellip;</span></span>
+          </button>
           <div id="custom-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow picker">
             <div class="form-line"><div class="spinner"></div><strong>add file: </strong><label></label></div>
             <div class="help-line indented">
@@ -378,7 +382,7 @@
                 <label>
                   add URL:
                   <input type="url" name="newIgbDir" class="url" value=""/>
-                  <input type="button" name="loadIgbDir" value="Load"/>
+                  <input type="button" name="loadIgbDir" value="load"/>
                   <input type="button" name="cancelLoadIgbDir" value="Cancel"/>
                 </label>
               </div>

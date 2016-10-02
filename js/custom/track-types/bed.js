@@ -8,7 +8,9 @@
 var utils = require('./utils/utils.js'),
   floorHack = utils.floorHack,
   parseInt10 = utils.parseInt10,
-  strip = utils.strip;
+  strip = utils.strip,
+  convertUrlTemplateFormat = utils.convertUrlTemplateFormat,
+  urlForFeature = utils.urlForFeature;
 var IntervalTree = require('./utils/IntervalTree.js').IntervalTree;
 var LineMask = require('./utils/LineMask.js').LineMask;
 
@@ -49,7 +51,7 @@ var BedFormat = {
     if (self.opts.bedPlusFields && !_.isArray(self.opts.bedPlusFields)) {
       self.opts.bedPlusFields = self.opts.bedPlusFields.split(',');
     }
-    if (/%s/.test(self.opts.url)) { self.opts.url = self.opts.url.replace(/%s/, '$$$$'); }
+    if (/%s/.test(self.opts.url)) { self.opts.url = convertUrlTemplateFormat(self.opts.url); }
     else if (self.opts.url && !(/\$\$/).test(self.opts.url)) { self.opts.url += '$$'; }
     if (!validColorByStrand) { self.opts.colorByStrand = ''; self.opts.altColor = null; }
     else { self.opts.altColor = altColors[1]; }
@@ -184,6 +186,24 @@ var BedFormat = {
     return _.isFunction(callback) ? callback(drawSpec) : drawSpec;
   },
   
+  // Fills out a URL template for a feature according to the standards for the `url` parameter of a UCSC trackDb
+  // https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html
+  calcUrl: function(url, feature) {
+    var autoId = (/\t/).test(feature.id),
+      toReplace = {
+        '$$': autoId || _.isUndefined(feature.id) ? feature.name : feature.id,
+        '$T': this.opts.name,
+        '$S': feature.chrom,
+        '${': feature.chromStart,
+        '$}': feature.chromEnd,
+        '$D': this.browserOpts.genome.replace(/^ucsc:|:.*/ig, '')
+      };
+    _.each(toReplace, function(replacement, placeholder) {
+      url = url.replace(placeholder, replacement);
+    });
+    return url;
+  },
+  
   addArea: function(areas, data, i, lineHeight, urlTemplate) {
     var tipTipData = {},
       tipTipDataCallback = this.type().tipTipData,   // this permits inheriting track formats to override these
@@ -207,9 +227,9 @@ var BedFormat = {
     areas.push([
       data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, // x1, y1, x2, y2
       nameFunc(data.d),                                                                 // name
-      urlTemplate.replace('$$', autoId || _.isUndefined(data.d.id) ? data.d.name : data.d.id), // href
+      this.type('bed').calcUrl.call(this, urlTemplate, data.d),                         // href
       data.pInt.oPrev,                                                                  // continuation from previous tile?
-      null,
+      this.type('bed').calcFeatureColor.call(this, data) || null,
       null,
       tipTipData
     ]);
@@ -225,6 +245,16 @@ var BedFormat = {
     if (!_.isArray(maxColor)) { maxColor = _.map(maxColor.split(','), parseInt10); }
     _.each(minColor, function(v, i) { valueColor[i] = (v - maxColor[i]) * ((1000 - value) / 1000.0) + maxColor[i]; });
     return _.map(valueColor, parseInt10).join(',');
+  },
+  
+  calcFeatureColor: function(itvl) {
+    var self = this,
+      o = self.opts,
+      color = o.color;
+    if (o.altColor && itvl.d.strand == '-') { color = o.altColor; }
+    if (o.itemRgb && itvl.d.itemRgb && this.validateColor(itvl.d.itemRgb)) { color = itvl.d.itemRgb; }
+    if (o.useScore) { color = self.type('bed').calcGradient(color, itvl.d.score); }
+    return color;
   },
   
   drawArrows: function(ctx, canvasWidth, lineY, halfHeight, startX, endX, direction) {
@@ -249,7 +279,8 @@ var BedFormat = {
   
   drawFeature: function(ctx, width, data, i, lineHeight) {
     var self = this,
-      color = self.opts.color,
+      o = self.opts,
+      color = o.color,
       y = i * lineHeight,
       halfHeight = Math.round(0.5 * (lineHeight - 1)),
       quarterHeight = Math.ceil(0.25 * (lineHeight - 1)),
@@ -259,13 +290,8 @@ var BedFormat = {
     
     // First, determine and set the color we will be using
     // Note that the default color was already set in drawSpec
-    if (self.opts.altColor && data.d.strand == '-') { color = self.opts.altColor; }
-    
-    if (self.opts.itemRgb && data.d.itemRgb && this.validateColor(data.d.itemRgb)) { color = data.d.itemRgb; }
-    
-    if (self.opts.useScore) { color = self.type('bed').calcGradient(color, data.d.score); }
-    
-    if (self.opts.itemRgb || self.opts.altColor || self.opts.useScore) { ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")"; }
+    color = self.type('bed').calcFeatureColor.call(self, data);
+    if (o.itemRgb || o.altColor || o.useScore) { ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")"; }
     
     if (data.thickInt) {
       // The coding region is drawn as a thicker line within the gene
@@ -275,12 +301,12 @@ var BedFormat = {
         ctx.fillRect(data.pInt.x, y + halfHeight, data.pInt.w, 1);
         ctx.strokeStyle = color;
         _.each(data.blockInts, function(bInt) {
-          if (bInt.x + bInt.w <= width && bInt.x >= 0) {
-            ctx.fillRect(bInt.x, y + halfHeight - quarterHeight + 1, bInt.w, quarterHeight * 2 - 1);
+          if (bInt.w > 0 && bInt.x + bInt.w <= width && bInt.x >= 0) {
+            ctx.fillRect(bInt.x, y + halfHeight - quarterHeight + 1, Math.max(bInt.w, 1), quarterHeight * 2 - 1);
           }
-          thickOverlap = utils.pixIntervalOverlap(bInt, data.thickInt);
+          thickOverlap = data.thickInt.w > 0 && utils.pixIntervalOverlap(bInt, data.thickInt);
           if (thickOverlap) {
-            ctx.fillRect(thickOverlap.x, y + 1, thickOverlap.w, lineHeight - lineGap);
+            ctx.fillRect(thickOverlap.x, y + 1, Math.max(thickOverlap.w, 1), lineHeight - lineGap);
           }
           // If there are introns, arrows are drawn on the introns, not the exons...
           if (data.d.strand && prevBInt) {
@@ -303,7 +329,7 @@ var BedFormat = {
       }
     } else {
       // Nothing fancy.  It's a box.
-      ctx.fillRect(data.pInt.x, y + 1, data.pInt.w, lineHeight - lineGap);
+      ctx.fillRect(data.pInt.x, y + 1, Math.max(data.pInt.w, 1), lineHeight - lineGap);
       ctx.strokeStyle = "white";
       self.type('bed').drawArrows(ctx, width, y, halfHeight, data.pInt.x, data.pInt.x + data.pInt.w, data.d.strand);
     }

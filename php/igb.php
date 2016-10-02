@@ -156,7 +156,7 @@ function getAnnotsAsTracks($url) {
 }
 
 if (isset($_GET['url'])) {
-  if (!preg_match('#^(https?|ftp)://#', $_GET['url'])) { forbidden(); }
+  if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
   $url = preg_replace('#/$#', '', $_GET['url']); // remove trailing slash
   $url_type = checkURLType($url);
   

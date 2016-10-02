@@ -62,7 +62,7 @@ CustomTrack.types.beddetail = _.clone(CustomTrack.types.bed);
 CustomTrack.types.beddetail.defaults = _.extend({}, CustomTrack.types.beddetail.defaults, {detail: true});
 
 // These functions branch to different methods depending on the .type() of the track
-_.each(['init', 'parse', 'render', 'renderSequence', 'prerender'], function(fn) {
+_.each(['init', 'parse', 'finishSetup', 'render', 'renderSequence', 'prerender'], function(fn) {
   CustomTrack.prototype[fn] = function() {
     var args = _.toArray(arguments),
       type = this.type();
@@ -186,6 +186,10 @@ CustomTrack.prototype.prerenderAsync = function() {
 
 CustomTrack.prototype.applyOptsAsync = function() {
   global.CustomTracks.async(this, 'applyOpts', [this.opts, function(){}], [this.id]);
+};
+
+CustomTrack.prototype.finishSetupAsync = function() {
+  global.CustomTracks.async(this, 'finishSetup', arguments, [this.id]);
 };
 
 CustomTrack.prototype.ajaxDir = function() {

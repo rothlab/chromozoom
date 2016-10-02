@@ -7,7 +7,8 @@
 var utils = require('./utils/utils.js'),
   parseInt10 = utils.parseInt10,
   strip = utils.strip,
-  optsAsTrackLine = utils.optsAsTrackLine;
+  optsAsTrackLine = utils.optsAsTrackLine
+  trackHeightForType = utils.trackHeightForType;
 
 var ChromSizesFormat = {
   init: function() {
@@ -17,10 +18,10 @@ var ChromSizesFormat = {
     o.species = m.species || 'Custom Genome';
     o.assemblyDate = m.assemblyDate || '';
     
-    // TODO: if metadata also contains custom track data, e.g. from annots.xml
-    // must convert them into items for o.availTracks, o.tracks, and o.trackDesc
-    // The o.availTracks items should contain {customData: tracklines} to be parsed
     if (m.tracks) { self.format().createTracks(m.tracks); }
+    o.searchableTracks = m.moreTracks || (m.tracks && m.tracks.length > 15);
+    
+    if (m.cytoBandIdeo) { self.format().createChrBands(m.cytoBandIdeo); }
   },
   
   createTracks: function(tracks) {
@@ -44,7 +45,7 @@ var ChromSizesFormat = {
         fh: {},
         n: t.name,
         s: ['dense', 'squish', 'pack'],
-        h: 15,
+        h: trackHeightForType(t.type),
         m: ['pack'],
         customData: t.lines
       });
@@ -60,9 +61,25 @@ var ChromSizesFormat = {
     if (_.keys(categories).length > 1) { o.groupTracksByCategory = true; }
   },
   
+  createChrBands: function(cytoBandIdeo) {
+    var o = this.opts;
+    o.chrBands = _.compact(_.map(cytoBandIdeo.split("\n"), function(l) { 
+      var fields = l.split("\t");
+      if (fields.length != 5) { return false; }
+      fields[1] = parseInt10(fields[1]);
+      fields[2] = parseInt10(fields[2]);
+      return fields;
+    }));
+    if (o.chrBands.length > 0) { 
+      o.ideogramsAbove = true;
+      o.availTracks[0].h = 50;
+    }
+  },
+  
   parse: function(text) {
     var lines = text.split("\n"),
       o = this.opts;
+    
     _.each(lines, function(line, i) {
       var chrsize = strip(line).split(/\s+/, 2),
         chr = chrsize[0],
@@ -72,6 +89,10 @@ var ChromSizesFormat = {
       o.chrLengths[chr] = size;
       o.genomeSize += size;
     });
+    
+    if (o.chrBands && o.chrBands.length > 0) {
+      o.chrBands = _.filter(o.chrBands, function(v) { return !_.isUndefined(o.chrLengths[v[0]]); });
+    }
   }
 };
 
