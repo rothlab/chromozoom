@@ -1830,6 +1830,7 @@ module.exports = (function($){
       if (self.currentSearch) { self.currentSearch.abort(); }
       
       self.prevSearch = search;
+      // FIXME: for custom genomes, we instead must search custom tracks.
       self.currentSearch = $.ajax(o.ajaxDir+'search.php', {
         data: {position: search, db: o.genome},
         dataType: 'json',

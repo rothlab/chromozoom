@@ -803,13 +803,14 @@ body {
 }
 
 .browser-track .tile.too-many::before, .browser-track .tile.too-many::after {
-  content: 'too much data; zoom in to display individual items';
+  content: 'zoom in to view individual items';
   position: absolute;
   top: 20px;
   font-size: 0.7em;
   text-align: center;
 }
 .browser-track .tile.too-many-for-dense::before, .browser-track .tile.too-many-for-dense::after {
+  content: 'too many datapoints; zoom in to view items';
   top: 3px;
 }
 
