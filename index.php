@@ -249,6 +249,19 @@
               </div>
             </div>
           </div>
+          <div class="custom-opts-form vcftabix">
+            <div class="form-line">
+              <label>convert chrN &harr; N:</label>
+              <div class="inputs">
+                <select name="convertChrScheme">
+                  <option value="auto">automatic</option>
+                  <option value="ensembl_ucsc">Ensembl BAM &harr; UCSC genome</option>
+                  <option value="ucsc_ensembl">UCSC BAM &harr; Ensembl genome</option>
+                  <option value="never">disable</option>
+                </select>
+              </div>
+            </div>
+          </div>
           <div class="custom-opts-form bed bigbed">
             <div class="form-line">
               <label>alt color:</label>

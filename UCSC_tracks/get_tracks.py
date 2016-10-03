@@ -32,6 +32,7 @@ parser.add_argument('--downloads_base_url', action='store', type=str, default=''
 args = parser.parse_args()
 
 
+script_directory = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(args.out): os.makedirs(args.out)
 os.chdir(args.out)
 
@@ -154,8 +155,10 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
                 continue
             
             # Delete interim files for successful builds
+            sample_item = buildfun.get_first_item_from_bed(bed_location)
             os.remove(bed_location)
-            if not as_location.startswith('autosql/'): os.remove(as_location)
+            if not as_location.startswith(os.path.join(script_directory, 'autosql')): 
+                os.remove(as_location)
             save_to_db = True
             
         else:
@@ -164,7 +167,8 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             continue
 
         if save_to_db:
-            local_settings = buildfun.translate_settings(table_name, remote_settings, bed_plus_fields, url)
+            local_settings = buildfun.translate_settings(organism, table_name, sample_item, remote_settings, 
+                                                         bed_plus_fields, url)
             row_vals = (table_name, track_info[table_name]['displayName'], tr_type, group, track_info[table_name]['groupLabel'], 
                     parent_track, track_info[table_name]['trackLabel'], short_label, long_label, track_priority[table_name], 
                     file_location, html_description, update_date, remote_settings, local_settings)

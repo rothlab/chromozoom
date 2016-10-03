@@ -11,6 +11,20 @@ module.exports.deepClone = function(obj) { return JSON.parse(JSON.stringify(obj)
 // The default way by which we derive a name to be printed next to a range feature
 var defaultNameFunc = module.exports.defaultNameFunc = function(d) { return strip(d.name || d.id || ''); }
 
+// A simplistic hash function for quickly turning strings into numbers
+// Note that since the hash space is 2^32, collisions are practically guaranteed after 80k strings, 
+// and there's a 5% chance at 20k: http://betterexplained.com/articles/understanding-the-birthday-paradox/
+module.exports.shortHash = function(str) {
+  var hash = 0;
+  if (str.length == 0) return hash;
+  for (i = 0; i < str.length; i++) {
+    chr = str.charCodeAt(i);
+    hash = ((hash<<5)-hash)+chr;
+    hash = hash & hash;
+  }
+  return hash;
+}
+
 // Parse a track declaration line, which is in the format of:
 // track name="blah" optname1="value1" optname2="value2" ...
 // into a hash of options
@@ -83,6 +97,15 @@ module.exports.pixIntervalOverlap = function(pInt1, pInt2) {
   overlap.w = Math.min(pInt1.w - pInt2.x + pInt1.x, pInt2.w);
   return overlap;
 };
+
+// Guesses whether an array of contig names contains UCSC- or Ensembl- style chromosome names
+// (UCSC uses "chr" prefixes, Ensembl has bare numbers). Returns null if it doesn't seem like either.
+module.exports.guessChrScheme = function(chrs) {
+  limit = Math.min(chrs.length * 0.8, 20);
+  if (_.filter(chrs, function(chr) { return (/^chr/).test(chr); }).length > limit) { return 'ucsc'; }
+  if (_.filter(chrs, function(chr) { return (/^\d\d?$/).test(chr); }).length > limit) { return 'ensembl'; }
+  return null;
+}
 
 // Common functions for summarizing data in bins while plotting wiggle tracks
 module.exports.wigBinFunctions = {

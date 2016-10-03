@@ -4,17 +4,28 @@
  * Symlink tabix to the ../bin directory
  **/
 require_once('../lib/setup.php');
+require_once('../lib/autoconvert_chrs.php');
 
 function bad_request() {
   header('HTTP/1.1 403 Forbidden');
   exit;
 }
+
+define('RANGE_PATTERN', '/^(\\w+[^:]*):(\\d+)-(\\d+)$/');
+
+function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
  
-if (!!validate_URL_in_GET_param('url', FALSE)) { bad_request(); }
+$INFO_ONLY = FALSE;
+$NUM_FIELDS = 3;
+ 
+if (!validate_URL_in_GET_param('url', FALSE)) { bad_request(); }
 passthru_basic_auth_for_GET_param('url');
-if (!isset($_GET['range'])) { bad_request(); } 
-else { $range = array_filter((array) $_GET['range']); }
-if (!count($range)) { bad_request(); }
+if (isset($_GET['info'])) { 
+  $INFO_ONLY = TRUE;
+  if (preg_match('#^\\d+$#', $_GET['info'])) { $NUM_FIELDS = min(max(intval($_GET['info']), 3), 12); }
+}
+$ranges = array_filter((array) $_GET['range'], 'valid_range');
+if (!isset($_GET['range']) || !count($ranges)) { bad_request(); }
 
 $TABIX = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/tabix');
 
@@ -24,4 +35,17 @@ if (!file_exists($tmp_dir)) { mkdir($tmp_dir); }
 chmod($tmp_dir, 0755);
 chdir($tmp_dir);
 header('Content-type: text/plain');
-passthru("$TABIX " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $range)));
+
+if ($INFO_ONLY) {
+  // First we fetch and echo the output of tabix -l, which has info on allowed contig names.
+  $output = array();
+  exec("$TABIX -l " . escapeshellarg($_GET['url']), $output, $retval);
+  autoconvert_chrs($ranges, $output);
+  echo implode("\n", $output) . "\n\n";
+  $ranges = implode(' ', array_map('escapeshellarg', $ranges));
+  // Now get the first 500 items from the given range for the purposes of getting some summary statistics
+  //     tabix http://url/to/file.vcf.gz $range 2>/dev/null | head -n 500 | cut -f1-9
+  passthru("$TABIX " . escapeshellarg($_GET['url']) . " $ranges 2>/dev/null | head -n 500 | cut -f1-$NUM_FIELDS");  
+} else {
+  passthru("$TABIX " . escapeshellarg($_GET['url']) . " " . implode(' ', array_map('escapeshellarg', $ranges)));  
+}

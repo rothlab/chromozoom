@@ -5,7 +5,8 @@
 var utils = require('./utils/utils.js'),
   floorHack = utils.floorHack,
   parseInt10 = utils.parseInt10,
-  deepClone = utils.deepClone;
+  deepClone = utils.deepClone,
+  guessChrScheme = utils.guessChrScheme;
 var PairedIntervalTree = require('./utils/PairedIntervalTree.js').PairedIntervalTree;
 var RemoteTrack = require('./utils/RemoteTrack.js').RemoteTrack;
 
@@ -26,18 +27,18 @@ var BamFormat = {
     drawLimit: {squish: 2000, pack: 2000},
     covHeight: {dense: 24, squish: 38, pack: 38},
     // If a nucleotide differs from the reference sequence in greater than 20% of quality weighted reads, 
-    // IGV colors the bar in proportion to the read count of each base; the following changes that threshold for chromozoom
+    // IGV colors the bar in proportion to the read count of each base; the following sets the threshold for chromozoom
     alleleFreqThreshold: 0.2,
-    // Data for how many nts should be fetched in one go?
+    // Data for how many nts should be fetched in one go? (0 means guess this from the BAM index stats)
     optimalFetchWindow: 0,
-    // Above what tile width (in nts) do we avoid fetching data altogether?
+    // Above what tile width (in nts) do we avoid fetching data altogether? (0 means guess this from the BAM index stats)
     maxFetchWindow: 0,
     // The following can be "ensembl_ucsc" or "ucsc_ensembl" to attempt auto-crossmapping of reference contig names
     // between the two schemes, which IGV does, but is a perennial issue: https://www.biostars.org/p/10062/
-    // I hope not to need all the mappings in here https://github.com/dpryan79/ChromosomeMappings but it may be necessary
+    // For stricter correctness, we'd need all the mappings in here https://github.com/dpryan79/ChromosomeMappings
     convertChrScheme: "auto",
     // Draw paired ends within a range of expected insert sizes as a continuous feature?
-    // See https://www.broadinstitute.org/igv/AlignmentData#paired for how this works
+    // See https://www.broadinstitute.org/igv/AlignmentData#paired for an example of how this works
     viewAsPairs: false,
     expectedInsertSizePercentiles: [0.005, 0.995]
   },
@@ -59,13 +60,12 @@ var BamFormat = {
   },
 
   init: function() {
-    var browserChrs = _.keys(this.browserOpts);
     if (!this.opts.bigDataUrl) {
       throw new Error("Required parameter bigDataUrl not found for BAM track at " +
           JSON.stringify(this.opts) + (this.opts.lineNum + 1));
     }
     this.type().initOpts.call(this);
-    this.browserChrScheme = this.type("bam").guessChrScheme(_.keys(this.browserOpts.chrPos));
+    this.browserChrScheme = guessChrScheme(_.keys(this.browserOpts.chrPos));
   },
   
   initOpts: function() {
@@ -93,14 +93,7 @@ var BamFormat = {
     // Ensures that options and derived properties set by the above are equal across Web Worker and DOM contexts
     this.syncProps(['opts', 'drawRange', 'coverageRange', 'scales']);
     
-    this.prevOpts = deepClone(this.opts);
-  },
-  
-  guessChrScheme: function(chrs) {
-    limit = Math.min(chrs.length * 0.8, 20);
-    if (_.filter(chrs, function(chr) { return (/^chr/).test(chr); }).length > limit) { return 'ucsc'; }
-    if (_.filter(chrs, function(chr) { return (/^\d\d?$/).test(chr); }).length > limit) { return 'ensembl'; }
-    return null;
+    this.prevOpts = deepClone(o);
   },
   
   parse: function(lines) {
@@ -110,6 +103,8 @@ var BamFormat = {
       cache = new PairedIntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}, 
           {startKey: 'templateStart', endKey: 'templateEnd', pairedLengthKey: 'tlen', pairingKey: 'qname'}),
       ajaxUrl = self.ajaxDir() + 'bam.php',
+      // Like IGV, we simply use the current browser position to start pulling reads for BAM statistics.
+      // It might be worth considering whether a broader search is more reliable for chromozoom's purposes
       infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + 10000)),
       remote;
     
@@ -170,7 +165,7 @@ var BamFormat = {
           mappedReads += readsMappedToContig;
         });
         
-        self.data.info.chrScheme = chrScheme = self.type("bam").guessChrScheme(bamChrs);
+        self.data.info.chrScheme = chrScheme = guessChrScheme(bamChrs);
         if (chrScheme && self.browserChrScheme) {
           self.data.info.convertChrScheme = chrScheme != self.browserChrScheme ? chrScheme + '_' + self.browserChrScheme : null;
         }

@@ -199,7 +199,7 @@ var BedFormat = {
         '$D': this.browserOpts.genome.replace(/^ucsc:|:.*/ig, '')
       };
     _.each(toReplace, function(replacement, placeholder) {
-      url = url.replace(placeholder, replacement);
+      url = url.split(placeholder).join(replacement);
     });
     return url;
   },
@@ -344,8 +344,7 @@ var BedFormat = {
       color = self.opts.color,
       areas = null;
     
-    if (urlTemplate.match(/%s/)) { urlTemplate.replace(/%s/, '$$'); }
-    else if (!urlTemplate.match(/\$\$/)) { urlTemplate += '$$'; }
+    if (!urlTemplate.match(/\$\$/)) { urlTemplate += '$$'; }
     
     if (!ctx) { throw "Canvas not supported"; }
     // TODO: I disabled regenerating areas here, which assumes that lineNum remains stable across re-renders. Should check on this.

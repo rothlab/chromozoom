@@ -21,6 +21,9 @@ var BigBedFormat = {
     url: '',
     htmlUrl: '',
     drawLimit: {squish: 500, pack: 100},
+    // Data for how many nts should be fetched in one go? (0 means guess this from the index's summary stats)
+    optimalFetchWindow: 0,
+    // Above what tile width (in nts) do we avoid fetching data altogether? (0 means guess this from the index's summary stats)
     maxFetchWindow: 0
   },
 

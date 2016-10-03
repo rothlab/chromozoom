@@ -570,7 +570,7 @@ $.widget('ui.genotrack', {
     }
     if (tiptipData) {
       createTipTipHtml(tiptipData);
-    } else if (/^https?:\/\//.test(href)) {
+    } else if (href.indexOf(self.options.ucscURL.replace(/\w+$/, '')) === 0) {
       $.ajax(self.options.ajaxDir + 'tooltip.php', {
         data: {url: href},
         dataType: 'json',
@@ -643,8 +643,25 @@ $.widget('ui.genotrack', {
     ctx.fillStyle = 'rgb(' + defaultColor + ')';
     
     _.each(areas, function(area, i) {
+      var x = area[0] * canvasXScale - xPad + leftOverhang,
+        y = floorHack((area[1] + area[3]) * 0.5),
+        lineHeight = 12,
+        lines;
       if (area[7]) { ctx.fillStyle = 'rgb(' + area[7] + ')'; }
-      ctx.fillText((area[8] || area[4]), area[0] * canvasXScale - xPad + leftOverhang, floorHack((area[1] + area[3]) * 0.5));
+      if (area[8]) {
+        lines = area[8].split("\n");
+        // potentially marked up + multiline text
+        _.each(lines, function(l, i) {
+          var altColorRegexp = /\[(\d+,\d+,\d+)\]$/,
+            m = l.match(altColorRegexp);
+          if (m) { 
+            ctx.fillStyle = 'rgb(' + m[1] + ')'; 
+            l = l.replace(altColorRegexp, ''); 
+          }
+          ctx.fillText(l, x, y - (lines.length - 1) * lineHeight/2 + i * lineHeight);
+          if (m) { ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')'; }
+        });
+      } else { ctx.fillText(area[4], x, y); }
       if (area[7]) { ctx.fillStyle = 'rgb(' + defaultColor + ')'; }
       // FIXME: add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
       //        This allows the user to mouseover the text instead of just the feature itself (which can be very small)

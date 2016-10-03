@@ -17,7 +17,8 @@ $ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
 if (strpos($url, $ucsc_config['browser_hosts']['authoritative']) !== 0) { bad_request(); }
 $url = $ucsc_config['browser_hosts']['local'] . substr($url, strlen($ucsc_config['browser_hosts']['authoritative']));
 
-$html = file_get_contents($url);
+$html = @file_get_contents($url);
+if ($html === FALSE) { bad_request(); }
 
 $doc = new DOMDocument();
 @$doc->loadHTML($html);  // suppress warning messages, UCSC has rickety HTML

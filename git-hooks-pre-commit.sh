@@ -2,7 +2,7 @@
 
 files=$(git diff-index --name-status --cached HEAD | grep -v ^D | cut -c3-)
 
-if [[ "$files" = *.js ]]
+if echo $files | grep -e ".js" > /dev/null
 then
     echo "Checking build/*.js and recompiling with browserify as needed..."
     if grep --quiet '^//# sourceMappingURL=' build/*.js

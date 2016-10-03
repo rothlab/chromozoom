@@ -12,7 +12,7 @@ import time
 import gzip
 from .autosql import AutoSqlDeclaration
 
-script_directory = os.path.dirname(os.path.dirname(__file__))
+script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Cache the parsed config file after the first access
 config_yaml = None
 
@@ -24,6 +24,9 @@ BEDLIKE_FORMATS = {
     'gvf': ('autosql/bigGvf.as', 'bed8+3'),
     'narrowPeak': ('autosql/bigNarrowPeak.as', 'bed6+4')
 }
+# For some reason bedToBigBed fails to create an extraIndex for BED files above this
+# length, roughly 27GB. Therefore, it's best to disable extraIndex'es for such large BED files.
+MAX_INDEXABLE_BED_SIZE = 27000 * 1000000
 
 
 def open_ucsc_yaml():
@@ -562,6 +565,16 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     return location
 
 
+def get_first_item_from_bed(bed_location):
+    """
+    Gets the first item from the BED file at bed_location
+    Returns a tuple with the various fields.
+    """
+    with open(bed_location, 'r') as f:
+        first_line = f.readline().rstrip()
+        return tuple(first_line.split("\t"))
+
+
 def augment_knownGene_bed_file(organism, old_location):
     """
     knownGene tracks, which are very high priority, unfortunately have things in a slightly different format.
@@ -664,8 +677,9 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
         sys.exit("FATAL: must have fetchChromSizes installed on $PATH")
     if not cmd_exists('bedToBigBed'):
         sys.exit("FATAL: must have bedToBigBed installed on $PATH")
-        
+    
     bb_file = organism + '/bigBed/' + os.path.basename(bed_file)[:-4] + '.bb'
+    bed_file_size = os.path.getsize(bed_file)
     indexable_fields = ['name'] if int(re.search(r'\d+', bed_type).group(0)) >= 4 else []
     whitelist = ['name2', 'id']
     if bed_plus_fields is not None:
@@ -680,7 +694,7 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
             return None
 
     extra_index = ''
-    if len(indexable_fields) > 0:
+    if len(indexable_fields) > 0 and bed_file_size < MAX_INDEXABLE_BED_SIZE:
         extra_index = '-extraIndex="{}"'.format(",".join(indexable_fields))
 
     command = ('bedToBigBed -type="{1}" -as="{2}" {5} -tab "{3}" "./{0}/build/chrom.sizes.txt" '
@@ -694,9 +708,31 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
         return None
 
     return bb_file
-    
 
-def translate_settings(table_name, settings, bed_plus_fields=None, url=None):
+
+def test_default_remote_item_url(organism, table_name, sample_item):
+    """
+    If a track/table doesn't have a `url` setting, it may simply link to the default UCSC item pages
+    which have URLs of the form:
+        https://genome.ucsc.edu/cgi-bin/hgc?db=hg38&c=chr9&o=133186402&l=&r=&g=est&i=BI003541
+    This function checks if a page exists for a sample item and seems valid, returning True/False
+    """
+    if not sample_item: return False
+    
+    # these correspond to $D, $S, ${, $}, ${, $T, and $$ respectively for the `url` placeholder scheme on
+    # https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings
+    fields = (organism, sample_item[0], sample_item[1], sample_item[2], sample_item[1], table_name, sample_item[3])
+    try:
+        response = urllib.request.urlopen(get_remote_item_url() % fields)
+        html = response.read()
+    except URLError as e:
+        return False
+    
+    # If the page exists and doesn't contain the UCSC error box code, we consider this a valid item page.
+    return html.find(b";warnList.innerHTML +=") == -1
+
+
+def translate_settings(organism, table_name, sample_item, settings, bed_plus_fields=None, url=None):
     """
     Translates the settings field in UCSC's trackDb into a JSON-encoded object with track settings supported by chromozoom
     """
@@ -720,15 +756,13 @@ def translate_settings(table_name, settings, bed_plus_fields=None, url=None):
     if 'directUrl' in old_settings: new_settings['url'] = old_settings['directUrl']
     elif url: new_settings['url'] = url.decode('latin1')
     if 'url' in new_settings and not re.match(r'^https://', new_settings['url']):
-        new_settings['url'] = get_ucsc_base_url() + new_settings['url']
+        new_settings['url'] = get_ucsc_base_url() + re.sub(r'^/+', '', new_settings['url'])
 
-    # FIXME: May want to try to autodetect and support item detail URLs to UCSC of the form...
-    # https://genome.ucsc.edu/cgi-bin/hgc?db=hg38&c=chr9&o=133186402&l=&r=&g=est&i=BI003541
-    # or as per `url` in https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings
+    # As per the `url` specification in https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings
+    # inserting these placeholders into the URL tells chromozoom to substitute the corresponding info for each item.
     # https://genome.ucsc.edu/cgi-bin/hgc?db=$D&c=$S&l=${&r=$}&o=${&g=$T&i=$$
-    if 'url' not in new_settings:
-        get_remote_item_url() % (organism, 
-         % ('$D', '$S', '${', '$}', '${', '$T', '$$')
-
+    table_name = re.sub(r'^all_', '', table_name)
+    if 'url' not in new_settings and test_default_remote_item_url(organism, table_name, sample_item):
+        new_settings['url'] = get_remote_item_url() % ('$D', '$S', '${', '$}', '${', table_name, '$$')
     
     return json.dumps(new_settings)

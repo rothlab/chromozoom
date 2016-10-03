@@ -4,6 +4,7 @@
  * Symlink samtools into the ../bin directory.
  **/
 require_once('../lib/setup.php');
+require_once('../lib/autoconvert_chrs.php');
 
 function bad_request() {
   header('HTTP/1.1 403 Forbidden');
@@ -14,21 +15,6 @@ define('RANGE_PATTERN', '/^(\\w+[^:]*):(\\d+)-(\\d+)$/');
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 
-// Attempt to automatically remedy RNAME mismatches because of UCSC/Ensembl differences.
-// This is for the $INFO_ONLY path below.  It occurs *before* bam.js figures out whether conversion is 
-// necessary, otherwise we could just use bam.js's logic alone for this.
-function first_column($line) { return reset(explode("\t", $line)); }
-function autoconvert_chrs(&$ranges, $output) {
-  $chrs = array_fill_keys(array_map('first_column', $output), true);
-  foreach ($ranges as $i => $range) {
-    $range_parts = explode(':', $range);
-    $chr = $range_parts[0];
-    if (!isset($chrs[$chr])) { 
-      $ranges[$i] = (strpos($chr, "chr") === 0 ? substr($chr, 3) : "chr{$chr}") . ":{$range_parts[1]}";
-    }
-  }
-}
-
 $ranges = array();
 $INFO_ONLY = FALSE;
 
@@ -38,7 +24,8 @@ if (isset($_GET['info'])) { $INFO_ONLY = TRUE; }
 $ranges = array_filter((array) $_GET['range'], 'valid_range');
 if (!isset($_GET['range']) || !count($ranges)) { bad_request(); }
 
-// // currently unused
+// currently unused; bam.js does all summary statistics on its end. See below NOTE for some more thoughts on this
+//
 // $SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
 // if ($SUMMARY) {
 //   if (!isset($_GET['width'])) { bad_request(); }
@@ -54,13 +41,14 @@ if (!file_exists($tmp_dir)) { mkdir($tmp_dir); }
 chmod($tmp_dir, 0755);
 chdir($tmp_dir);
 
-// Note: For the `dense` density, we could simply plot a wiggle of the coverage, using `samtools bedcov`
-// cat regions.bed | samtools bedcov /dev/stdin path.to.bam
+// NOTE: For the `dense` density, we could simply plot a wiggle of the coverage, using `samtools bedcov`
+//     cat regions.bed | samtools bedcov /dev/stdin path.to.bam
 // Although this is quite slow. It might be worth trying to convert the output of `samtools depth` to .bigwig
 // The following spits out bedGraph, minus the third column, which should just be the second column + 1
-// samtools depth [-r chrX:1-20000] path.to.bam 
+//     samtools depth [-r chrX:1-20000] path.to.bam 
 // This could be shooped into bigWig with bedGraphToBigWig if the third column is added back with awk...
-// samtools depth [-r chrX:1-20000] path.to.bam | awk -F "\t" 'BEGIN {OFS = FS} {$4 = $3; $3 = $2; $2 = $2 - 1; print}' > out.bedgraph
+//     samtools depth [-r chrX:1-20000] path.to.bam | \
+//         awk -F "\t" 'BEGIN {OFS = FS} {$4 = $3; $3 = $2; $2 = $2 - 1; print}' > out.bedgraph
 // Of course, all of this would have to be done in the background *after* a BAM is loaded and would be
 // caching a lot of data the user may not want to see.
 // It's possible to take the IGV approach and tell the user to specially request this or do it themselves if they really care.
@@ -76,7 +64,7 @@ if ($INFO_ONLY) {
   $ranges = implode(' ', array_map('escapeshellarg', $ranges));
   // Now get the first 500 reads from the given range for the purposes of read length and insert size statistics.
   // We eliminate non-primary and unmapped reads with the -F and -f flags. We also dispense with the SEQ and QUAL columns.
-  // `samtools view -F3852 -f2 http://url/to/file.bam $range 2>/dev/null | head -n 100 | cut -f1-9`
+  //     samtools view -F3852 -f2 http://url/to/file.bam $range 2>/dev/null | head -n 100 | cut -f1-9
   passthru("$SAMTOOLS -F3852 " . escapeshellarg($_GET['url']) . " $ranges 2>/dev/null | head -n 500 | cut -f1-9");
 } else {
   $ranges = implode(' ', array_map('escapeshellarg', $ranges));
