@@ -49,6 +49,7 @@ CustomTrack.types = {
   bedgraph: require('./track-types/bedgraph.js'),
   wiggle_0: require('./track-types/wiggle_0.js'),
   vcftabix: require('./track-types/vcftabix.js'),
+  bedgz: require('./track-types/bedgz.js'),
   bigbed: require('./track-types/bigbed.js'),
   bam: require('./track-types/bam.js'),
   bigwig: require('./track-types/bigwig.js'),

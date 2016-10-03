@@ -717,7 +717,7 @@ def test_default_remote_item_url(organism, table_name, sample_item):
         https://genome.ucsc.edu/cgi-bin/hgc?db=hg38&c=chr9&o=133186402&l=&r=&g=est&i=BI003541
     This function checks if a page exists for a sample item and seems valid, returning True/False
     """
-    if not sample_item: return False
+    if not sample_item or len(sample_item) < 4: return False
     
     # these correspond to $D, $S, ${, $}, ${, $T, and $$ respectively for the `url` placeholder scheme on
     # https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings

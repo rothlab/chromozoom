@@ -135,8 +135,9 @@ var VcfTabixFormat = {
         }
       
         vcfSample = infoParts[1];
-        // Set maxFetchWindow to avoid overfetching data.
+        // Set maxFetchWindow to avoid overfetching data
         if (!o.maxFetchWindow) {
+          // FIXME: vcfSample.length is capped at 500, so we may have to detect that and shrink the sampleWindow
           var meanItemsPerBp = vcfSample.length / sampleWindow,
             maxItemsToDraw = _.max(_.values(o.drawLimit));
           o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
