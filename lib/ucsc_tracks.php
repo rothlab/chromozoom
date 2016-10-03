@@ -18,7 +18,7 @@ function getTracksForDb($track_db_path, $chromozoom_uri, $db, $priority=100, $co
   $stmt->bindValue(':priority', $priority, SQLITE3_INTEGER);
   $result = $stmt->execute();
   
-  if ($count_only) { return $result->fetchArray()[0]; }
+  if ($count_only) { $row = $result->fetchArray(); return $row[0]; }
   
   while ($row = $result->fetchArray()) {
     $name = $row['name'];
