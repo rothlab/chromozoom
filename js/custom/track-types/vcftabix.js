@@ -120,7 +120,7 @@ var VcfTabixFormat = {
       infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + sampleWindow)),
       remote = self.data.remote;
     
-      $.ajax(ajaxUrl, {
+    $.ajax(ajaxUrl, {
       data: {info: 3, range: infoChrRange, url: self.opts.bigDataUrl},
       success: function(data) {
         var o = self.opts,

@@ -31,6 +31,7 @@ function CustomTrack(opts, browserOpts) {
     scales: {},
     noAreaLabels: false,
     expectsSequence: false,
+    finishSetupCalled: false,
     onSyncProps: null
   });
   this.init();
@@ -62,7 +63,7 @@ CustomTrack.types.beddetail = _.clone(CustomTrack.types.bed);
 CustomTrack.types.beddetail.defaults = _.extend({}, CustomTrack.types.beddetail.defaults, {detail: true});
 
 // These functions branch to different methods depending on the .type() of the track
-_.each(['init', 'parse', 'finishSetup', 'render', 'renderSequence', 'prerender'], function(fn) {
+_.each(['init', 'parse', 'render', 'renderSequence', 'prerender'], function(fn) {
   CustomTrack.prototype[fn] = function() {
     var args = _.toArray(arguments),
       type = this.type();
@@ -70,6 +71,15 @@ _.each(['init', 'parse', 'finishSetup', 'render', 'renderSequence', 'prerender']
     return type[fn].apply(this, args);
   }
 });
+
+// finishSetup does likewise, but we also add a guard so that it can only be called ONCE, ever, on a track
+CustomTrack.prototype.finishSetup = function() {
+  var args = _.toArray(arguments),
+    type = this.type();
+  if (!type.finishSetup || this.finishSetupCalled) { return false; }
+  this.finishSetupCalled = true;
+  return type.finishSetup.apply(this, args);
+}
 
 // Loads CustomTrack options into the track options dialog UI when it is opened
 CustomTrack.prototype.loadOpts = function($dialog) {
