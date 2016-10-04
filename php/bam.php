@@ -15,6 +15,7 @@ $INFO_ONLY = FALSE;
 
 if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
 passthru_basic_auth_for_GET_param('url');
+if (!($tmp_dir = ensure_tmp_dir_exists())) { forbidden(); }
 if (isset($_GET['info'])) { $INFO_ONLY = TRUE; } 
 $ranges = array_filter((array) $_GET['range'], 'valid_range');
 if (!isset($_GET['range']) || !count($ranges)) { forbidden(); }
@@ -30,7 +31,7 @@ if (!isset($_GET['range']) || !count($ranges)) { forbidden(); }
 $SAMTOOLS = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/samtools') . ' view';
 $SAMTOOLS_INFO = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/samtools') . ' idxstats';
 
-$tmp_dir = '/tmp/samtools-' . substr(strtr(base64_encode(sha1(dirname($_GET['url']), TRUE)), '/', '-'), 0, 12);
+$tmp_dir .= '/samtools-' . substr(strtr(base64_encode(sha1(dirname($_GET['url']), TRUE)), '/', '-'), 0, 12);
 while (file_exists($tmp_dir) && !is_dir($tmp_dir)) { $tmp_dir .= '+'; } 
 if (!file_exists($tmp_dir)) { mkdir($tmp_dir); }
 chmod($tmp_dir, 0755);

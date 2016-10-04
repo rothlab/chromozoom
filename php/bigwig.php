@@ -14,6 +14,8 @@ function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
  
 if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
 passthru_basic_auth_for_GET_param('url');
+if (!($tmp_dir = ensure_tmp_dir_exists())) { forbidden(); }
+
 $SUMMARY = !isset($_GET['info']);
 if ($SUMMARY) {
   if (!isset($_GET['range'])) { forbidden(); } 
@@ -26,6 +28,7 @@ if ($SUMMARY) {
 }
 
 $BIGWIG_BIN = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigWig' . ($SUMMARY ? 'Summary' : 'Info'));
+$BIGWIG_BIN .= ' -udcDir=' . escapeshellarg("$tmp_dir/udcCache");
 
 function ranges_to_args(&$ranges) {
   global $SUMMARY, $WIDTH;
