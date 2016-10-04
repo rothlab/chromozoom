@@ -16,11 +16,14 @@ define('TOO_FEW_PIXELS', 3); // Not worth calling bigBedSummary for this small o
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 
 $INFO_ONLY = FALSE;
+$SEARCH = FALSE;
 
 if (!validate_URL_in_GET_param('url', TRUE)) { bad_request(); }
 passthru_basic_auth_for_GET_param('url');
-if (!isset($_GET['range'])) { $INFO_ONLY = TRUE; } 
-else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
+if (!isset($_GET['range'])) { 
+  if (isset($_GET['search'])) { $SEARCH = $_GET['search']; }
+  else { $INFO_ONLY = TRUE; }
+} else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
 if (isset($_GET['range']) && !count($ranges)) { bad_request(); }
 $SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
 if ($SUMMARY) {
@@ -28,7 +31,9 @@ if ($SUMMARY) {
   $WIDTH = max(min(intval($_GET['width']), 5000), 1);
 }
 
-$BIGBED_BIN = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigBed' . ($INFO_ONLY ? 'Info' : ($SUMMARY ? 'Summary' : 'ToBed')));
+$BIGBED_BIN = dirname(dirname(__FILE__)) . '/bin/bigBed';
+$BIGBED_BIN = $BIGBED_BIN . ($INFO_ONLY ? 'Info' : ($SEARCH !== FALSE ? 'Search' : ($SUMMARY ? 'Summary' : 'ToBed')));
+$BIGBED_BIN = escapeshellarg($BIGBED_BIN);
 
 function ranges_to_args(&$ranges) {
   global $SUMMARY, $WIDTH;
@@ -75,6 +80,21 @@ if ($INFO_ONLY) {
     }
     echo json_encode($info);
   }
+} elseif ($SEARCH !== FALSE) {
+  if (strlen($SEARCH) == 0) { bad_request(); }
+  $CMD_SUFFIX = ' /dev/stdout | head -n 100';
+  header('Content-type: text/plain');
+  // We have to do some voodoo here to allow case insensitivity. If the input is mixed case, trust the user to get it right.
+  if (strtolower($SEARCH) != $SEARCH && strtoupper($SEARCH) != $SEARCH) {
+    $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg($SEARCH) . $CMD_SUFFIX);
+    $out2 = "";
+  } else {
+    // Otherwise, search for both cases.
+    $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(strtolower($SEARCH)) . $CMD_SUFFIX);
+    $out2 = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(strtoupper($SEARCH)) . $CMD_SUFFIX);
+  }
+  // Dedupe results and send them back to the user.
+  echo implode("\n", array_unique(explode("\n", "$out$out2")));
 } else {
   // With range and density parameters, return either a summary of datapoints or the raw BED rows themselves
   header('Content-type: text/plain');

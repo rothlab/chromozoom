@@ -138,6 +138,7 @@ var BamFormat = {
     self.coverageRange = [0, 0];
     self.prevOpts = deepClone(o);  // used to detect which drawing options have been changed by the user
     
+    // FIXME: Move this to .finishSetup()
     // Get general info on the bam (e.g. `samtools idxstats`), use mapped reads per reference sequence
     // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
     // We also fetch a bunch of reads from around infoChrRange (by default, where the browser is when
@@ -475,11 +476,11 @@ var BamFormat = {
   },
   
   // special formatter for content in tooltips for features
-  tipTipData: function(data) {
+  tipTipData: function(feature) {
     var o = this.opts,
       content = {},
-      firstMate = data.d,
-      secondMate = data.d.mate,
+      firstMate = feature,
+      secondMate = feature.mate,
       mateHeaders = ["this alignment", "mate pair alignment"],
       leftMate, rightMate, pairOrientation;
     function yesNo(bool) { return bool ? "yes" : "no"; }
@@ -500,27 +501,27 @@ var BamFormat = {
       }, function(v, k) { content[prefix + k] = v; });
     }
     
-    if (data.d.mate && data.d.mate.flags) {
-      leftMate = data.d.start < data.d.mate.start ? data.d : data.d.mate;
-      rightMate = data.d.start < data.d.mate.start ? data.d.mate : data.d;
+    if (feature.mate && feature.mate.flags) {
+      leftMate = feature.start < feature.mate.start ? feature : feature.mate;
+      rightMate = feature.start < feature.mate.start ? feature.mate : feature;
       pairOrientation = (leftMate.flags.readStrandReverse ? "R" : "F") + (leftMate.flags.isReadFirstOfPair ? "1" : "2");
       pairOrientation += (rightMate.flags.readStrandReverse ? "R" : "F") + (rightMate.flags.isReadLastOfPair ? "2" : "1");
     }
     
-    if (o.viewAsPairs && data.d.drawAsMates && data.d.mate) {
+    if (o.viewAsPairs && feature.drawAsMates && feature.mate) {
       firstMate = leftMate;
       secondMate = rightMate;
       mateHeaders = ["left alignment", "right alignment"];
     }
     if (secondMate) {
-      if (!_.isUndefined(data.d.insertSize)) { content["insert size"] = data.d.insertSize; }
+      if (!_.isUndefined(feature.insertSize)) { content["insert size"] = feature.insertSize; }
       if (!_.isUndefined(pairOrientation)) { content["pair orientation"] = pairOrientation; }
       content[mateHeaders[0]] = "---";
       addAlignedSegmentInfo(content, firstMate);
       content[mateHeaders[1]] = "---";
       addAlignedSegmentInfo(content, secondMate, " ");
     } else {
-      addAlignedSegmentInfo(content, data.d);
+      addAlignedSegmentInfo(content, feature);
     }
     
     return content;

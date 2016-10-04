@@ -231,15 +231,15 @@ var FeatureTableFormat = {
   },
   
   // special formatter for content in tooltips for features
-  tipTipData: function(data) {
+  tipTipData: function(feature) {
     var qualifiersToAbbreviate = {translation: 1},
       content = {
-        type: data.d.type,
-        position: data.d.chrom + ':' + data.d.chromStart, 
-        size: data.d.chromEnd - data.d.chromStart
+        type: feature.type,
+        position: feature.chrom + ':' + feature.chromStart, 
+        size: feature.chromEnd - feature.chromStart
       };
-    if (data.d.qualifiers.note && data.d.qualifiers.note[0]) {  }
-    _.each(data.d.qualifiers, function(v, k) {
+    if (feature.qualifiers.note && feature.qualifiers.note[0]) {  }
+    _.each(feature.qualifiers, function(v, k) {
       if (k == 'note') { content.description = v.join('; '); return; }
       content[k] = v.join('; ');
       if (qualifiersToAbbreviate[k] && content[k].length > 25) { content[k] = content[k].substr(0, 25) + '...'; }

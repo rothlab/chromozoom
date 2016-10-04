@@ -126,24 +126,20 @@ body {
     border: 2px solid white; /* should match background, can't be transparent */
     background-color: rgba(0, 0, 0, .5);
 }
-.picker .header { 
-  text-transform: uppercase;
-  font-weight: bold;
-  font-size: 80%;
-  color: #fff;
-  text-shadow: 0 1px 1px #3e6790;
-  border: 1px solid #456f9a;
-  border-left-width: 0;
-  border-right-width: 0;
-  background: #45507F;
-  background-image: -webkit-gradient(linear,left top,left bottom,from(#6facd5), to(#497bae));
-  background-image: -webkit-linear-gradient(#6facd5,#497bae);
-  background-image: -moz-linear-gradient(#6facd5,#497bae);
-  background-image: -ms-linear-gradient(#6facd5,#497bae);
-  background-image: -o-linear-gradient(#6facd5,#497bae);
-  background-image: linear-gradient(#6facd5,#497bae);
-  padding: 4px 0 4px 8px;
+.category-header {
+  background: #999;
   margin: 0;
+  padding: 4px 0 4px 8px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.picker .category-header { 
+  text-transform: uppercase;
+  font-size: 80%;
 }
 .picker .choice { clear: both; }
 .picker .choice * { cursor: pointer; }
@@ -283,18 +279,11 @@ body {
 #loc-picker.no-results::before {
   content: "no search results";
 }
-#loc-picker .choice-category {
+#loc-picker .category-header {
   display: block;
   margin: 0;
   padding: 3px 0 3px 6px;
-  background: #999;
   font-size: 70%;
-  font-weight: bold;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: white;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 #loc-picker .choice {
   cursor: pointer;
@@ -302,6 +291,14 @@ body {
   text-decoration: none;
   padding: 2px 5px;
 }
+#loc-picker .choice .name .alt-name {
+  font-weight: normal;
+  margin-left: 1em;
+  font-size: 80%;
+  opacity: 0.6;
+}
+#loc-picker .choice .name .alt-name::before { content: "("; }
+#loc-picker .choice .name .alt-name::after { content: ")"; }
 #loc-picker .choice.focus {
   outline: none;
   color: white;

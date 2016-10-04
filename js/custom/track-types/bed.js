@@ -30,6 +30,7 @@ var BedFormat = {
     detail: false,
     url: '',
     htmlUrl: '',
+    searchable: false, // FIXME: switch to on by default once searching is implemented for BEDs with triejs
     drawLimit: {squish: null, pack: null},
     bedPlusFields: null
   },
@@ -40,21 +41,23 @@ var BedFormat = {
   
   initOpts: function() {
     var self = this,
-      altColors = self.opts.colorByStrand.split(/\s+/),
+      o = self.opts,
+      altColors = o.colorByStrand.split(/\s+/),
       validColorByStrand = altColors.length > 1 && _.all(altColors, self.validateColor);
     self.numStandardColumns = BED_STANDARD_FIELDS.length;
-    self.opts.useScore = self.isOn(self.opts.useScore);
-    self.opts.itemRgb = self.isOn(self.opts.itemRgb);
+    o.useScore = self.isOn(o.useScore);
+    o.itemRgb = self.isOn(o.itemRgb);
+    o.searchable = self.isOn(o.searchable);
     if (self.typeArgs.length > 0 && /^\d+$/.test(self.typeArgs[0])) {
       self.numStandardColumns = parseInt10(self.typeArgs[0]);
     }
-    if (self.opts.bedPlusFields && !_.isArray(self.opts.bedPlusFields)) {
-      self.opts.bedPlusFields = self.opts.bedPlusFields.split(',');
+    if (o.bedPlusFields && !_.isArray(o.bedPlusFields)) {
+      o.bedPlusFields = o.bedPlusFields.split(',');
     }
-    if (/%s/.test(self.opts.url)) { self.opts.url = convertUrlTemplateFormat(self.opts.url); }
-    else if (self.opts.url && !(/\$\$/).test(self.opts.url)) { self.opts.url += '$$'; }
-    if (!validColorByStrand) { self.opts.colorByStrand = ''; self.opts.altColor = null; }
-    else { self.opts.altColor = altColors[1]; }
+    if (/%s/.test(o.url)) { o.url = convertUrlTemplateFormat(o.url); }
+    else if (o.url && !(/\$\$/).test(o.url)) { o.url += '$$'; }
+    if (!validColorByStrand) { o.colorByStrand = ''; o.altColor = null; }
+    else { o.altColor = altColors[1]; }
   },
 
   parseLine: function(line, lineno) {
@@ -116,14 +119,18 @@ var BedFormat = {
     var self = this,
       middleishPos = self.browserOpts.genomeSize / 2,
       data = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'});
+    
     _.each(lines, function(line, lineno) {
       var feature = self.type().parseLine.call(self, line, lineno);
       if (feature) { data.add(feature); }
     });
+    
     self.data = data;
     self.heights = {max: null, min: 15, start: 15};
     self.sizes = ['dense', 'squish', 'pack'];
     self.mapSizes = ['pack'];
+    self.isSearchable = self.opts.searchable;
+    
     return true;
   },
   
@@ -189,7 +196,7 @@ var BedFormat = {
   // Fills out a URL template for a feature according to the standards for the `url` parameter of a UCSC trackDb
   // https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html
   calcUrl: function(url, feature) {
-    var autoId = (/\t/).test(feature.id),
+    var autoId = (/\t/).test(feature.id), // Only automatically generated id's could contain a tab character
       toReplace = {
         '$$': autoId || _.isUndefined(feature.id) ? feature.name : feature.id,
         '$T': this.opts.name,
@@ -204,26 +211,31 @@ var BedFormat = {
     return url;
   },
   
+  tipTipData: function(feature) {
+    var tipTipData = {},
+      autoId = (/\t/).test(feature.id); // Only automatically generated id's could contain a tab character
+    if (!_.isUndefined(feature.description)) { tipTipData.description = feature.description; }
+    if (!_.isUndefined(feature.score) && feature.score > 0) { tipTipData.score = feature.score; }
+    _.extend(tipTipData, {
+      position: feature.chrom + ':' + feature.chromStart, 
+      size: feature.chromEnd - feature.chromStart
+    });
+    if (this.opts.bedPlusFields) { _.extend(tipTipData, _.omit(feature.extra, function(v) { return v === ''; })); }
+    // Display the ID column (from bedDetail) unless it was automatically generated
+    if (!_.isUndefined(feature.id) && !autoId) { tipTipData.id = feature.id; }
+    return tipTipData;
+  },
+  
   addArea: function(areas, data, i, lineHeight, urlTemplate) {
     var tipTipData = {},
       tipTipDataCallback = this.type().tipTipData,   // this permits inheriting track formats to override these
       customNameFunc = this.type().nameFunc,         // " "
-      nameFunc = _.isFunction(customNameFunc) ? customNameFunc : utils.defaultNameFunc,
-      autoId = (/\t/).test(data.d.id);               // Only automatically generated id's could contain a tab character
+      nameFunc = _.isFunction(customNameFunc) ? customNameFunc : utils.defaultNameFunc;
     if (!areas) { return; }
-    if (_.isFunction(tipTipDataCallback)) {
-      tipTipData = tipTipDataCallback.call(this, data);
-    } else {
-      if (!_.isUndefined(data.d.description)) { tipTipData.description = data.d.description; }
-      if (!_.isUndefined(data.d.score) && data.d.score > 0) { tipTipData.score = data.d.score; }
-      _.extend(tipTipData, {
-        position: data.d.chrom + ':' + data.d.chromStart, 
-        size: data.d.chromEnd - data.d.chromStart
-      });
-      if (this.opts.bedPlusFields) { _.extend(tipTipData, _.omit(data.d.extra, function(v) { return v === ''; })); }
-      // Display the ID column (from bedDetail) unless it was automatically generated
-      if (!_.isUndefined(data.d.id) && !autoId) { tipTipData.id = data.d.id; }
-    }
+    
+    if (!_.isFunction(tipTipDataCallback)) { tipTipDataCallback = this.type('bed').tipTipData; }
+    tipTipData = tipTipDataCallback.call(this, data.d);
+    
     areas.push([
       data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, // x1, y1, x2, y2
       nameFunc(data.d),                                                                 // name

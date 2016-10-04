@@ -13,6 +13,10 @@ A few quick notes on defining a custom track format.
     deferring expensive setup operations for a custom track that may not be initially visible. See the "bigbed" format for
     an example of how to use this.
 
++ `.search()` MAY be defined, if the track is to be searchable from the browser's location bar. This should fire the passed in 
+    callback on a search results object. Note that the track's `.isSearchable` attribute should be set to `true` to activate
+    this behavior. See the "bigbed" format for an example, and also see `._searchFor()` in `$.ui.genobrowser`.
+
 + Defaults for track options can be put in `.defaults`.
 
 + The point of a format definition is to store data parsed from the track during `.parse()` and then draw it to a canvas

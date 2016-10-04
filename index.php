@@ -1,5 +1,5 @@
 <?php
-  $REQUIRED_BINARIES = array('tabix', 'samtools', 'bigBedInfo', 'bigBedSummary' ,'bigBedToBed', 
+  $REQUIRED_BINARIES = array('tabix', 'samtools', 'bigBedInfo', 'bigBedSearch', 'bigBedSummary' ,'bigBedToBed', 
       'bigWigSummary', 'bigWigInfo', 'twoBitToFa');
   include('lib/setup.php');
   $MISSING_BINARIES = find_and_link_binaries($REQUIRED_BINARIES);
@@ -519,7 +519,8 @@ chr3 2000000</textarea>
             <li><?php echo $bin; ?></li>
             <?php endforeach; ?>
           </ul>
-          <p>Visit the <a href="http://www.htslib.org/download/">HTSLib</a>
+          <p>Visit the <a href="http://www.htslib.org/download/">HTSLib</a>,
+            <a href="https://github.com/powerpak/bigBedSearch">bigBedSearch</a>,
             and <a href="http://hgdownload.cse.ucsc.edu/admin/exe/">Jim Kent big* tools</a> sites 
             for download links and installation instructions.
           </p>

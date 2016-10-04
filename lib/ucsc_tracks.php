@@ -32,6 +32,7 @@ function getTracksForDb($track_db_path, $chromozoom_uri, $db, $priority=100, $co
       'type' => littleToBigFormat($row['type']),
       'opts' => array_merge($local_settings, array(
         'bigDataUrl' => $location,
+        'priority' => $row['priority'],
         'visibility' => $row['priority'] <= 1 ? 'show' : 'hide'
       ))
     );

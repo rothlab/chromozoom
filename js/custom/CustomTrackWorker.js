@@ -25,24 +25,6 @@ var CustomTrackWorker = {
       return serializable;
     });
   },
-  prerender: function() {
-    var args = _.toArray(arguments),
-      id = _.first(args),
-      track = this._tracks[id];
-    track.prerender.apply(track, _.rest(args));
-  },
-  applyOpts: function() {
-    var args = _.toArray(arguments),
-      id = _.first(args),
-      track = this._tracks[id];
-    track.applyOpts.apply(track, _.rest(args));
-  },
-  finishSetup: function() {
-    var args = _.toArray(arguments),
-      id = _.first(args),
-      track = this._tracks[id];
-    track.finishSetup.apply(track, _.rest(args));
-  },
   syncPropsAsync: function(track, props) {
     global.postMessage({id: track.id, syncProps: props});
   },
@@ -50,6 +32,16 @@ var CustomTrackWorker = {
     this._throwErrors = toggle;
   }
 };
+
+// Setup these methods to pass through the appropriate track, as specified by the `id` in the message
+_.each(['prerender', 'applyOpts', 'finishSetup', 'search'], function(fn) {
+  CustomTrackWorker[fn] = function() {
+    var args = _.toArray(arguments),
+      id = _.first(args),
+      track = this._tracks[id];
+    track[fn].apply(track, _.rest(args));
+  };
+});
 
 global.CustomTrackWorker = CustomTrackWorker;
 

@@ -152,7 +152,8 @@ module.exports = (function($){
         finishSetupAfterParsing,
         $overlay = $(o.overlay[0]),
         $overlayMessage = $(o.overlay[1]),
-        nextDirectives = _.extend({}, self._nextDirectives);
+        nextDirectives = _.extend({}, self._nextDirectives),
+        nextDirectivesPosition = nextDirectives.position && self.normalizePos(nextDirectives.position, true);
       self._resetCustomTracks();
       self._removeLines(self.$lines.length, {duration: 0});
 
@@ -163,13 +164,11 @@ module.exports = (function($){
       tracksToParse = _.filter(o.availTracks, function(t) { return t.customData; });
       // a subset of options that CustomTracks needs to parse tracks
       function browserOpts() {
-        var pos = nextDirectives.position && self.normalizePos(nextDirectives.position, true);
-        pos = pos ? pos.pos : self.pos;
         return {
           bppps: o.bppps,
           chrPos: self.chrPos,
           genome: o.genome,
-          pos: pos,
+          pos: nextDirectivesPosition ? nextDirectivesPosition.pos : self.pos,
           chrLengths: o.chrLengths,
           genomeSize: o.genomeSize,
           ajaxDir: o.ajaxDir
@@ -242,6 +241,7 @@ module.exports = (function($){
       self._showReticle = {mouseArea: false, dragging: false, hotKeys: false};
       self._defaultLineMode = $(o.lineMode).find(':checked').val();
       self._dna = {};
+      self._searchId = 0;
     },
     
     _initSlider: function() {
@@ -416,7 +416,7 @@ module.exports = (function($){
         $c.bind('change', _.bind(self._fixTracks, self));
       }
       function addHeader(cat) {
-        var $li = $('<li class="header"/>').appendTo($ul);
+        var $li = $('<li class="category-header"/>').appendTo($ul);
         $li.text(cat);
       }
             
@@ -1524,15 +1524,15 @@ module.exports = (function($){
         var $elem = $(elem),
             text = "" + $elem.find('h3.name>span').text() + " " + $elem.find('.long-desc').text();
         text += " " + $elem.find('input').attr('name');
-        text += " " + $elem.prevUntil('.header').prev('.header').text();
+        text += " " + $elem.prevUntil('.category-header').prev('.category-header').text();
       	return (("" + text).toLowerCase().indexOf(query) !== -1 );
       }
       
       $list.children('.choice').each(function() {
         $(this).toggle(matches(this));
       });
-      $list.children('.header').each(function() {
-        $(this).toggle($(this).nextUntil('.header').filter('.choice').is(':visible'));
+      $list.children('.category-header').each(function() {
+        $(this).toggle($(this).nextUntil('.category-header').filter('.choice').is(':visible'));
       });
       numResults = $list.find('.choice:visible').length;
       warnText = numResults > 0 ? 'Showing only tracks matching the search query.' : 'No tracks match this search query.';
@@ -1730,6 +1730,7 @@ module.exports = (function($){
     },
     
     // Turns a string like "chrX:12512" into an bp position from the start of the genome
+    // `forceful` is a boolean indicating whether a search should still be initiated even if the query hasn't changed
     normalizePos: function(pos, forceful) {
       var o = this.options, 
         ret = {}, 
@@ -1740,7 +1741,7 @@ module.exports = (function($){
       
       matches = ret.pos.match(/^([a-z]+[^:]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
       // Does the position string have a colon in it? If so, we try to parse it as a bp position
-      if (matches && matches[1]) {
+      if (matches && matches[2]) {
         var chr = _.find(o.chrLabels, function(v) { return v.n === matches[1]; });
         // If this didn't match a real chromosome name, use the first, by default.
         if (!chr) { chr = _.first(o.chrLabels); }
@@ -1760,7 +1761,7 @@ module.exports = (function($){
           // or specifying bppp directly, e.g. chrX:12512@100
           ret.bppp = parseFloat(matches[6]);
         }
-      } else { 
+      } else {
         pos = parseInt(ret.pos, 10);
         if (_.isNaN(pos)) {
           this._searchFor(ret.pos, forceful);
@@ -1773,84 +1774,152 @@ module.exports = (function($){
     },
     
     // Displays the search dropdown where the user can select from features that match the query
+    // `forceful` is a boolean indicating whether a search should still be initiated even if the query hasn't changed
     _searchFor: function(search, forceful) {
       var self = this,
         o = self.options,
-        $elem = self.element;
+        $elem = self.element,
+        highPriorityTracks, alwaysSearchableTracks, searchableVisibleTracks, searchTargets, loadAllChoicesAfter;
+            
       function hilite(text, searchFor) {
-        return text.replace(new RegExp(regExpQuote(searchFor), "gi"), '<span class="hilite">'+searchFor+'</span>');
+        function replacer(m) { return '<span class="hilite">'+m+'</span>'; }
+        return text.replace(new RegExp(regExpQuote(searchFor), "gi"), replacer);
       }
+      
       function createChoice(c, cat) {
-        var $c = $('<div class="choice"/>');
-        $('<h3 class="name"/>').html(hilite(c.name, search)).appendTo($c);
+        var $c = $('<div class="choice"/>'),
+          $h3 = $('<h3 class="name"/>').html(hilite(c.name, search)).appendTo($c);
+        if (c.altName) { $('<span class="alt-name">').html(hilite(c.altName, search)).appendTo($h3); }
         $('<p class="long-desc"/>').html(hilite(c.desc, search)).appendTo($c);
         $c.bind('fakefocus', function() { $(this).addClass('focus'); $(this).siblings().removeClass('focus'); });
         $c.bind('fakeblur', function() { $(this).removeClass('focus'); });
         $c.mouseover(function() { $(this).trigger('fakefocus'); });
-        $c.click(function() {
-          var m, picked = (m = c.desc.match(/^\((.+)\)/)) ? m[1].toLowerCase() : c.name.toLowerCase();
-          $('body').unbind('mousedown.search');
-          self.$trackPicker.find('input[name='+cat.track+']').attr('checked', true);
-          self.tileFixingEnabled(false);
-          self._fixTracks({duration: 0, complete: function() {
-            // This callback maximizes the track that contained the feature clicked, and flashes the feature.
-            // Flashing the clicked feature is tricky because everything is loading at different times.
-            var $maximizeTrack = self.$lines.eq(self.centralLine).find('.browser-track-'+cat.track).eq(0);
-            $maximizeTrack.one('trackload', function(e, bppps) {
-              var $imgs = self.$lines.find('.bppp-'+classFriendly(bppps.top)+' .tdata.dens-pack');
-              maxHeight = 5 + Math.max.apply(Math, $imgs.map(function() { 
-                return this.naturalHeight || this.height;
-              }).get());
-              // After the track is resized, flash all the features that were added to our todo-list
-              self._resizeTrack(cat.track, maxHeight, self.centralLine, function() {
-                var $stillLoading = self.$lines.find('.browser-track-'+cat.track).has('.areas-loading');
-                $elem.find('.browser-track').genotrack('updateDensity');
-                function flash() { self.areaHover([cat.track, bppps.top, "pack", "name", picked], "FLASHME"); };
-                // FIXME: this is pretty rickety
-                if (!$stillLoading.length) { flash(); }
-                else { $stillLoading.one('areaload', _.after($stillLoading.length, flash)); }
-              });
-            });
-            _.defer(function(){ self.tileFixingEnabled(true); $elem.find('.browser-track-'+cat.track).genotrack('fixClickAreas'); });
-          }});
-          self.jumpTo(c.pos);
-          return false; 
-        });
+        $c.bind('click', {choice: c, cat: cat, self: self}, _.bind(self._searchChoiceClicked, self));
         return $c;
       }
+      
       function hideChoices() { self.$choices.find('.choice').trigger('fakeblur'); self.$choices.hide(); }
       
-      if (search==='') { return hideChoices(); }
-      if (search===self.prevSearch && !forceful) { return; }
+      function loadAllChoices() {
+        var choiceData = self._searchResults.data,
+          jumpNow = _.first(_.compact(_.pluck(choiceData, 'goto'))), 
+          categories = _.extend.apply({}, _.compact(_.pluck(choiceData, 'categories'))),
+          catnames;
+        categories = _.pick(categories, function(cat) { return cat.choices.length > 0; });
+        
+        self.$choices.removeClass('loading');
+        if (jumpNow) { self.jumpTo(jumpNow); return; }
+        
+        catnames = _.keys(categories);
+        if (!categories || catnames.length === 0) { self.$choices.addClass('no-results'); return; }
+        catnames = _.sortBy(catnames, function(catname) {
+          var trk = self.availTracks[categories[catname].track];
+          return trk.custom && trk.custom.opts.priority <= 1 ? 0 : 1;
+        });
+        choicesPerCategory = Math.max(Math.ceil(12 / catnames.length), 3);
+        
+        _.each(catnames, function(catname) {
+          var cat = categories[catname];
+          $('<div class="category-header"/>').text(catname).appendTo(self.$choices);
+          _.each(cat.choices.slice(0, choicesPerCategory), function(c) {
+            createChoice(c, cat).appendTo(self.$choices);
+          });
+        });
+        self.$choices.find('.choice').eq(0).trigger('fakefocus');
+      }
+      
+      if (search === '') { self.prevSearch = ''; return hideChoices(); }
+      if (search === self.prevSearch && !forceful) { return; }
       self.$choices.empty().addClass('loading').removeClass('no-results').slideDown();
       $('body').bind('mousedown.search', function(e) { 
         if (!$(e.target).closest(self.$choices).length) { hideChoices(); }
         $('body').unbind('mousedown.search');
       });
-      if (self.currentSearch) { self.currentSearch.abort(); }
-      
+      if (self.currentSearches) { 
+        _.each(self.currentSearches, function(s) { _.isFunction(s.abort) && s.abort(); }); 
+      }
+      self._searchId += 1;
+      self.currentSearches = [];
+      self._searchResults = {id: self._searchId, data: []};
       self.prevSearch = search;
-      // FIXME: for custom genomes, we instead must search custom tracks.
-      self.currentSearch = $.ajax(o.ajaxDir+'search.php', {
-        data: {position: search, db: o.genome},
-        dataType: 'json',
-        success: function(data) {
-          self.$choices.removeClass('loading');
-          if (data['goto']) { self.jumpTo(data['goto']); return; }
-          if (!data.categories || data.categories.length===0) { self.$choices.addClass('no-results'); return; }
-          var numCategories = _.keys(data.categories).length,
-            choicesPerCategory = Math.max(Math.ceil(12 / numCategories), 3);
-          _.each(data.categories, function(cat, catname) {
-            $('<div class="choice-category"/>').text(catname).appendTo(self.$choices);
-            _.each(cat.choices.slice(0, choicesPerCategory), function(c) {
-              var $c = createChoice(c, cat).appendTo(self.$choices);
-            });
-          });
-          self.$choices.find('.choice').eq(0).trigger('fakefocus');
-        }
+      
+      highPriorityTracks = _.filter(o.availTracks, function(t) { return t.custom && t.custom.opts.priority <= 1; });
+      alwaysSearchableTracks = _.filter(highPriorityTracks, function(t) { return t.custom.isSearchable; });
+      searchableVisibleTracks = _.filter(o.tracks, function(t) { return t.custom && t.custom.isSearchable; });
+      searchTargets = alwaysSearchableTracks.concat(searchableVisibleTracks);
+      loadAllChoicesAfter = _.after(searchTargets.length + (o.custom ? 0 : 1), loadAllChoices);
+      
+      _.each(searchTargets, function(t) {
+        t.custom.searchAsync(search, _.partial(function(searchId, data) {
+          var reformattedData = {goto: data.goto, categories: {}};
+          if (self._searchResults.id != searchId) { return; }  // too late
+          reformattedData.categories[o.trackDesc[t.n].sm] = {
+            track: t.n,
+            choices: data.choices
+          };
+          self._searchResults.data.push(reformattedData);
+          loadAllChoicesAfter();
+        }, self._searchId));
       });
+      
+      // For non-custom genomes, we also run a server-side search for features matching this query
+      if (!o.custom) {
+        self.currentSearches.push($.ajax(o.ajaxDir + 'search.php', {
+          data: {position: search, db: o.genome},
+          dataType: 'json',
+          success: function(data) {
+            if (self._searchResults.id != searchId) { return; }  // too late
+            self._searchResults.data.push(data); 
+            loadAllChoicesAfter();
+          }
+        }));
+      }
     },
+    
+    // Handles the selection of a search result from the search dropdown
+    _searchChoiceClicked: function(e) {
+      var self = this,
+        $elem = self.element,
+        c = e.data.choice,
+        cat = e.data.cat,
+        m = c.desc.match(/^\((.+)\)/),
+        picked = m ? m[1].toLowerCase() : c.name.toLowerCase();
+      
+      $('body').unbind('mousedown.search');
+      self.$trackPicker.find('input[name='+cat.track+']').attr('checked', true);
+      self.tileFixingEnabled(false);
+      
+      self._fixTracks({duration: 0, complete: function() {
+        // This callback maximizes the track that contained the feature clicked, and flashes the feature.
+        // Flashing the clicked feature is tricky because everything is loading at different times.
+        var $maximizeTrack = self.$lines.eq(self.centralLine).find('.browser-track-'+cat.track).eq(0);
         
+        $maximizeTrack.one('trackload', function(e, bppps) {
+          var $imgs = self.$lines.find('.bppp-'+classFriendly(bppps.top)+' .tdata.dens-pack'),
+            maxHeight = 5 + Math.max.apply(Math, $imgs.map(function() { return this.naturalHeight || this.height; }).get());
+          
+          // After the track is resized, flash all the features that were added to our todo-list
+          self._resizeTrack(cat.track, maxHeight, self.centralLine, function() {
+            var $stillLoading = self.$lines.find('.browser-track-'+cat.track).has('.areas-loading');
+            $elem.find('.browser-track').genotrack('updateDensity');
+            function flash() { self.areaHover([cat.track, bppps.top, "pack", "name", picked], "FLASHME"); };
+            // FIXME: this is pretty rickety
+            if (!$stillLoading.length) { flash(); }
+            else { $stillLoading.one('areaload', _.after($stillLoading.length, flash)); }
+          });
+          
+        });
+        
+        _.defer(function(){ 
+          self.tileFixingEnabled(true);
+          $elem.find('.browser-track-'+cat.track).genotrack('fixClickAreas');
+        });
+      }});
+      
+      self.jumpTo(c.pos);
+      return false;
+    },
+    
     // public (indirect) setter for this.pos; centers the reticle on reticPos
     jumpTo: function(reticPos) {
       var dest = this.normalizePos(reticPos, true);

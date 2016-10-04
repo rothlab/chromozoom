@@ -9,15 +9,15 @@ var bigbed = require('./bigbed.js')
 // Intended to be loaded into CustomTrack.types.biggenepred
 var BigGenePredFormat = _.extend({}, bigbed, {
   
-  tipTipData: function(itvl) {
+  tipTipData: function(feature) {
     var tipTipData = {};
-    if (!_.isUndefined(itvl.d.extra.geneName2)) { tipTipData.description = itvl.d.extra.geneName2; }
+    if (!_.isUndefined(feature.extra.geneName2)) { tipTipData.description = feature.extra.geneName2; }
     _.extend(tipTipData, {
-      id: itvl.d.name,
-      position: itvl.d.chrom + ':' + itvl.d.chromStart, 
-      size: itvl.d.chromEnd - itvl.d.chromStart
+      id: feature.name,
+      position: feature.chrom + ':' + feature.chromStart, 
+      size: feature.chromEnd - feature.chromStart
     });
-    if (!_.isUndefined(itvl.d.score) && itvl.d.score > 0) { tipTipData.score = itvl.d.score; }
+    if (!_.isUndefined(feature.score) && feature.score > 0) { tipTipData.score = feature.score; }
     return tipTipData;
   },
 

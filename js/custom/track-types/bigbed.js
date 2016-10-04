@@ -20,6 +20,7 @@ var BigBedFormat = {
     detail: false,
     url: '',
     htmlUrl: '',
+    searchable: false,
     drawLimit: {squish: 500, pack: 100},
     // Data for how many nts should be fetched in one go? (0 means guess this from the index's summary stats)
     optimalFetchWindow: 0,
@@ -32,6 +33,11 @@ var BigBedFormat = {
       throw new Error("Required parameter bigDataUrl not found for bigBed track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
     }
     this.type('bed').initOpts.call(this);
+  },
+  
+  applyOpts: function() {
+    // Ensures that options and derived properties are equal across Web Worker and DOM contexts
+    this.syncProps(['opts', 'isSearchable']);
   },
   
   parse: function(lines) {
@@ -60,11 +66,12 @@ var BigBedFormat = {
         }
       });
     });
-    
+      
     self.data = {cache: cache, remote: remote};
     self.heights = {max: null, min: 15, start: 15};
     self.sizes = ['dense', 'squish', 'pack'];
     self.mapSizes = ['pack'];
+    self.isSearchable = self.opts.searchable;
     
     return true;
   },
@@ -80,6 +87,9 @@ var BigBedFormat = {
     $.ajax(ajaxUrl, {
       data: { url: self.opts.bigDataUrl },
       success: function(data) {
+        // If extraIndex'es are available, we can search this track.
+        self.isSearchable = self.opts.searchable = data.extraIndexCount > 0;
+        
         // Set maxFetchWindow to avoid overfetching data.
         if (!self.opts.maxFetchWindow) {
           var meanItemsPerBp = data.itemCount / self.browserOpts.genomeSize,
@@ -87,6 +97,8 @@ var BigBedFormat = {
           self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
           self.opts.optimalFetchWindow = Math.floor(self.opts.maxFetchWindow / 3);
         }
+        self.type('bigbed').applyOpts.call(self);
+        
         remote.setupBins(self.browserOpts.genomeSize, self.opts.optimalFetchWindow, self.opts.maxFetchWindow);
       }
     });
@@ -146,6 +158,44 @@ var BigBedFormat = {
     self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
       self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
       if (_.isFunction(callback)) { callback(); }
+    });
+  },
+  
+  // Searches the extraIndex'es on the bigBed for fields prefixed by `query`
+  search: function(query, callback) {
+    var self = this,
+      ajaxUrl = self.ajaxDir() + 'bigbed.php';
+    
+    $.ajax(ajaxUrl, {
+      data: {url: self.opts.bigDataUrl, search: query},
+      success: function(data) {
+        var response = {choices: []},
+          customNameFunc = self.type().nameFunc,         // this permits inheriting track formats to override these
+          tipTipDataCallback = self.type().tipTipData,   // " "
+          nameFunc = _.isFunction(customNameFunc) ? customNameFunc : utils.defaultNameFunc,
+          lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
+        if (!_.isFunction(tipTipDataCallback)) { tipTipDataCallback = self.type('bed').tipTipData; }
+        
+        _.each(lines, function(line) {
+          var match = self.type('bed').parseLine.call(self, line),
+            tipTipData = tipTipDataCallback.call(self, match),
+            niceName = nameFunc(match),
+            stdName = match.name || match.id || '',
+            pos = match.chrom + ':' + match.chromStart + '-' + match.chromEnd,
+            choice = {
+              name: niceName,
+              desc: (tipTipData.description || pos),
+              pos: pos
+            };
+          if (stdName && stdName != niceName) { choice.altName = stdName; }
+          response.choices.push(choice);
+        });
+        // Prioritize exact matches
+        response.choices = _.first(_.sortBy(response.choices, function(choice) { 
+          return choice.name.toLowerCase() == query.toLowerCase() ? 0 : 1; 
+        }), 10);
+        callback(response);
+      }
     });
   },
   
