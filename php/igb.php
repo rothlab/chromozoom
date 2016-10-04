@@ -10,19 +10,12 @@ header("Content-type: application/json");
 // header("Cache-control: max-age=172800, public, must-revalidate");
 // header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800)); // Have this page expire within 48 hours.
 
-require_once("../lib/spyc.php");
 require_once("../lib/setup.php");
 require_once("../lib/chromsizes.php");
 
-function forbidden($err) {
-  header('HTTP/1.1 403 Forbidden'); 
-  if (strlen($err)) { echo json_encode(array('error'=>$err)); } 
-  exit;
-}
-
 $response = array();
 
-$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
+$ucsc_config = ucsc_config();
 
 $default_igb_dirs = array('http://igbquickload.org/quickload');
 $default_igb_dirs = isset($ucsc_config['igb_dirs']) ? $ucsc_config['igb_dirs'] : $default_igb_dirs;
@@ -175,9 +168,7 @@ if (isset($_GET['url'])) {
       $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
       
       // TODO: $response['species'], $response['assemblyDate']
-      // TODO: Get stuff from annots.xml into $response somehow
       $response['tracks'] = getAnnotsAsTracks("$url/annots.xml");
-      
     }
   } elseif ($url_type == 'dir') {
     // this is a Quickload dir, with a contents.txt

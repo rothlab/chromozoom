@@ -6,11 +6,6 @@
 require_once('../lib/setup.php');
 require_once('../lib/autoconvert_chrs.php');
 
-function bad_request() {
-  header('HTTP/1.1 403 Forbidden');
-  exit;
-}
-
 define('RANGE_PATTERN', '/^(\\w+[^:]*):(\\d+)-(\\d+)$/');
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
@@ -18,17 +13,17 @@ function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 $ranges = array();
 $INFO_ONLY = FALSE;
 
-if (!validate_URL_in_GET_param('url', FALSE)) { bad_request(); }
+if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
 passthru_basic_auth_for_GET_param('url');
 if (isset($_GET['info'])) { $INFO_ONLY = TRUE; } 
 $ranges = array_filter((array) $_GET['range'], 'valid_range');
-if (!isset($_GET['range']) || !count($ranges)) { bad_request(); }
+if (!isset($_GET['range']) || !count($ranges)) { forbidden(); }
 
 // currently unused; bam.js does all summary statistics on its end. See below NOTE for some more thoughts on this
 //
 // $SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
 // if ($SUMMARY) {
-//   if (!isset($_GET['width'])) { bad_request(); }
+//   if (!isset($_GET['width'])) { forbidden(); }
 //   $WIDTH = max(min(intval($_GET['width']), 5000), 1);
 // }
 

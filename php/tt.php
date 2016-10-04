@@ -1,7 +1,6 @@
 <?php
 
-function forbidden($err) { header('HTTP/1.1 403 Forbidden'); if (strlen($err)) { echo json_encode(array('error'=>$err)); } exit; }
-
+include('../lib/setup.php');
 include('../lib/Tyrant.php');
 
 $path = substr($_SERVER['REQUEST_URI'], strlen($_SERVER['SCRIPT_NAME']) + 1);
@@ -13,7 +12,7 @@ $db = preg_replace('/[^a-z0-9]/i', '', $db);
 try {
   $tt = @Tyrant::connect("/tmp/$db.sock", 0);
 } catch (Tyrant_Exception $e) {
-  include("../lib/spyc.php");
+  require_once("../lib/spyc.php");
   if (!file_exists("../$db.yaml")) { forbidden('genome does not exist'); }
   $genome_config = Spyc::YAMLLoad("../$db.yaml");
   try {

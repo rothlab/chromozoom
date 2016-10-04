@@ -5,11 +5,6 @@
  **/
 require_once('../lib/setup.php');
 
-function bad_request() {
-  header('HTTP/1.1 403 Forbidden');
-  exit;
-}
-
 define('RANGE_PATTERN', '/^(\\w+[^:]*):(\\d+)-(\\d+)$/');
 define('TOO_FEW_PIXELS', 3); // Not worth calling bigBedSummary for this small of an output range
 
@@ -18,22 +13,25 @@ function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
 $INFO_ONLY = FALSE;
 $SEARCH = FALSE;
 
-if (!validate_URL_in_GET_param('url', TRUE)) { bad_request(); }
+if (!validate_URL_in_GET_param('url', TRUE)) { forbidden(); }
 passthru_basic_auth_for_GET_param('url');
+if (!($tmp_dir = ensure_tmp_dir_exists())) { forbidden(); }
+
 if (!isset($_GET['range'])) { 
   if (isset($_GET['search'])) { $SEARCH = $_GET['search']; }
   else { $INFO_ONLY = TRUE; }
 } else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
-if (isset($_GET['range']) && !count($ranges)) { bad_request(); }
+if (isset($_GET['range']) && !count($ranges)) { forbidden(); }
 $SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
 if ($SUMMARY) {
-  if (!isset($_GET['width'])) { bad_request(); }
+  if (!isset($_GET['width'])) { forbidden(); }
   $WIDTH = max(min(intval($_GET['width']), 5000), 1);
 }
 
 $BIGBED_BIN = dirname(dirname(__FILE__)) . '/bin/bigBed';
-$BIGBED_BIN = $BIGBED_BIN . ($INFO_ONLY ? 'Info' : ($SEARCH !== FALSE ? 'Search' : ($SUMMARY ? 'Summary' : 'ToBed')));
+$BIGBED_BIN .= ($INFO_ONLY ? 'Info' : ($SEARCH !== FALSE ? 'Search' : ($SUMMARY ? 'Summary' : 'ToBed')));
 $BIGBED_BIN = escapeshellarg($BIGBED_BIN);
+$BIGBED_BIN .= ' -udcDir=' . escapeshellarg("$tmp_dir/udcCache");
 
 function ranges_to_args(&$ranges) {
   global $SUMMARY, $WIDTH;
@@ -63,7 +61,12 @@ function ranges_to_args(&$ranges) {
   }
 }
 
+/**
+ * Three different modes of output for this page: info, search, and summary.
+ **/
+
 if ($INFO_ONLY) {
+  
   // Without the range and density parameters, return a JSON document containing info about the bigBed
   header('Content-type: application/json');
   $BOOL_VALS = array('yes'=> TRUE, 'no' => FALSE);
@@ -80,22 +83,26 @@ if ($INFO_ONLY) {
     }
     echo json_encode($info);
   }
+  
 } elseif ($SEARCH !== FALSE) {
-  if (strlen($SEARCH) == 0) { bad_request(); }
-  $CMD_SUFFIX = ' /dev/stdout | head -n 100';
+  
+  if (strlen($SEARCH) == 0) { forbidden(); }
+  $cmd_suffix = ' /dev/stdout | head -n 100';
   header('Content-type: text/plain');
   // We have to do some voodoo here to allow case insensitivity. If the input is mixed case, trust the user to get it right.
   if (strtolower($SEARCH) != $SEARCH && strtoupper($SEARCH) != $SEARCH) {
-    $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg($SEARCH) . $CMD_SUFFIX);
+    $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg($SEARCH) . $cmd_suffix);
     $out2 = "";
   } else {
     // Otherwise, search for both cases.
-    $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(strtolower($SEARCH)) . $CMD_SUFFIX);
-    $out2 = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(strtoupper($SEARCH)) . $CMD_SUFFIX);
+    $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(strtolower($SEARCH)) . $cmd_suffix);
+    $out2 = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(strtoupper($SEARCH)) . $cmd_suffix);
   }
   // Dedupe results and send them back to the user.
   echo implode("\n", array_unique(explode("\n", "$out$out2")));
+
 } else {
+  
   // With range and density parameters, return either a summary of datapoints or the raw BED rows themselves
   header('Content-type: text/plain');
   
@@ -105,12 +112,13 @@ if ($INFO_ONLY) {
       if ($range[3] <= 0) { continue; }
       if ($range[3] <= TOO_FEW_PIXELS) { echo implode("\t", array_fill(0, $range[3], "n/a")) . "\n"; continue; }
     }
-    $CMD_SUFFIX = $SUMMARY ? ' 2>&1' : ' /dev/stdout';
-    $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range)) . $CMD_SUFFIX);
+    $cmd_suffix = $SUMMARY ? ' 2>&1' : ' /dev/stdout';
+    $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . implode(" ", array_map('escapeshellarg', $range)) . $cmd_suffix);
     if ($SUMMARY && preg_match('/^no data in region|^needLargeMem/', $out)) {
       echo str_repeat("n/a\t", $range[3]);
     } else {
       echo $out;
     }
   }
+  
 }

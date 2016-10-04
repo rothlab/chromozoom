@@ -7,21 +7,13 @@ header("Content-type: application/json");
 header("Cache-control: max-age=172800, public, must-revalidate");
 header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
 
-require_once("../lib/spyc.php");
 require_once("../lib/setup.php");
 require_once("../lib/chromsizes.php");
 require_once("../lib/ucsc_tracks.php");
 
-function forbidden($err) { 
-  header('HTTP/1.1 403 Forbidden'); 
-  if (strlen($err)) { echo json_encode(array('error'=>$err)); } 
-  exit;
-}
-
 $response = array();
 
-$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
-
+$ucsc_config = ucsc_config();
 $all_genomes_url = $ucsc_config['data_urls']['all_genomes'];
 $chrom_info_url = $ucsc_config['data_urls']['chrom_info'];
 $prefix = parse_url(preg_replace('/%s.*$/', '', $chrom_info_url), PHP_URL_PATH);
@@ -30,7 +22,6 @@ $track_db_path = $ucsc_config['ucsc_cached_track_db'];
 $cytoband_bed_path = $ucsc_config['ucsc_cached_track_cytoband'];
 $chromozoom_port = $_SERVER["SERVER_PORT"] != 80 ? ":".$_SERVER["SERVER_PORT"] : '';
 $chromozoom_uri = "http://" . $_SERVER["SERVER_NAME"] . $chromozoom_port . dirname(dirname($_SERVER['REQUEST_URI']));
-
 
 function getAllGenomes() {
   global $all_genomes_url, $prefix, $big_zips;

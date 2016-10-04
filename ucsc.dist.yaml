@@ -15,6 +15,11 @@ browser_mysql:
 # Then, you can use the scrape_method of "cgi_bin", which avoids the overhead of working through the HTTP server
 cgi_bin_dir: '/Library/WebServer/CGI-Executables'
 
+# Where to store temporary data — /tmp/chromozoom is usually a safe choice, but if you share that directory with 
+# other users, you may want to choose a directory you have exclusive control over to avoid permissions issues
+# You may use $USER and $HOME which will be replaced with the effective username and his/her home directory
+tmp_dir: '/tmp/chromozoom'
+
 # Valid options are "local", "authoritative", or "cgi_bin"
 # "authoritative" means you are scraping directly from UCSC's public site.
 scrape_method: authoritative
@@ -87,12 +92,6 @@ data_urls:
     cyto_band: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/database/cytoBand.txt.gz'
     twobit: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/bigZips/%s.2bit'
     wig_as_bigwig: 'http://hgdownload.cse.ucsc.edu/goldenPath/%s/%s/%s.%s.bw'
-
-# 
-custom_tracks:
-    draw_limits:
-        squeeze: 1000
-        pack: 100
 
 # IGB Quickload directories that will show up as default sources the user can choose from
 igb_dirs:

@@ -3,31 +3,26 @@
 header("Content-type: application/json");
 header("Cache-control: max-age=172800, public, must-revalidate");
 header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
-require_once("../lib/spyc.php");
+
 require_once("../lib/setup.php");
 
-function bad_request() {
-  header('HTTP/1.1 403 Forbidden');
-  exit;
-}
-
-if (!validate_URL_in_GET_param('url', FALSE)) { bad_request(); }
+if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
 $url = $_GET['url'];
-$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
-if (strpos($url, $ucsc_config['browser_hosts']['authoritative']) !== 0) { bad_request(); }
+$ucsc_config = ucsc_config();
+if (strpos($url, $ucsc_config['browser_hosts']['authoritative']) !== 0) { forbidden(); }
 $url = $ucsc_config['browser_hosts']['local'] . substr($url, strlen($ucsc_config['browser_hosts']['authoritative']));
 
 $html = @file_get_contents($url);
-if ($html === FALSE) { bad_request(); }
+if ($html === FALSE) { forbidden(); }
 
 $doc = new DOMDocument();
 @$doc->loadHTML($html);  // suppress warning messages, UCSC has rickety HTML
 $sx_body = simplexml_import_dom($doc->getElementsByTagName('body')->item(0));
 $sx_subheadings_tds = $sx_body->xpath('//div[@class="subheadingBar"]/..');
 
-if (!count($sx_subheadings_tds)) { bad_request(); }
+if (!count($sx_subheadings_tds)) { forbidden(); }
 $sx_desc_td = $sx_subheadings_tds[0]->table[0]->tr[1]->td[1];
-if (!count($sx_desc_td)) { bad_request(); }
+if (!count($sx_desc_td)) { forbidden(); }
 
 $td = dom_import_simplexml($sx_desc_td);
 $td_children = $td->childNodes;

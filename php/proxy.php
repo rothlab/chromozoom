@@ -8,7 +8,7 @@
  * This restricts usage of this proxy to just textual data that looks like a valid UCSC custom track file or
  * a GenBank, EMBL, or FASTA file, which will (hopefully) curb any desire to use it illicitly.
  **/
-function forbidden() { header('HTTP/1.1 403 Forbidden'); exit; }
+require_once("../lib/setup.php");
 
 // Echoes a barebones track definition line that points to a big format file
 // (e.g., if the user actually selected a URL for a bigWig file).

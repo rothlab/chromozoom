@@ -1,5 +1,29 @@
 <?php
 
+// Return an HTTP 403 and optionally a JSON string encoding an error. Used to indicate invalid input.
+function forbidden($err=NULL) { 
+  header('HTTP/1.1 403 Forbidden');
+  if ($err && strlen($err)) { echo json_encode(array('error'=>$err)); }
+  exit;
+}
+
+// Returns either the user's customized ucsc.yaml if it exists or the default distributed one.
+function where_is_ucsc_yaml() {
+  $ucsc_dist_yaml = dirname(dirname(__FILE__)) . "/ucsc.dist.yaml";
+  $ucsc_yaml = dirname(dirname(__FILE__)) . "/ucsc.yaml";
+  return file_exists($ucsc_yaml) ? $ucsc_yaml : $ucsc_dist_yaml;
+}
+
+// Returns an associative array holding the contents of ucsc[.dist].yaml, cached across calls
+function ucsc_config() {
+  require_once dirname(__FILE__) . "/spyc.php";
+  // Cache the config across function calls so it is only ever parsed once
+  static $config = NULL;
+  if ($config === NULL) { $config = Spyc::YAMLLoad(where_is_ucsc_yaml()); }
+  return $config;
+}
+
+// Checks if a given binary $bin is in bin/; if not and it's in PATH, it's symlinked into bin/
 function not_symlinked_or_found_on_path($bin) {
   $symlink = dirname(dirname(__FILE__)) . '/bin/' . $bin;
   if (@is_executable($symlink)) { return false; }
@@ -18,10 +42,15 @@ function find_and_link_binaries($bins) {
   return array_filter($bins, 'not_symlinked_or_found_on_path');
 }
 
-function where_is_ucsc_yaml() {
-  $ucsc_dist_yaml = dirname(dirname(__FILE__)) . "/ucsc.dist.yaml";
-  $ucsc_yaml = dirname(dirname(__FILE__)) . "/ucsc.yaml";
-  return file_exists($ucsc_yaml) ? $ucsc_yaml : $ucsc_dist_yaml;
+// Check that that ucsc_config()['tmp_dir'] exists (creates it if not) and is writable.
+function ensure_tmp_dir_exists() {
+  $ucsc_config = ucsc_config();
+  $pwu_data = posix_getpwuid(posix_geteuid());
+  $tmp_dir = isset($ucsc_config['tmp_dir']) ? rtrim($ucsc_config['tmp_dir'], '/') : '/tmp/chromozoom';
+  $tmp_dir = preg_replace('/\\$USER\\b/', $pwu_data['name'], $tmp_dir);
+  $tmp_dir = preg_replace('/\\$HOME\\b/', $pwu_data['dir'], $tmp_dir);
+  if (!is_dir($tmp_dir)) { mkdir($tmp_dir, 0755, true); }
+  return is_dir($tmp_dir) && is_writable($tmp_dir) ? $tmp_dir : FALSE;
 }
 
 // check that $_GET[$param] contains a valid URL, optionally translating cache:// URLs to local file paths

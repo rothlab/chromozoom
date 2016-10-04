@@ -15,7 +15,7 @@ if (!file_exists("../$db.yaml")) {
   exit('{"error":"specified genome does not exist"}');
 }
 $genome_config = Spyc::YAMLLoad("../$db.yaml");
-$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
+$ucsc_config = ucsc_config();
 $serve_tracks = array();
 foreach($genome_config['serve_tracks'] as $trk) {
   $serve_tracks[$trk['n']] = true;

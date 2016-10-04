@@ -6,18 +6,12 @@
 header("Content-type: application/json");
 header("Cache-control: max-age=172800, public, must-revalidate");
 header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
-require_once("../lib/spyc.php");
+
 require_once("../lib/setup.php");
 
 $REQ = $_SERVER['REQUEST_METHOD'] == 'POST' ? $_POST : $_GET;
 
-function forbidden($err) { 
-  header('HTTP/1.1 403 Forbidden');
-  if (strlen($err)) { echo json_encode(array('error'=>$err)); }
-  exit;
-}
-
-$ucsc_config = Spyc::YAMLLoad(where_is_ucsc_yaml());
+$ucsc_config = ucsc_config();
 $genome_config = array();
 $TWOBIT_BIN = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/twoBitToFa');  
 

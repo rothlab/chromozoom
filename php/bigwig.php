@@ -5,11 +5,6 @@
  **/
 require_once('../lib/setup.php');
 
-function bad_request() {
-  header('HTTP/1.1 403 Forbidden');
-  exit;
-}
-
 define('RANGE_PATTERN', '/^(\\w+[^:]*):(\\d+)-(\\d+)$/');
 $WINFUNCS = array('minimum'=>'min', 'maximum'=>'max', 'mean'=>'mean', 'min'=>'min', 'max'=>'max', 
   'std'=>'std', 'coverage'=>'coverage');
@@ -17,16 +12,16 @@ define('TOO_FEW_PIXELS', 3); // Not worth calling bigWigSummary for this small o
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
  
-if (!validate_URL_in_GET_param('url', FALSE)) { bad_request(); }
+if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
 passthru_basic_auth_for_GET_param('url');
 $SUMMARY = !isset($_GET['info']);
 if ($SUMMARY) {
-  if (!isset($_GET['range'])) { bad_request(); } 
+  if (!isset($_GET['range'])) { forbidden(); } 
   else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
-  if (!count($ranges)) { bad_request(); }
-  if (!isset($_GET['width'])) { bad_request(); }
+  if (!count($ranges)) { forbidden(); }
+  if (!isset($_GET['width'])) { forbidden(); }
   $WIDTH = max(min(intval($_GET['width']), 5000), 1);
-  if (!isset($_GET['winFunc']) || !isset($WINFUNCS[strtolower($_GET['winFunc'])])) { bad_request(); }
+  if (!isset($_GET['winFunc']) || !isset($WINFUNCS[strtolower($_GET['winFunc'])])) { forbidden(); }
   $WINFUNC = "-type=" . $WINFUNCS[strtolower($_GET['winFunc'])];
 }
 

@@ -1219,6 +1219,7 @@ module.exports = (function($){
           igb: { url: 'igb.php', messageText: 'via IGB Quickload' }
         },
         sessionVars = {},
+        urlParams = $.urlParams(),
         customTracksArray, customGenomePieces, customGenomeSource, customGenomeName, chromSizes, trackSpec, 
           remote, remoteParams;
       
@@ -1231,11 +1232,11 @@ module.exports = (function($){
       };
       _.each(o.savableParams, function(keys, dest) {
         _.each(keys, function(k) {
-          var v = self.storage[dest].getItem((dest != 'persistent' ? o.genome + '.' : '') + k); 
+          var v = self.storage[dest].getItem((dest != 'persistent' ? (urlParams.db || o.genome) + '.' : '') + k); 
           if (v !== null) { sessionVars[k] = v; }
         });
       });
-      params = params || _.extend({}, sessionVars, $.urlParams());
+      params = params || _.extend({}, sessionVars, urlParams);
             
       if (suppressRepeat && self._lastParams && _.isEqual(self._lastParams, params)) { return; }
       self._lastParams = _.clone(params);
