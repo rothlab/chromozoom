@@ -575,6 +575,18 @@ def get_first_item_from_bed(bed_location):
         return tuple(first_line.split("\t"))
 
 
+def get_first_item_from_bigbed(bb_location):
+    if not cmd_exists('bigBedToBed'):
+        sys.exit("FATAL: must have bigBedToBed installed on $PATH")
+    command = "bigBedToBed '{}' -maxItems=10 /dev/stdout | head -n 1".format(bb_location)
+    try:
+        first_line = sbp.check_output(command, shell=True).rstrip().decode()
+        return tuple(first_line.split("\t"))
+    except sbp.CalledProcessError:
+        print('WARNING ({}): Couldn\'t fetch first item from bigBed file "{}".'.format(print_time(), bb_location))
+    return None
+
+
 def augment_knownGene_bed_file(organism, old_location):
     """
     knownGene tracks, which are very high priority, unfortunately have things in a slightly different format.
@@ -714,22 +726,27 @@ def test_default_remote_item_url(organism, table_name, sample_item):
     """
     If a track/table doesn't have a `url` setting, it may simply link to the default UCSC item pages
     which have URLs of the form:
-        https://genome.ucsc.edu/cgi-bin/hgc?db=hg38&c=chr9&o=133186402&l=&r=&g=est&i=BI003541
+        https://genome.ucsc.edu/cgi-bin/hgc?db=hg38&c=chr9&o=133186402&t=&l=&r=&g=est&i=BI003541
     This function checks if a page exists for a sample item and seems valid, returning True/False
     """
     if not sample_item or len(sample_item) < 4: return False
     
-    # these correspond to $D, $S, ${, $}, ${, $T, and $$ respectively for the `url` placeholder scheme on
+    # these correspond to $D, $S, ${, $}, ${, $}, $T, and $$ respectively for the `url` placeholder scheme on
     # https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings
-    fields = (organism, sample_item[0], sample_item[1], sample_item[2], sample_item[1], table_name, sample_item[3])
+    fields = (organism, sample_item[0], sample_item[1], sample_item[2], sample_item[1], 
+                sample_item[2], table_name, sample_item[3])
+    
+    print("DEBUG: " + (get_remote_item_url() % fields))
     try:
         response = urllib.request.urlopen(get_remote_item_url() % fields)
         html = response.read()
     except URLError as e:
         return False
     
-    # If the page exists and doesn't contain the UCSC error box code, we consider this a valid item page.
-    return html.find(b";warnList.innerHTML +=") == -1
+    # If the page exists and doesn't contain any UCSC error box codes,,,
+    no_errors = html.find(b";warnList.innerHTML +=") == -1 and html.find(b"<!-- HGERROR-START -->") == -1
+    # and it seems to have a content table, we consider it's a valid item page.
+    return no_errors and html.find(b"subheadingBar") >= 0
 
 
 def translate_settings(organism, table_name, sample_item, settings, bed_plus_fields=None, url=None):
@@ -760,9 +777,9 @@ def translate_settings(organism, table_name, sample_item, settings, bed_plus_fie
 
     # As per the `url` specification in https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings
     # inserting these placeholders into the URL tells chromozoom to substitute the corresponding info for each item.
-    # https://genome.ucsc.edu/cgi-bin/hgc?db=$D&c=$S&l=${&r=$}&o=${&g=$T&i=$$
+    # https://genome.ucsc.edu/cgi-bin/hgc?db=$D&c=$S&l=${&r=$}&o=${&t=$}&g=$T&i=$$
     table_name = re.sub(r'^all_', '', table_name)
     if 'url' not in new_settings and test_default_remote_item_url(organism, table_name, sample_item):
-        new_settings['url'] = get_remote_item_url() % ('$D', '$S', '${', '$}', '${', table_name, '$$')
+        new_settings['url'] = get_remote_item_url() % ('$D', '$S', '${', '$}', '${', '$}', table_name, '$$')
     
     return json.dumps(new_settings)

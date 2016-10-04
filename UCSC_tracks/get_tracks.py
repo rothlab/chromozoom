@@ -110,6 +110,7 @@ for organism in buildfun.get_organisms_list(args.org_source, args.org_prefix):
             if not re.match(r'^https?://', file_location):
                 file_location = downloads_base_url + file_location
             if tr_type.startswith('bigBed '):
+                sample_item = buildfun.get_first_item_from_bigbed(file_location)
                 as_string = buildfun.fetch_autosql_for_bigbed(file_location)
                 if as_string is not None:
                     bed_plus_fields = buildfun.extract_bed_plus_fields(tr_type, as_string=as_string)

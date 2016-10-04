@@ -73,6 +73,7 @@ ideogram:
 browser_urls:
     tracks: 'cgi-bin/hgTracks'
     tables: 'cgi-bin/hgTables'
+    item_detail: 'cgi-bin/hgc?db=%s&c=%s&l=%s&r=%s&o=%s&t=%s&g=%s&i=%s'
     track_desc: 'cgi-bin/hgTrackUi'
     dna: 'cgi-bin/hgc?db=%s&c=%s&l=%s&r=%s&g=htcGetDna2&hgSeq.cdsExon=1&hgSeq.padding5=0&hgSeq.padding3=0&hgSeq.casing=upper&hgSeq.maskRepeats=on&hgSeq.repMasking=lower&boolshad.hgSeq.revComp=0&submit=get+DNA'
 

@@ -3,6 +3,7 @@
 This script requires Python 3.5 and packages that can be installed with `conda` or `pip`, along with the following [Jim Kent binaries][jksrc]:
 
 - `bedToBigBed`
+- `bigBedToBed`
 - `bigBedInfo`
 - `fetchChromSizes`
 - `pslToBigPsl`
