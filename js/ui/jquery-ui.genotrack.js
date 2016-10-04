@@ -561,7 +561,7 @@ $.widget('ui.genotrack', {
             $('<td colspan="2" class="fields-header"/>').text(k).appendTo($tr);
           } else {
             $('<td class="field" width="45%"/>').text(k).appendTo($tr);
-            $('<td class="value" width="55%"/>').text(v).appendTo($tr);
+            $('<div/>').text(v).appendTo($('<td class="value" width="55%"/>').appendTo($tr));
           }
         }
       });

@@ -1443,6 +1443,11 @@ body.row-resizing * {
   padding-right: 3px;
 }
 
+#tiptip_content table td.value div {
+  word-wrap: break-word;
+  max-width: 180px;
+}
+
 #tiptip_content table td.fields-header {
   text-align: left;
   text-transform: uppercase;
