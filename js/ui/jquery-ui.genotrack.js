@@ -1089,11 +1089,13 @@ $.widget('ui.genotrack', {
     var canvas = this,
       $canvas = $(this),
       d = e.data,
+      self = d.self,
       browser = d.self.options.browser;
     function pushCallback() { _.isFunction(callback) && $canvas.data('renderingCallbacks').push(callback); }
     if ($canvas.data('rendering') === true) { pushCallback(); return; }
     $canvas.data('rendering', true);
     $canvas.data('renderingCallbacks', []);
+    self.tileLoadCounter++;
     pushCallback();
     d.custom.render(canvas, d.start, d.end, d.density, function() {
       $canvas.css('width', '100%').css('height', d.custom.stretchHeight ? '100%' : canvas.height);
@@ -1107,6 +1109,7 @@ $.widget('ui.genotrack', {
       if ($canvas.hasClass('too-many') && d.density == 'dense') { $canvas.parent().addClass('too-many-for-dense'); }
       _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
       $canvas.data('rendering', false);
+      if (--self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); };
     });
     if (d.custom.expectsSequence && (d.end - d.start) < browser.genobrowser('option', 'maxNtRequest')) {
       browser.genobrowser('getDNA', d.start, d.end, function(sequence) {

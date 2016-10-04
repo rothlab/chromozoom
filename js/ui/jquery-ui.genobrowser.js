@@ -1888,7 +1888,7 @@ module.exports = (function($){
       $('body').unbind('mousedown.search');
       self.$trackPicker.find('input[name='+cat.track+']').attr('checked', true);
       self.tileFixingEnabled(false);
-      
+
       self._fixTracks({duration: 0, complete: function() {
         // This callback maximizes the track that contained the feature clicked, and flashes the feature.
         // Flashing the clicked feature is tricky because everything is loading at different times.
