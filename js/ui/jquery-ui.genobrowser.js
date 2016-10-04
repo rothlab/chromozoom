@@ -1895,7 +1895,7 @@ module.exports = (function($){
         var $maximizeTrack = self.$lines.eq(self.centralLine).find('.browser-track-'+cat.track).eq(0);
         
         $maximizeTrack.one('trackload', function(e, bppps) {
-          var $imgs = self.$lines.find('.bppp-'+classFriendly(bppps.top)+' .tdata.dens-pack'),
+          var $imgs = self.$lines.find('.browser-track-'+cat.track+' .bppp-'+classFriendly(bppps.top)+' .tdata.dens-pack'),
             maxHeight = 5 + Math.max.apply(Math, $imgs.map(function() { return this.naturalHeight || this.height; }).get());
           
           // After the track is resized, flash all the features that were added to our todo-list
