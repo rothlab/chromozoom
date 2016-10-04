@@ -177,8 +177,10 @@ var BigBedFormat = {
         if (!_.isFunction(tipTipDataCallback)) { tipTipDataCallback = self.type('bed').tipTipData; }
         
         _.each(lines, function(line) {
-          var match = self.type('bed').parseLine.call(self, line),
-            tipTipData = tipTipDataCallback.call(self, match),
+          var match = self.type('bed').parseLine.call(self, line);
+          if (match === null) { return; }  // matches on contigs not in this genome layout may be returned here as null
+          
+          var tipTipData = tipTipDataCallback.call(self, match),
             niceName = nameFunc(match),
             stdName = match.name || match.id || '',
             pos = match.chrom + ':' + match.chromStart + '-' + match.chromEnd,
@@ -187,6 +189,7 @@ var BigBedFormat = {
               desc: (tipTipData.description || pos),
               pos: pos
             };
+          
           if (stdName && stdName != niceName) { choice.altName = stdName; }
           response.choices.push(choice);
         });
