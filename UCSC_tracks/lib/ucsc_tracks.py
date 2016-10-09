@@ -66,7 +66,7 @@ def create_sqllite3_db(xorganism):
     if new_db:
         c.execute("CREATE TABLE tracks (name, displayName, type, grp, grpLabel, parentTrack, trackLabel, "
                   "shortLabel, longLabel, priority, location, html longblob, updateDate, "
-                  "remoteSettings, localSettings)")
+                  "remoteSettings, localSettings, compositeTrack)")
     return db_loc, c, xconn
 
 def get_last_local_updates(localcur):
@@ -120,6 +120,19 @@ def qups(in_cmd, ucur):
     ucur.connection.ping(reconnect=True)
     ucur.execute(in_cmd)
     return ucur.fetchall()
+
+
+def parse_trackdb_settings(settings):
+    """
+    Parses a `settings` field from a UCSC trackDb table into a dictionary of keys -> values
+    See also: https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html
+    """
+    parsed_settings = dict()
+    for line in (settings).decode("latin1").replace("\\\n", " ").split("\n"):
+        try: key, value = re.split(r'\s+', line, 1)
+        except ValueError: continue
+        parsed_settings[key] = value
+    return parsed_settings
 
 
 def get_update_time(xcur, db, table_name):
@@ -202,6 +215,8 @@ def get_priority(db, selection, tracks_source, track_info):
     track_form = mytree.xpath('//form[@id="TrackForm"]')[0]
     gene_tracks = track_form.xpath('//tr[starts-with(@id,"genes-")]//select/@name')
     priorities = {}
+    if len(gene_tracks) == 0:
+        sys.exit("FATAL: Cannot parse browser page for {} to determine track priorities".format(db))
     
     for track in selection:
         sel_name = re.sub(r'^all_', '', track)
@@ -218,7 +233,7 @@ def get_priority(db, selection, tracks_source, track_info):
             priorities[track] = 100
         
         if parent_track != sel_name:
-            # Complex track incurs additional penalty proportional to number of subtracks
+            # Composite track subtracks incur additional penalty proportional to number of subtracks
             num_subtracks = len([k for (k, v) in track_info.items() if v['parentTrack'] == parent_track])
             penalty = 3 if num_subtracks > 10 else (2 if num_subtracks > 3 else 0.5)
             priorities[track] = int(priorities[track] * penalty)
@@ -285,6 +300,13 @@ def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
         else:
             # Complex track
             if include_composite_tracks:
+                selected_tracks.append(curr_track)
+                track_info[curr_track] = {
+                    'displayName': line.split('(', 1)[1][:-2],
+                    'trackLabel': curr_trackname,
+                    'groupLabel': curr_tgroupname,
+                    'parentTrack': curr_track
+                }
                 selected_tracks += curr_track_tables
                 for table in curr_track_tables:
                     table_line = curr_track_lines[curr_table]
@@ -314,7 +336,7 @@ def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
     return selected_tracks, track_info
 
 
-def filter_extractable_dbs(wanted_tracks, xcur):
+def filter_to_existing_tables(wanted_tracks, xcur):
     """
     Checks which tracks in wanted_tracks can be extracted from UCSC databases, returns a filtered list
     """
@@ -332,7 +354,7 @@ def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
     """
     if xcur is None:
         xconn = pymysql.connect(host=host, user='genome', database=db_name)
-        xcur = xconn.cursor()     # get the cursor
+        xcur = xconn.cursor() # get the cursor
 
     if selection:
         # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
@@ -350,6 +372,18 @@ def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
             track[0] = "all_" + track[0]
     
     return tracks
+
+
+def fetch_view_settings(xcur, view_track_name, parent_track):
+    track = qups(("SELECT settings FROM trackDb WHERE tableName = \"{}\"").format(view_track_name), xcur)
+    if len(tracks) > 0:
+        settings = parse_trackdb_settings(track[0][0])
+        if 'view' in settings and 'parent' in settings and settings['parent'] == parent_track:
+            return settings
+        else:
+            print('WARNING ({}): tried to fetch view "{}" (parent "{}") but its settings are invalid'.format(print_time(), 
+                    view_track_name, parent_track))
+    return None
 
 
 def setup_directories(organism):
@@ -744,37 +778,59 @@ def test_default_remote_item_url(organism, table_name, sample_item):
         return False
     
     # If the page exists and doesn't contain any UCSC error box codes,,,
-    no_errors = html.find(b";warnList.innerHTML +=") == -1 and html.find(b"<!-- HGERROR-START -->") == -1
+    no_errors = html.find(b";warnList.innerHTML +=") == -1 and html.find(b"<!-- HGERROR-START -->") == -1 and \
+                re.search(b"No item.{1,500}starting at", html) is None and html.find(b"Error 404") == -1
     # and it seems to have a content table, we consider it's a valid item page.
     return no_errors and html.find(b"subheadingBar") >= 0
 
 
-def translate_settings(organism, table_name, sample_item, settings, bed_plus_fields=None, url=None):
+def translate_settings(xcur, organism, table_name, parent_track, composite_track, sample_item, old_settings, 
+                       bed_plus_fields=None, url=None):
     """
     Translates the settings field in UCSC's trackDb into a JSON-encoded object with track settings supported by chromozoom
     """
-    whitelisted_keys = ['autoScale', 'altColor', 'alwaysZero', 'color', 'colorByStrand', 'itemRgb', 'maxHeightPixels', 'url', 
-                        'useScore', 'viewLimits', 'windowingFunction']
+    whitelisted_keys = ['autoScale', 'altColor', 'alwaysZero', 'color', 'colorByStrand', 'container', 'itemRgb', 
+                        'maxHeightPixels', 'url', 'useScore', 'viewLimits', 'windowingFunction']
     new_settings = dict()
-    old_settings = dict()
     
-    for line in settings.decode("latin1").split("\n"):
-        try: key, value = re.split(r'\s+', line, 1)
-        except ValueError: continue
-        old_settings[key] = value
+    # Inherit settings from a parent trackDb View, if it exists
+    # See: https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html#Composite_-_Views_Settings
+    if 'parent' in old_settings:
+        parent_pieces = re.split(r'\s+', old_settings['parent'])
+        new_settings['visibility'] = 'show' if parent_pieces[-1] else 'hide'
+        if parent_pieces[0] != parent_track:
+            view_settings = fetch_view_settings(xcur, parent_pieces[0], parent_track)
+            if view_settings is not None:
+                view_settings.update(old_settings)
+                old_settings = view_settings
     
+    # Copy trackDb settings into an acceptable chromozoom settings object using our whitelist of keys
     for key, value in old_settings.items():
         if key in whitelisted_keys:
             new_settings[key] = value
     
-    if table_name == 'knownGene': new_settings['itemRgb'] = 'on'
+    # Implement trackDb subgroups
+    # See: https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html#Composite_-_Subgroups_Settings
+    if 'subGroups' in old_settings and not composite_track:
+        new_settings['tags'] = dict([keyval.split('=') for keyval in re.split(r'\s+', old_settings['subGroups'])])
+    if composite_track and 'subGroup1' in old_settings:
+        new_settings['tagging'] = {}
+        for key in ['subGroup' + str(i) for i in range(1, 9)]:
+            if key in old_settings:
+                pieces = re.split(r'\s+', old_settings[key])
+                new_settings['tagging'][pieces[0]] = {"desc": pieces[1]}
+                new_settings['tagging'][pieces[0]]["vals"] = dict([keyval.split("=") for keyval in pieces[2:]])
     
+    # special exception for knownGene
+    if table_name == 'knownGene': new_settings['itemRgb'] = 'on'
+    # save bedPlusFields parsed from the autoSql file
     if bed_plus_fields is not None: new_settings['bedPlusFields'] = ",".join(bed_plus_fields)
+    
+    # Try to find the most palatable `url` setting for chromozoom, based on all the possible candidates saved in UCSC
     if 'directUrl' in old_settings: new_settings['url'] = old_settings['directUrl']
     elif url: new_settings['url'] = url.decode('latin1')
-    if 'url' in new_settings and not re.match(r'^https://', new_settings['url']):
+    if 'url' in new_settings and not re.match(r'^https?://', new_settings['url']):
         new_settings['url'] = get_ucsc_base_url() + re.sub(r'^/+', '', new_settings['url'])
-
     # As per the `url` specification in https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#commonSettings
     # inserting these placeholders into the URL tells chromozoom to substitute the corresponding info for each item.
     # https://genome.ucsc.edu/cgi-bin/hgc?db=$D&c=$S&l=${&r=$}&o=${&t=$}&g=$T&i=$$

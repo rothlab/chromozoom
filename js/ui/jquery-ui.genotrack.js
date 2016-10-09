@@ -704,14 +704,15 @@ $.widget('ui.genotrack', {
   
   _areaDataLoad: function(data, statusText, jqXHR) {
     // NOTE: this is used as an AJAX callback, so this/self must be reobtained from the jqXHR object
-    var o = jqXHR._self.options,
+    var self = jqXHR._self,
+      o = self.options,
       $tile = $(jqXHR._appendTo),
       tileId = $tile.attr('id'),
       $tdata = $tile.children('.tdata.dens-'+jqXHR._density);
     
     function createAreaLabels(e) {
       if (jqXHR._custom.noAreaLabels) { return; }
-      jqXHR._self._drawAreaLabels($tile, jqXHR._bppp, jqXHR._density, $tdata.data('areas'));
+      self._drawAreaLabels($tile, jqXHR._bppp, jqXHR._density, $tdata.data('areas'));
     };
     
     // Areas are stored in a global index, so that mousing over an area in one tile can retrieve
@@ -742,7 +743,7 @@ $.widget('ui.genotrack', {
       $tdata.one('bestDensity', createAreaLabels);
       if (jqXHR._density == jqXHR._bestDensity) { $tdata.trigger('bestDensity'); }
     }
-    if (--jqXHR._self.areaLoadCounter === 0) { $(jqXHR._self.element).trigger('areaload', jqXHR._bestDensity); };
+    if (--self.areaLoadCounter === 0) { $(jqXHR._self.element).trigger('areaload', jqXHR._bestDensity); };
   },
   
   _addClickableAreas: function(tdataElem, bppp, density, bestDensity) {
@@ -1037,8 +1038,9 @@ $.widget('ui.genotrack', {
       $d = extraData._d,
       l = dna.length,
       ppbp = o.tileWidth / l, // pixels per bp
-      colors = {a:'255,0,0', t:'255,0,255', c:'0,0,255', g:'0,180,0'},
-      canvas, height, ctx, nt;
+      colors = {a:'255,0,0', t:'255,0,255', c:'0,0,255', g:'0,180,0', n:'100,100,100'},
+      prevColor = null,
+      canvas, height, ctx, nt, nextColor;
     if ($d) {
       var $svg = $.mk("http://www.w3.org/2000/svg", "svg").attr({
         version: "1.2",
@@ -1058,10 +1060,12 @@ $.widget('ui.genotrack', {
     ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) { return; }
     for (var i = 0; i < l; i++) {
-      nt = dna.substr(i, 1);
+      nt = dna.substr(i, 1).toLowerCase(),
+        nextColor = "rgb(" + (colors[nt] || colors.n) + ")";
       if (nt == '-') { continue; }
-      ctx.fillStyle = "rgb(" + colors[nt.toLowerCase()] + ")";
+      if (nextColor !== prevColor) { ctx.fillStyle = nextColor; }
       ctx.fillRect(i * ppbp, 0, ppbp, height);
+      prevColor = nextColor;
     }
   },
   
@@ -1090,31 +1094,42 @@ $.widget('ui.genotrack', {
       $canvas = $(this),
       d = e.data,
       self = d.self,
-      browser = d.self.options.browser;
+      track = self.options.track,
+      $browser = self.options.browser;
+      
     function pushCallback() { _.isFunction(callback) && $canvas.data('renderingCallbacks').push(callback); }
     if ($canvas.data('rendering') === true) { pushCallback(); return; }
+    
     $canvas.data('rendering', true);
     $canvas.data('renderingCallbacks', []);
-    self.tileLoadCounter++;
+    if (d.density != 'dense') { self.tileLoadCounter++; }
     pushCallback();
+    
     d.custom.render(canvas, d.start, d.end, d.density, function() {
       $canvas.css('width', '100%').css('height', d.custom.stretchHeight ? '100%' : canvas.height);
       $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
       $canvas.removeClass('unrendered').addClass('no-areas');
-      d.self.fixClickAreas();
-      d.self.fixClippedDebounced();
+      
+      self.fixClickAreas();
+      self.fixClippedDebounced();
+      
       // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
       // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoom
-      if ($canvas.hasClass('too-many') && d.density != 'pack') { $canvas.parent().addClass('too-many'); }
-      if ($canvas.hasClass('too-many') && d.density == 'dense') { $canvas.parent().addClass('too-many-for-dense'); }
+      if ($canvas.hasClass('too-many')) {
+        if (d.density != 'pack') { $canvas.parent().addClass('too-many'); }
+        if (d.density == 'dense') { $canvas.parent().addClass('too-many-for-dense'); }
+      }
+      
       _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
       $canvas.data('rendering', false);
-      if (--self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); };
+      
+      if (d.density != 'dense' && --self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); };
     });
-    if (d.custom.expectsSequence && (d.end - d.start) < browser.genobrowser('option', 'maxNtRequest')) {
-      browser.genobrowser('getDNA', d.start, d.end, function(sequence) {
+    
+    if (d.custom.expectsSequence && (d.end - d.start) < $browser.genobrowser('option', 'maxNtRequest')) {
+      $browser.genobrowser('getDNA', d.start, d.end, function(sequence) {
         d.custom.renderSequence(canvas, d.start, d.end, d.density, sequence, function() {
-          // TODO: may need to d.self.fixClickAreas() again if .renderSequence added areas?
+          // TODO: may need to self.fixClickAreas() again if .renderSequence added areas?
         });
       });
     }
@@ -1133,6 +1148,7 @@ $.widget('ui.genotrack', {
       $c.bind('render', {start: tileId, end: end, density: density, self: self, custom: o.track.custom}, self._customTileRender);
       $c.bind('erase', function() { o.track.custom.erase($c.get(0)); $c.addClass('unrendered'); });
       if (density==bestDensity) { $c.addClass('dens-best').trigger('render'); }
+      $c.one('bestDensity', function() { if ($c.hasClass('unrendered')) { $c.trigger('render'); } });
     });
   },
 

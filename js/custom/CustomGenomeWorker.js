@@ -38,6 +38,12 @@ var CustomGenomeWorker = {
       genome = this._genomes[id];
     return genome.getSequence.apply(genome, _.rest(args));
   },
+  searchTracks: function() {
+    var args = _.toArray(arguments),
+      id = _.first(args),
+      genome = this._genomes[id];
+    return genome.searchTracks.apply(genome, _.rest(args));
+  },
   throwErrors: function(toggle) {
     this._throwErrors = toggle;
   }

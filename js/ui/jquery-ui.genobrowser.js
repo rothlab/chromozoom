@@ -45,12 +45,13 @@ module.exports = (function($){
       tracks: [
         {n:'ruler', h:50, s:['dense']}
       ],
+      availTracks: [],
+      compositeTracks: [],
       groupTracksByCategory: false,
       searchableTracks: false,  // can set to a URL to allow even more tracks to be added via AJAX
       chrOrder: [],
       chrLengths: {},
       chrBands: [],
-      availTracks: [],
       tileDir: 'o/',
       ajaxDir: 'php/',
       bppps: [2.9e5],
@@ -386,6 +387,7 @@ module.exports = (function($){
       var self = this,
         o = self.options,
         d = o.trackDesc,
+        allTracks = o.availTracks.concat(o.compositeTracks),
         groups = {},
         ungrouped = {},
         $toggleBtn = $(o.trackPicker[0]),
@@ -397,32 +399,42 @@ module.exports = (function($){
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div),
         $search;
       
-      function addTrack(t, n) {
+      function addTrack(t) {
         // TODO: This needs to distinguish between traditional image tracks and custom tracks brought in
         //       by custom genomes. The latter should have an options dialog and download links instead of "more info";
-        var $l = $('<label class="clickable"/>').appendTo($('<li class="choice"/>').appendTo($ul)),
+        var n = t.n,
+          composite = !self.availTracks[t.n],
+          $li = $('<li class="choice"/>').appendTo($ul),
+          $l = $('<' + (composite ? 'div' : 'label') + ' class="clickable"/>').appendTo($li),
           $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
           $d = $('<div class="desc"></div>').appendTo($l),
           db = o.genome.split(':'),
           href = o.trackDescURL + '?db=' + (db[0] === 'ucsc' ? db[1] : db[0]) + '&g=' + n + '#TRACK_HTML',
           $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '',
           $span = $('<span/>').text(d[n].sm);
+        if (composite) {
+          $l.add($c).addClass('composite');
+          $('<div class="collapsible-btn collapsed"><div class="arrow"/></div>').insertBefore($d);
+        }
         $('<h3/>').addClass('name').append($span).append($a).appendTo($d);
         if (d[n].lg) { $('<p/>').addClass('long-desc').text(d[n].lg).appendTo($d); }
         if (_.find(o.tracks, function(trk) { return trk.n==n; })) { $c.attr('checked', true); }
         $l.bind('click', function(e) { if ($(e.target).is('a')) { e.stopPropagation(); }});
-        $l.attr('title', n);
+        $l.attr('title', n + (d[n].lg && d[n].lg.length > 58 ? ': ' + d[n].lg : ''));
         $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
         $c.bind('change', _.bind(self._fixTracks, self));
       }
       function addHeader(cat) {
         var $li = $('<li class="category-header"/>').appendTo($ul);
         $li.text(cat);
+        $('<div class="collapsible-btn"><div class="arrow"/></div>').prependTo($li);
       }
             
       if (o.groupTracksByCategory) {
-        _.each(self.availTracks, function(t, n) {
-          var cat = d[n].cat;
+        _.each(allTracks, function(t) {
+          var n = t.n,
+            cat = d[n].cat;
+          if (t.parent) { return; }
           if (!cat) { ungrouped[n] = t; return; }
           groups[cat] = groups[cat] || {};
           groups[cat][n] = t;
@@ -432,7 +444,7 @@ module.exports = (function($){
           addHeader(cat);
           _.each(tracks, addTrack); 
         });
-      } else { _.each(self.availTracks, addTrack); }
+      } else { _.each(allTracks, addTrack); }
       
       if (o.searchableTracks) {
         $search = $('<input type="search"/>').appendTo($searchBar);
@@ -446,6 +458,9 @@ module.exports = (function($){
         }
       } else { $searchBar.hide(); }
       
+      $trackPicker.find('.category-header,.composite.clickable').click(function(e) { 
+        if (!$(e.target).is('input')) { $(this).find('.collapsible-btn').toggleClass('collapsed'); }
+      });
       if (o.tracks.length === 1) { $ul.find('input[name='+o.tracks[0].n+']').attr('disabled', true); }
       $reset.click(function(e) { self._resetToDefaultTracks(); });
       return self._createPicker($toggleBtn, $trackPicker, $b).hide();
@@ -1667,12 +1682,12 @@ module.exports = (function($){
         orderFor = height + "|" + bppps.topFormatted,
         prevOrder = self._densityOrder[t.n],
         prevOrderFor = self._densityOrderFor[t.n],
-        $unrenderedCustom = $('.browser-track-'+t.n+' canvas.tdata.unrendered'),
+        $unrenderedCustom = $('.browser-track-'+t.n+' canvas.tdata.unrendered:not(.dens-dense)'),
         forceAt = {}, //{pack: [200, -2], full: [200, -3]},  // This is causing too much thrashing with heavy custom tracks
         order = {}, heights = [], i = 0, optimum;
       if (prevOrderFor && prevOrderFor == orderFor && !force) { return; }
       if ($unrenderedCustom.length) {
-        // All custom tracks should be rendered before reordering the densities.  Defer this calculation until then.
+        // All custom track tiles should be rendered before reordering the densities.  Defer this calculation until then.
         return $unrenderedCustom.trigger('render', _.after($unrenderedCustom.length, function() { 
           self.densityOrder(track, height, bppps); 
         }));

@@ -137,9 +137,30 @@ body {
   color: white;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
-.picker .category-header { 
+.picker .category-header {
   text-transform: uppercase;
   font-size: 80%;
+  cursor: pointer;
+}
+.picker .collapsible-btn {
+  float: left;
+  padding: 4px 5px 0 2px;
+}
+.picker .collapsible-btn .arrow {
+  width: 0; 
+  height: 0; 
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #444;
+  transition: 0.3s ease-out;
+}
+.picker .category-header .arrow {
+  border-top-color: white;
+}
+.picker .collapsible-btn.collapsed .arrow {
+  -ms-transform: rotate(-90deg);
+  -webkit-transform: rotate(-90deg);
+  transform: rotate(-90deg);
 }
 .picker .choice { clear: both; }
 .picker .choice * { cursor: pointer; }
@@ -150,6 +171,10 @@ body {
 .picker .choice .clickable.hover .more { display: block; float: right; }
 .picker .choice input { float: left; }
 .picker .choice .desc { width: 99%; }
+.picker .choice .collapsible-btn {
+  height: 14px;
+  padding: 6px 2px 0 2px;
+}
 .picker .button-line { text-align: center; margin: 0em; }
 .choice .name {
   font-weight: bold;
@@ -729,16 +754,25 @@ body {
 }
 .browser-track .tile-custom .tdata.unrendered.dens-best {
   width: 100%;
+  opacity: 0.5;
+  background-color: transparent;
+  background-image: url(barberpole-trans.gif);
   background-size: 10px 10px;
+  background-repeat: repeat;
+  /* FIXME: is the GIF or the CSS better? */
+/*  background-size: 10px 10px;
   background-attachment: fixed;
   background-image: linear-gradient(45deg, rgba(0, 0, 0, 0.1) 25%, transparent 25%, transparent 50%,
       rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1) 75%, transparent 75%, transparent);
-  animation: barberpole 1s linear infinite;
+  animation: barberpole 1s linear infinite;*/
 }
-@keyframes barberpole {
+.browser-track:nth-child(even) .tile-custom .tdata.unrendered.dens-best {
+  background-image: url(barberpole-trans-darker.gif);
+}
+/*@keyframes barberpole {
   from { background-position: 0 0; }
   to   { background-position: 60px 30px; }
-}
+}*/
 
 .browser-track .tile .labels {
   position: absolute;
@@ -805,10 +839,12 @@ body {
   top: 20px;
   font-size: 0.7em;
   text-align: center;
+  z-index: 10;
 }
 .browser-track .tile.too-many-for-dense::before, .browser-track .tile.too-many-for-dense::after {
   content: 'too many datapoints; zoom in to view items';
   top: 3px;
+  z-index: 10;
 }
 
 .browser-track .tile.too-many::before {

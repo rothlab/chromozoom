@@ -63,7 +63,7 @@ var BedFormat = {
   parseLine: function(line, lineno) {
     var cols = BED_STANDARD_FIELDS,
       numStandardCols = this.numStandardColumns,
-      bedPlusFields = this.opts.bedPlusFields || BED_DETAIL_FIELDS,
+      bedPlusFields = this.opts.bedPlusFields || (numStandardCols >= 4 ? BED_DETAIL_FIELDS : null),
       feature = {extra: {}},
       fields = /\t/.test(line) ? line.split("\t") : line.split(/\s+/),
       chrPos, blockSizes;
@@ -73,7 +73,7 @@ var BedFormat = {
       bedPlusFields = BED_DETAIL_FIELDS;
     }
     _.each(fields, function(v, i) {
-      var bedPlusField = i - numStandardCols;
+      var bedPlusField;
       if (numStandardCols && i < numStandardCols) { feature[cols[i]] = v; }
       else {
         if (bedPlusFields && i - numStandardCols < bedPlusFields.length) { bedPlusField = bedPlusFields[i - numStandardCols]; }

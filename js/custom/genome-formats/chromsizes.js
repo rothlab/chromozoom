@@ -32,29 +32,49 @@ var ChromSizesFormat = {
     _.each(tracks, function(t) {
       var trackOpts, 
         visible = true,
-        cat = t.grp || "Feature Tracks";
+        cat = t.grp || "Feature Tracks",
+        type, trackSpec, tagging;
+      
       t.lines = t.lines || [];
       trackOpts = /^track\s+/i.test(t.lines[0]) ? global.CustomTracks.parseDeclarationLine(t.lines.shift()) : {};
       _.extend(trackOpts, t.opts, {name: t.name, type: t.type});
-      if (trackOpts.visibility) {
-        if (trackOpts.visibility == 'hide') { visible = false; }
-        delete trackOpts.visibility;
+      if (t.parent || trackOpts.visibility == 'hide') { visible = false; }
+      delete trackOpts.visibility;
+      
+      if (t.composite) {
+        type = trackOpts.container && trackOpts.container == 'multiWig' ? 'multiWig' : 'composite';
+        tagging = trackOpts.tagging;
+        delete trackOpts.container;
+        delete trackOpts.tagging;
+        o.compositeTracks.push({
+          n: t.name,
+          type: type,
+          opts: trackOpts,
+          tagging: tagging
+        });
+      } else {
+        trackSpec = {
+          fh: {},
+          n: t.name,
+          s: ['dense', 'squish', 'pack'],
+          h: trackHeightForType(t.type),
+          m: ['pack'],
+          customData: t.lines
+        };
+        if (t.parent) { trackSpec.parent = t.parent; }
+        if (trackOpts.tags) { trackSpec.tags = trackOpts.tags; }
+        delete trackOpts.tags;
+        t.lines.unshift('track ' + optsAsTrackLine(trackOpts) + '\n');
+        o.availTracks.push(trackSpec);
+        if (visible) { o.tracks.push({n: t.name}); }
       }
-      t.lines.unshift('track ' + optsAsTrackLine(trackOpts) + '\n');
-      o.availTracks.push({
-        fh: {},
-        n: t.name,
-        s: ['dense', 'squish', 'pack'],
-        h: trackHeightForType(t.type),
-        m: ['pack'],
-        customData: t.lines
-      });
-      if (visible) { o.tracks.push({n: t.name}); }
+      
       o.trackDesc[t.name] = {
         cat: cat,
         sm: t.shortLabel || t.name,
         lg: t.description || t.name
       };
+      
       categories[cat] = true;
     });
     
@@ -93,7 +113,14 @@ var ChromSizesFormat = {
     if (o.chrBands && o.chrBands.length > 0) {
       o.chrBands = _.filter(o.chrBands, function(v) { return !_.isUndefined(o.chrLengths[v[0]]); });
     }
+  },
+  
+  searchTracks: function(query, callback) {
+    var self = this,
+      o = self.opts;
+    if (!_.isString(o.searchableTracks)) { callback([]); }
   }
+  
 };
 
 module.exports = ChromSizesFormat;

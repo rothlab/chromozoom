@@ -21,21 +21,27 @@ function getTracksForDb($track_db_path, $chromozoom_uri, $db, $priority=100, $co
   if ($count_only) { $row = $result->fetchArray(); return $row[0]; }
   
   while ($row = $result->fetchArray()) {
-    $name = $row['name'];
+    $name = preg_replace('#^all_#', '', $row['name']);
     $location = (preg_match('#^https?://#', $row['location']) ? "" : "cache://$track_data_dir/") . $row['location'];
     $local_settings = json_decode($row['localSettings'], TRUE);
+    $composite_track_child = $row['parentTrack'] != $name;
+    
+    $override_settings = array(
+      'bigDataUrl' => $location,
+      'priority' => $row['priority']
+    );
+    if (!$composite_track_child) { $override_settings['visibility'] = $row['priority'] <= 1 ? 'show' : 'hide'; }
+
     $track = array(
       'name' => $name,
       'description' => $row['longLabel'],
       'shortLabel' => $row['shortLabel'],
+      'composite' => $row['compositeTrack'],
       'grp' => $row['grpLabel'],
       'type' => littleToBigFormat($row['type']),
-      'opts' => array_merge($local_settings, array(
-        'bigDataUrl' => $location,
-        'priority' => $row['priority'],
-        'visibility' => $row['priority'] <= 1 ? 'show' : 'hide'
-      ))
+      'opts' => array_merge($local_settings, $override_settings)
     );
+    if ($composite_track_child) { $track['parent'] = $row['parentTrack']; }
     $tracks[] = $track;
   }
   

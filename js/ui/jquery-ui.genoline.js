@@ -219,13 +219,32 @@ $.widget('ui.genoline', {
       $t = this.$cont.children('.browser-track').first(),
       tracks = o.browser.genobrowser('tracks'),
       $u;
+      
     if (!$t.length) { $t = this._addTrack(tracks[0], 0); }
+    
+    // iterate through the new track spec, matching, inserting and deleting tracks as needed
     for (var i = 0; i < tracks.length; i++) {
       var track = tracks[i];
-      if ($t.hasClass('browser-track-' + track.n)) { $t = $t.next(); }
-      else { this._addTrack(track, $t); }
+      if ($t.hasClass('browser-track-' + track.n)) { 
+        $t = $t.next(); 
+      } else if ($t.next().hasClass('browser-track-' + track.n)) {
+        $u = $t;
+        $t = $t.next().next();
+        $u.genotrack('side').remove();
+        $u.remove();
+      } else { 
+        this._addTrack(track, $t);
+      }
     }
-    do { $u = $t; $t = $t.next(); $u.genotrack('side').remove(); $u.remove(); } while ($t.length);
+    
+    // deletion
+    do { 
+      $u = $t; 
+      $t = $t.next();
+      $u.genotrack('side').remove();
+      $u.remove();
+    } while ($t.length);
+    
     this.$side.sortable('refresh');
     this.fixFirstLabel(true);
   },
@@ -251,6 +270,8 @@ $.widget('ui.genoline', {
     return this.pos;
   },
   
+  // Adds a $.ui.genotrack for the track specification in `track` to the $.ui.genoline at position `pos`
+  //    `pos` can be a numerical index or a jQuery object for the $.ui.genotrack element
   _addTrack: function(track, pos) {
     var $elem = this.element,
       $trk = $('<div class="browser-track"></div>');

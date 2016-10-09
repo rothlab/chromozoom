@@ -56,6 +56,7 @@ CustomGenome.defaults = {
       h: 25          // starting height in px
     }
   ],
+  compositeTracks: [],
   genomeSize: 0,
   chrLengths: {},
   chrOrder: [],
@@ -64,7 +65,7 @@ CustomGenome.defaults = {
   subdirForBpppsUnder: 330,
   ideogramsAbove: 0,
   maxNtRequest: 20000,
-  tracks: [{n: "ruler"}],
+  tracks: [{n: "ruler"}],  // initially visible tracks
   trackDesc: {
     ruler: {
       cat: "Mapping and Sequencing",
@@ -97,6 +98,13 @@ CustomGenome.prototype.format = function(format) {
   var FormatWrapper = function() { _.extend(this, self.constructor.formats[format]); return this; };
   FormatWrapper.prototype = self;
   return new FormatWrapper();
+};
+
+CustomGenome.prototype.searchTracks = function() {
+  var args = _.toArray(arguments),
+    format = this.format();
+  if (!format.searchTracks) { return false; }
+  return format.searchTracks.apply(this, args);
 };
 
 CustomGenome.prototype.setGenomeString = function() {
@@ -166,6 +174,10 @@ CustomGenome.prototype.getSequence = function(left, right, callback) {
 
 CustomGenome.prototype.getSequenceAsync = function() {
   global.CustomGenomes.async(this, 'getSequence', arguments, [this.id]);
+};
+
+CustomGenome.prototype.searchTracksAsync = function() {
+  global.CustomGenomes.async(this, 'searchTracks', arguments, [this.id]);
 };
 
 return CustomGenome;
