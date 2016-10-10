@@ -223,8 +223,10 @@ module.exports = (function($){
       _.each(o.chrBands, function(v){ v[5] = v[1]; v[1] += self.chrPos[v[0]]; v[2] += self.chrPos[v[0]]; });
       o.chrBands = o.chrBands && _.sortBy(o.chrBands, function(v) { return _.indexOf(o.chrOrder, v[0]) * o.genomeSize + v[1]; });
       self.availTracks = {};
+      self.compositeTracks = {};
       self.defaultTracks = [];
       _.each(o.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
+      _.each(o.compositeTracks, function(v) { self.compositeTracks[v.n] = v; });
       _.each(o.tracks, function(t){ 
         $.extend(t, self.availTracks[t.n]);
         self.defaultTracks.push({n: t.n, h: t.h});
@@ -393,41 +395,17 @@ module.exports = (function($){
         $toggleBtn = $(o.trackPicker[0]),
         $trackPicker = $(o.trackPicker[1]).empty(),
         $searchBar = $('<div class="search-bar"/>').appendTo($trackPicker),
-        $ul = $('<ul/>').appendTo($trackPicker),
+        $ul = $('<ul class="choices"/>').appendTo($trackPicker),
         $div = $('<div class="button-line"/>').appendTo($trackPicker),
         $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div),
         $search;
-      
-      function addTrack(t) {
-        // TODO: This needs to distinguish between traditional image tracks and custom tracks brought in
-        //       by custom genomes. The latter should have an options dialog and download links instead of "more info";
-        var n = t.n,
-          composite = !self.availTracks[t.n],
-          $li = $('<li class="choice"/>').appendTo($ul),
-          $l = $('<' + (composite ? 'div' : 'label') + ' class="clickable"/>').appendTo($li),
-          $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
-          $d = $('<div class="desc"></div>').appendTo($l),
-          db = o.genome.split(':'),
-          href = o.trackDescURL + '?db=' + (db[0] === 'ucsc' ? db[1] : db[0]) + '&g=' + n + '#TRACK_HTML',
-          $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '',
-          $span = $('<span/>').text(d[n].sm);
-        if (composite) {
-          $l.add($c).addClass('composite');
-          $('<div class="collapsible-btn collapsed"><div class="arrow"/></div>').insertBefore($d);
-        }
-        $('<h3/>').addClass('name').append($span).append($a).appendTo($d);
-        if (d[n].lg) { $('<p/>').addClass('long-desc').text(d[n].lg).appendTo($d); }
-        if (_.find(o.tracks, function(trk) { return trk.n==n; })) { $c.attr('checked', true); }
-        $l.bind('click', function(e) { if ($(e.target).is('a')) { e.stopPropagation(); }});
-        $l.attr('title', n + (d[n].lg && d[n].lg.length > 58 ? ': ' + d[n].lg : ''));
-        $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
-        $c.bind('change', _.bind(self._fixTracks, self));
-      }
-      function addHeader(cat) {
-        var $li = $('<li class="category-header"/>').appendTo($ul);
-        $li.text(cat);
-        $('<div class="collapsible-btn"><div class="arrow"/></div>').prependTo($li);
+        
+      function addSection(cat) {
+        var $li = $('<li class="category-section"/>').appendTo($ul),
+          $header = $('<div class="category-header"/>').text(cat).appendTo($li);
+        $('<div class="collapsible-btn"><div class="arrow"/></div>').prependTo($header);
+        return $('<ul/>').appendTo($li);
       }
             
       if (o.groupTracksByCategory) {
@@ -439,12 +417,11 @@ module.exports = (function($){
           groups[cat] = groups[cat] || {};
           groups[cat][n] = t;
         });
-        _.each(ungrouped, addTrack);
+        self._addTracks(ungrouped);
         _.each(groups, function(tracks, cat) { 
-          addHeader(cat);
-          _.each(tracks, addTrack); 
+          self._addTracks(tracks, addSection(cat));
         });
-      } else { _.each(allTracks, addTrack); }
+      } else { self._addTracks(allTracks); }
       
       if (o.searchableTracks) {
         $search = $('<input type="search"/>').appendTo($searchBar);
@@ -458,9 +435,8 @@ module.exports = (function($){
         }
       } else { $searchBar.hide(); }
       
-      $trackPicker.find('.category-header,.composite.clickable').click(function(e) { 
-        if (!$(e.target).is('input')) { $(this).find('.collapsible-btn').toggleClass('collapsed'); }
-      });
+      // FIXME: refer this instead to self._clickTrackPicker and implement all the logic there
+      $trackPicker.find('.category-header,.composite.clickable').click(_.bind(self._trackPickerClicked, self));
       if (o.tracks.length === 1) { $ul.find('input[name='+o.tracks[0].n+']').attr('disabled', true); }
       $reset.click(function(e) { self._resetToDefaultTracks(); });
       return self._createPicker($toggleBtn, $trackPicker, $b).hide();
@@ -474,7 +450,7 @@ module.exports = (function($){
         urlInputHTML = '<input type="url" name="customUrl" class="url"/><input type="button" name="customUrlGet" value="go!"/>',
         $toggleBtn = $(o.trackPicker[2]),
         $picker = $(o.trackPicker[3]).hide(),
-        $ul = $('<ul/>').prependTo($picker),
+        $ul = $('<ul class="choices"/>').prependTo($picker),
         $add = $picker.find('.form-line').first(),
         $overlay = $(o.overlay[0]),
         $overlayMessage = $(o.overlay[1]),
@@ -1536,27 +1512,111 @@ module.exports = (function($){
       if (!o.searchableTracks) { return; }
       if (query === lastQuery) { return; }
       
-      function matches(elem) {
+      function matches(elem, q) {
         var $elem = $(elem),
-            text = "" + $elem.find('h3.name>span').text() + " " + $elem.find('.long-desc').text();
+            $desc = $elem.find('.desc').eq(0),
+            $composite = !$elem.hasClass('composite') && $elem.closest('.composite').find('.desc').eq(0),
+            text = "" + $desc.find('h3.name>span').text() + " " + $desc.find('.long-desc').text();
         text += " " + $elem.find('input').attr('name');
-        text += " " + $elem.prevUntil('.category-header').prev('.category-header').text();
-      	return (("" + text).toLowerCase().indexOf(query) !== -1 );
+        text += " " + $elem.closest('.category-section').children('.category-header').text();
+        if ($composite && $composite.length) {
+          text += " " + $composite.find('h3.name>span').text() + " " + $composite.find('.long-desc').text();
+        }
+        if (query == 'acev') {  console.log(text); }
+        return (("" + text).toLowerCase().indexOf(q) !== -1 );
       }
       
-      $list.children('.choice').each(function() {
-        $(this).toggle(matches(this));
-      });
-      $list.children('.category-header').each(function() {
-        $(this).toggle($(this).nextUntil('.category-header').filter('.choice').is(':visible'));
-      });
-      numResults = $list.find('.choice:visible').length;
-      warnText = numResults > 0 ? 'Showing only tracks matching the search query.' : 'No tracks match this search query.';
-      $warn.toggle(query !== '').text(warnText);
+      function toggleChoices(q) {
+        $list.find('.choice').each(function() {
+          var match = matches(this, q);
+          $(this).toggle(match).toggleClass('matches', match);
+        });
+        $list.find('.category-section, .choice.composite').each(function() {
+          var $innerUl = $(this).children('ul').eq(0),
+            matchWithin = $innerUl.find('.choice').hasClass('matches');
+          if ($(this).is('.category-section')) { $(this).toggle(matchWithin); }
+          if (query !== '') {
+            $(this).find('.collapsible-btn').toggleClass('collapsed', !matchWithin);
+            $innerUl.toggle(matchWithin);
+          }
+        });
+        numResults = $list.find('.choice.matches').length;
+        warnText = numResults > 0 ? 'Showing only tracks matching the search query.' : 'No tracks match this search query.';
+        $warn.toggle(query !== '').text(warnText);
+      }
       
-      if (o.searchableTracks !== true) {
+      toggleChoices(query);
+      if (o.custom && o.custom.canSearchTracks && query.length >= 3) {
+        // FIXME: Implement searching for extra tracks on the server
+      }
+    },
+    
+    // Adds non-custom tracks to the track picker, also adds them to o.availTracks and self.availTracks as necessary
+    _addTracks: function(tracks, to) {
+      var self = this,
+        o = self.options,
+        d = o.trackDesc,
+        $ul = to ? $(to) : $(o.trackPicker[1]).children('ul').eq(0);
+      
+      _.each(tracks, function(t) {
+        // TODO: This needs to distinguish between traditional tracks and custom annotation tracks brought in
+        //       by custom genomes. The latter should have an options dialog and download links instead of "more info";
+        var n = t.n,
+          composite = !!self.compositeTracks[t.n],
+          $li = $('<li class="choice"/>').appendTo($ul),
+          $l = $('<' + (composite ? 'div' : 'label') + ' class="clickable"/>').appendTo($li),
+          $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
+          $d = $('<div class="desc"></div>').appendTo($l),
+          db = o.genome.split(':'),
+          href = o.trackDescURL + '?db=' + (db[0] === 'ucsc' ? db[1] : db[0]) + '&g=' + n + '#TRACK_HTML',
+          $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '',
+          $span = $('<span/>').text(d[n].sm),
+          $innerUl;
+          
+        if (!composite && !self.availTracks[t.n]) {
+          o.availTracks.push(t);
+          self.availTracks[t.n] = $.extend({}, t);
+        }
         
+        $('<h3/>').addClass('name').append($span).append($a).appendTo($d);
+        if (d[n].lg) { $('<p/>').addClass('long-desc').text(d[n].lg).appendTo($d); }
+        
+        if (composite) {
+          $l.add($c).add($li).addClass('composite');
+          $('<div class="collapsible-btn collapsed"><div class="arrow"/></div>').insertBefore($d);
+          $innerUl = $('<ul/>').hide().appendTo($li);
+          self._addTracks(_.filter(self.availTracks, function(t) { return t.parent == n; }), $innerUl);
+        } else {
+          if (_.find(o.tracks, function(trk) { return trk.n==n; })) { $c.attr('checked', true); }
+        }
+        
+        $l.bind('click', function(e) { if ($(e.target).is('a')) { e.stopPropagation(); }});
+        $l.attr('title', n + (d[n].lg && d[n].lg.length > 58 ? ': ' + d[n].lg : ''));
+        $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+        $c.bind('change', _.bind(self._fixTracks, self));
+      });
+    },
+    
+    // A click handler for the track picker, which can (1) collapse/uncollapse sections and composite
+    // tracks and (2) load and add more tracks via o.custom.searchTracksAsync as necessary.
+    _trackPickerClicked: function(e) {
+      var self = this,
+        o = self.options,
+        $target = $(e.target),
+        $li = $target.closest('li'),
+        $ul = $li.children('ul').eq(0),
+        $btn = $li.find('.collapsible-btn').eq(0),
+        collapsed = $btn.hasClass('collapsed'),
+        isHeader = $li.hasClass('category-section');
+      
+      if ($(e.target).is('input')) { return; }
+      if (collapsed) { 
+        $ul.slideDown();
+        // FIXME: 
+      } else {
+        $ul.slideUp();
       }
+      $btn.toggleClass('collapsed');
     },
     
     // After a custom track file is parsed, this function is called to add them to the custom track picker and each

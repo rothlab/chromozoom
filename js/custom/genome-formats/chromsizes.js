@@ -20,6 +20,7 @@ var ChromSizesFormat = {
     
     if (m.tracks) { self.format().createTracks(m.tracks); }
     o.searchableTracks = m.moreTracks || (m.tracks && m.tracks.length > 15);
+    self.canSearchTracks = _.isString(m.moreTracks);
     
     if (m.cytoBandIdeo) { self.format().createChrBands(m.cytoBandIdeo); }
   },

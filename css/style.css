@@ -107,21 +107,23 @@ body {
   background: url('magnifying-glass.png');
 }
 .picker ul {
-  max-height: 500px;
-  overflow-y: auto;
   margin: 0;
   padding: 0 0 0 0;
   list-style-type: none;
+}
+.picker ul.choices {
+  max-height: 500px;
+  overflow-y: auto;
   font-size: 0.8em;
 }
 /* The following is a valiant attempt to keep auto-hiding scrollbars in Webkit for OSX >10.7 in check */
 /* http://stackoverflow.com/questions/7855590/how-can-i-prevent-scroll-bars-from-being-hidden-for-trackpad-users-in-webkit */
-.picker ul::-webkit-scrollbar, select::-webkit-scrollbar {
+.picker ul.choices::-webkit-scrollbar, select::-webkit-scrollbar {
     -webkit-appearance: none;
     width: 11px;
     height: 11px;
 }
-.picker ul::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
+.picker ul.choices::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
     border-radius: 8px;
     border: 2px solid white; /* should match background, can't be transparent */
     background-color: rgba(0, 0, 0, .5);
@@ -141,6 +143,7 @@ body {
   text-transform: uppercase;
   font-size: 80%;
   cursor: pointer;
+  border-bottom: 1px solid #8a8a8a;
 }
 .picker .collapsible-btn {
   float: left;
@@ -170,10 +173,11 @@ body {
 .picker .choice .clickable.hover { background: #f3f6fa; }
 .picker .choice .clickable.hover .more { display: block; float: right; }
 .picker .choice input { float: left; }
+.picker .choice.composite .choice input { margin-left: 20px; }
 .picker .choice .desc { width: 99%; }
 .picker .choice .collapsible-btn {
   height: 14px;
-  padding: 6px 2px 0 2px;
+  padding: 6px 4px 0 2px;
 }
 .picker .button-line { text-align: center; margin: 0em; }
 .choice .name {
@@ -228,7 +232,7 @@ body {
 #custom-picker .choice {
   position: relative;
 }
-#custom-picker ul {
+#custom-picker ul.choices {
   margin-bottom: 10px;
 }
 #custom-picker .opts {

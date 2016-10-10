@@ -36,6 +36,9 @@ function CustomGenome(givenFormat, metadata) {
   // can we call .getSequence on this CustomGenome?
   this.canGetSequence = false;
   
+  // can we call .searchTracks on this CustomGenome?
+  this.canSearchTracks = false;
+  
   if(format.init) { format.init.call(this); }
 }
 
