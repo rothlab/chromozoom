@@ -34,7 +34,7 @@ var ChromSizesFormat = {
       var trackOpts, 
         visible = true,
         cat = t.grp || "Feature Tracks",
-        type, trackSpec, tagging;
+        container, trackSpec, tagging;
       
       t.lines = t.lines || [];
       trackOpts = /^track\s+/i.test(t.lines[0]) ? global.CustomTracks.parseDeclarationLine(t.lines.shift()) : {};
@@ -43,13 +43,13 @@ var ChromSizesFormat = {
       delete trackOpts.visibility;
       
       if (t.composite) {
-        type = trackOpts.container && trackOpts.container == 'multiWig' ? 'multiWig' : 'composite';
+        container = trackOpts.container && trackOpts.container == 'multiWig' ? 'multiWig' : 'composite';
         tagging = trackOpts.tagging;
         delete trackOpts.container;
         delete trackOpts.tagging;
         o.compositeTracks.push({
           n: t.name,
-          type: type,
+          c: container,
           opts: trackOpts,
           tagging: tagging
         });

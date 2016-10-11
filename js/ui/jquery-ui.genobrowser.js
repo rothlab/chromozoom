@@ -1522,7 +1522,6 @@ module.exports = (function($){
         if ($composite && $composite.length) {
           text += " " + $composite.find('h3.name>span').text() + " " + $composite.find('.long-desc').text();
         }
-        if (query == 'acev') {  console.log(text); }
         return (("" + text).toLowerCase().indexOf(q) !== -1 );
       }
       
@@ -1562,7 +1561,7 @@ module.exports = (function($){
         // TODO: This needs to distinguish between traditional tracks and custom annotation tracks brought in
         //       by custom genomes. The latter should have an options dialog and download links instead of "more info";
         var n = t.n,
-          composite = !!self.compositeTracks[t.n],
+          composite = !!t.c,
           $li = $('<li class="choice"/>').appendTo($ul),
           $l = $('<' + (composite ? 'div' : 'label') + ' class="clickable"/>').appendTo($li),
           $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
@@ -1609,10 +1608,16 @@ module.exports = (function($){
         collapsed = $btn.hasClass('collapsed'),
         isHeader = $li.hasClass('category-section');
       
-      if ($(e.target).is('input')) { return; }
+      // FIXME: Add code for handling clicks to compositeTrack checkboxes, which may have to load the subtracks, then
+      // uncollapse, and show the default subtracks. We also have to handle the checkbox.indeterminate state appropriately
+      if ($(e.target).is('input')) {
+        // FIXME: If 
+        return;
+      }
+      
       if (collapsed) { 
         $ul.slideDown();
-        // FIXME: 
+        // FIXME: Add code for loading subtracks for unloaded compositeTracks
       } else {
         $ul.slideUp();
       }
