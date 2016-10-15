@@ -122,6 +122,15 @@ def qups(in_cmd, ucur):
     return ucur.fetchall()
 
 
+def connect_to_ucsc_mysql(host, db):
+    try:
+        conn = pymysql.connect(host=host, user='genome', database=db)
+        return conn.cursor()
+    except pymysql.err.InternalError:
+        print('WARNING ({}): No MySQL tables found for "{}". Omitting.'.format(ut.print_time(), organism))
+        return None
+
+
 def parse_trackdb_settings(settings):
     """
     Parses a `settings` field from a UCSC trackDb table into a dictionary of keys -> values
@@ -147,18 +156,22 @@ def get_numrows(xcur, table_name):
     return qups("SELECT COUNT(*) FROM {}".format(table_name), xcur)[0][0]
 
 
-def get_organisms_list(url='http://beta.chromozoom.org/php/chromsizes.php', prefix=''):
+def get_organisms_list(host='', prefix=None):
     """
     Get list of organism databases that we may want to scrape from UCSC
     """
-
-    with urllib.request.urlopen(url) as response:
-        my_html = response.read().decode()
-        my_html = json.loads(my_html)
-
-    org_names = [organism['name'] for organism in my_html]
-    if prefix != '':
-        org_names = [name for name in org_names if name.startswith(prefix)]
+    prefix_query = ""
+    if prefix is not None:
+        prefix_query = " AND name LIKE '{}%'".format(prefix)
+    try:
+        conn = pymysql.connect(host=host, user='genome', database='hgcentral')
+        xcur = conn.cursor()
+    except pymysql.err.InternalError:
+        print('FATAL ({}): Could not connect to UCSC MySQL server at "{}".'.format(ut.print_time(), host))
+        sys.exit(1)
+    
+    org_names = qups("SELECT name FROM dbDb WHERE active = 1" + prefix_query, xcur)
+    org_names = [name[0] for name in org_names]
     
     return org_names
 
@@ -277,7 +290,7 @@ def create_hierarchy(organism, table_source):
 
 def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
     selected_tracks = []
-    track_info = dict()
+    track_info = {"_groups": {}}
     curr_tgroupname = None
     curr_track = None
     curr_trackname = None
@@ -323,6 +336,7 @@ def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
             if re.match(r'^\s*Trackgroup:', line):
                 process_tables()
                 curr_tgroupname = line.split('(', 1)[1][:-2]
+                track_info['_groups'][line.split()[1]] = curr_tgroupname
             elif re.match(r'^\s*Track:', line):
                 process_tables()
                 curr_track = line.split()[1]
@@ -348,14 +362,23 @@ def filter_to_existing_tables(wanted_tracks, xcur):
     return extractable
 
 
-def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
+def filter_tracks_by_args(selected_tracks, args, track_priority):
+    """
+    Applies --priority_below, --track_prefix, and --skip_tracks filters to a list of track names
+    """
+    if args.priority_below is not None:
+        selected_tracks = [t for t in selected_tracks if track_priority[t] <= args.priority_below]
+    if args.track_prefix is not None:
+        selected_tracks = [t for t in selected_tracks if t.startswith(args.track_prefix)]
+    if args.skip_tracks is not None:
+        selected_tracks = [t for t in selected_tracks if not t.startswith(args.skip_tracks)]
+    return selected_tracks
+
+
+def fetch_tracks(xcur, selection=None):
     """
     Fetches track information from the specified UCSC database, which is in the trackDb table
     """
-    if xcur is None:
-        xconn = pymysql.connect(host=host, user='genome', database=db_name)
-        xcur = xconn.cursor() # get the cursor
-
     if selection:
         # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
         fixed_selection = [re.sub(r'^all_', '', element) for element in selection]
@@ -368,8 +391,32 @@ def fetch_tracks(host=None, db_name='hg19', xcur=None, selection=None):
     
     tracks = [list(track) for track in tracks]
     for track in tracks:
+        track.append([]) # children, which these non-supertracks don't need to specify
         if "all_" + track[0] in selection:
             track[0] = "all_" + track[0]
+    
+    return tracks
+
+
+def fetch_supertracks(xcur, track_info):
+    """
+    Fetches supertrack information from the specified UCSC database, which is in the trackDb table
+    """
+    tracks = qups("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url "
+                  "FROM trackDb WHERE settings REGEXP '\\nsuperTrack on[ [.newline.]]' ORDER BY tableName", xcur)
+    
+    tracks = [list(track) for track in tracks]
+    for track in tracks:
+        track[1] = 'supertrack'
+        track_info[track[0]] = {
+            'displayName': track[3],
+            'trackLabel': track[3],
+            'groupLabel': track_info['_groups'][track[2]],
+            'parentTrack': track[0]
+        }
+        children = qups(("SELECT tableName FROM trackDb WHERE settings REGEXP '\\nsuperTrack {}[ [.newline.]]'"
+                         " OR settings REGEXP '\\nparent {}[ [.newline.]]'").format(track[0], track[0]), xcur)
+        track.append([child[0] for child in children])
     
     return tracks
 
@@ -784,7 +831,7 @@ def test_default_remote_item_url(organism, table_name, sample_item):
     return no_errors and html.find(b"subheadingBar") >= 0
 
 
-def translate_settings(xcur, organism, table_name, parent_track, composite_track, sample_item, old_settings, 
+def translate_settings(xcur, organism, table_name, parent_track, is_composite_track, sample_item, old_settings, 
                        bed_plus_fields=None, url=None):
     """
     Translates the settings field in UCSC's trackDb into a JSON-encoded object with track settings supported by chromozoom
@@ -795,6 +842,7 @@ def translate_settings(xcur, organism, table_name, parent_track, composite_track
     
     # Inherit settings from a parent trackDb View, if it exists
     # See: https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html#Composite_-_Views_Settings
+    # We need to actually merge these into new_settings because we don't save View trackDb entries to tracks.db
     if 'parent' in old_settings:
         parent_pieces = re.split(r'\s+', old_settings['parent'])
         new_settings['visibility'] = 'show' if parent_pieces[-1] else 'hide'
@@ -811,9 +859,9 @@ def translate_settings(xcur, organism, table_name, parent_track, composite_track
     
     # Implement trackDb subgroups
     # See: https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html#Composite_-_Subgroups_Settings
-    if 'subGroups' in old_settings and not composite_track:
+    if 'subGroups' in old_settings and not is_composite_track:
         new_settings['tags'] = dict([keyval.split('=') for keyval in re.split(r'\s+', old_settings['subGroups'])])
-    if composite_track and 'subGroup1' in old_settings:
+    if is_composite_track and 'subGroup1' in old_settings:
         new_settings['tagging'] = {}
         for key in ['subGroup' + str(i) for i in range(1, 9)]:
             if key in old_settings:

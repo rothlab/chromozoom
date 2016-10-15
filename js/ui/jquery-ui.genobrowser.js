@@ -435,7 +435,6 @@ module.exports = (function($){
         }
       } else { $searchBar.hide(); }
       
-      // FIXME: refer this instead to self._clickTrackPicker and implement all the logic there
       $trackPicker.find('.category-header,.composite.clickable').click(_.bind(self._trackPickerClicked, self));
       if (o.tracks.length === 1) { $ul.find('input[name='+o.tracks[0].n+']').attr('disabled', true); }
       $reset.click(function(e) { self._resetToDefaultTracks(); });
@@ -1611,7 +1610,7 @@ module.exports = (function($){
       // FIXME: Add code for handling clicks to compositeTrack checkboxes, which may have to load the subtracks, then
       // uncollapse, and show the default subtracks. We also have to handle the checkbox.indeterminate state appropriately
       if ($(e.target).is('input')) {
-        // FIXME: If 
+        
         return;
       }
       

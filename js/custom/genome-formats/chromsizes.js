@@ -43,16 +43,20 @@ var ChromSizesFormat = {
       delete trackOpts.visibility;
       
       if (t.composite) {
+        
         container = trackOpts.container && trackOpts.container == 'multiWig' ? 'multiWig' : 'composite';
         tagging = trackOpts.tagging;
         delete trackOpts.container;
         delete trackOpts.tagging;
-        o.compositeTracks.push({
+        
+        trackSpec = {
           n: t.name,
           c: container,
           opts: trackOpts,
           tagging: tagging
-        });
+        };
+        o.compositeTracks.push(trackSpec);
+    
       } else {
         trackSpec = {
           fh: {},
@@ -62,9 +66,11 @@ var ChromSizesFormat = {
           m: ['pack'],
           customData: t.lines
         };
+        
         if (t.parent) { trackSpec.parent = t.parent; }
         if (trackOpts.tags) { trackSpec.tags = trackOpts.tags; }
         delete trackOpts.tags;
+        
         t.lines.unshift('track ' + optsAsTrackLine(trackOpts) + '\n');
         o.availTracks.push(trackSpec);
         if (visible) { o.tracks.push({n: t.name}); }
@@ -120,6 +126,12 @@ var ChromSizesFormat = {
     var self = this,
       o = self.opts;
     if (!_.isString(o.searchableTracks)) { callback([]); }
+    
+    $.ajax(self.ajaxDir() + o.searchableTracks, {
+      data: {url: self.opts.bigDataUrl, search: query},
+      success: function(data) {
+      }
+    });
   }
   
 };
