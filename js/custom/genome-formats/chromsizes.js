@@ -55,6 +55,7 @@ var ChromSizesFormat = {
           opts: trackOpts,
           tagging: tagging
         };
+        if (t.parent) { trackSpec.parent = t.parent; }
         o.compositeTracks.push(trackSpec);
     
       } else {

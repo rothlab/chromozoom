@@ -159,7 +159,7 @@ CustomTrack.prototype.warn = function(warning) {
 };
 
 CustomTrack.prototype.isOn = function(val) {
-  return /^(on|yes|true|t|y|1)$/i.test(val.toString());
+  return /^(on|yes|true|t|y|1)$/i.test(_.isUndefined(val) ? '' : val.toString());
 };
 
 CustomTrack.prototype.chrList = function() {
