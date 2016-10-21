@@ -41,10 +41,12 @@ os.chdir(args.out)
 table_source = ut.get_remote_table() if args.table_source == '' else args.table_source
 tracks_source = ut.get_remote_tracks()
 mysql_host = ut.get_mysql_host() if args.mysql_host == '' else args.mysql_host
-wig_as_bigwig = ut.get_wig_as_bigwig()
 downloads_base_url = ut.get_downloads_base_url() if args.downloads_base_url == '' else args.downloads_base_url
 downloads_base_url = downloads_base_url.rstrip('/')
 
+# ====================================================================
+# = For every organism in the list of organisms we wish to scrape... =
+# ====================================================================
 
 for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
     print('#####################################')
@@ -61,18 +63,23 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
     
     # Setup our local directories where track data will be saved
     ut.setup_directories(organism)
+    
+    # ==================================================================================================
+    # = Generate a complete list of tracks to scrape based on UCSC's database and the script arguments =
+    # ==================================================================================================
 
     selected_tracks, track_info = ut.distill_hierarchy(track_meta, args.composite_tracks)
     selected_tracks_having_tables = ut.filter_to_existing_tables(selected_tracks, cur)
     if args.composite_tracks is False:
         selected_tracks = selected_tracks_having_tables
+
     track_priority = ut.get_priority(db=organism, selection=selected_tracks, tracks_source=tracks_source, 
                                      track_info=track_info)
     
     selected_tracks = ut.filter_tracks_by_args(selected_tracks, args, track_priority)
     
-    local_db, localcur, localconn = ut.create_sqllite3_db(organism)
-    last_updates = ut.get_last_local_updates(localcur)
+    local_db, localconn = ut.create_sqllite3_db(organism)
+    last_updates = ut.get_last_local_updates(localconn)
     
     my_tracks = ut.fetch_tracks(xcur=cur, selection=selected_tracks)
     my_tracks = sorted(my_tracks, key=lambda row: (track_info[row[0]]['parentTrack'], row[0]))
@@ -84,22 +91,26 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
         track_priority.update(ut.get_priority(db=organism, selection=[t[0] for t in supertracks], tracks_source=tracks_source, 
                                               track_info=track_info))
     
-    for track_name, tr_type, group, short_label, long_label, html_description, settings, url, children in my_tracks:
+    # =======================================================================================
+    # = Iterate over tracks to be scraped, saving data into local directories and tracks.db =
+    # =======================================================================================
+    
+    for track_name, tr_type, group, short_label, long_label, html_description, settings, url, sort, children in my_tracks:
         parent_track = track_info[track_name]['parentTrack']
         print('INFO ({}): [db {}] Checking table "{}" (track {}).'.format(ut.print_time(), organism, track_name, parent_track))
         
-        save_to_db = False
         file_location = None
         bed_plus_fields = None
         sample_item = None
-        is_composite_or_super = track_name not in selected_tracks_having_tables
-        is_super_track = len(children) > 0
+        track_has_a_table = track_name in selected_tracks_having_tables
         remote_settings = ut.parse_trackdb_settings(settings)
+        is_composite_or_super = not track_has_a_table and 'bigDataUrl' not in remote_settings
+        is_super_track = len(children) > 0
         update_date = None
         bedlike_format = ut.is_bedlike_format(tr_type)
 
-        # check if we need to update the table
-        if not is_composite_or_super and track_name in last_updates:
+        # First, check if we need to update the table at all
+        if track_has_a_table and track_name in last_updates:
             update_date = ut.get_update_time(cur, organism, track_name)
             if last_updates[track_name] == update_date:
                 print('INFO ({}): [db {}] data for table "{}" is up to date.'.format(ut.print_time(),
@@ -111,25 +122,25 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             track_noun = "supertrack" if is_super_track else ("composite track" if is_composite_or_super else "table")
             print('INFO ({}): [db {}] Need to fetch {} "{}".'.format(ut.print_time(), organism, track_noun, track_name))
         if track_name in last_updates and not args.dry_run:
-            localcur.execute('DELETE FROM tracks WHERE name="{}";'.format(track_name))
+            localconn.execute('DELETE FROM tracks WHERE name="{}";'.format(track_name))
         
         if args.dry_run: continue
         
         # Composite track/supertrack processing -- aren't backed by an actual MySQL table, but instead are groups of other tracks
         if is_composite_or_super:
-            # No fetching/conversion to do--only need to translate the settings from UCSC trackDb --> chromozoom.
-            save_to_db = True
-        elif True:
-            continue
+            # No fetching/conversion to do--only need to translate the settings from UCSC's trackDb format --> chromozoom.
+            pass
 
-        # bigWig, bigBed, and BAM processing - these files are already in big* format and accessible by URL, so little work to do
-        elif tr_type.startswith('bigWig ') or tr_type.startswith('bigBed ') or tr_type == 'bam':
-            file_location = ut.qups("SELECT fileName FROM {}".format(track_name), cur)
-
+        # bigWig, bigBed, and BAM processing - these files are already in big* format and accessible by URL, so little to do
+        elif tr_type.startswith('bigWig ') or tr_type.startswith('bigBed ') or tr_type in ('bam', 'vcfTabix'):
+            file_location = [[remote_settings.get('bigDataUrl')]]
+            if file_location[0][0] is None:
+                file_location = ut.qups("SELECT fileName FROM {}".format(track_name), cur)
             if len(file_location) > 1:
                 print('WARNING ({}): [db {}] Multiple files are associated with "{}" "({})" file.'
                       .format(ut.print_time(), organism, track_name, tr_type))
             file_location = file_location[0][0]
+            
             if not re.match(r'^https?://', file_location):
                 file_location = downloads_base_url + file_location
             if tr_type.startswith('bigBed '):
@@ -139,18 +150,13 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
                     bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_string=as_string)
             print('DONE ({}): [db {}] Fetched remote location for "{}" "{}" file.'.format(ut.print_time(),
                     organism, track_name, tr_type))
-            save_to_db = True
 
-        # wig - these tracks are luckily accessible as bigWig files, so again we simply link to their URL
+        # wig - these tracks are sometimes accessible as bigWig files, so if we can find that, we simply link to its URL
         elif tr_type.startswith('wig '):
-            file_location = wig_as_bigwig % (organism, track_name, organism, track_name)
-            if not ut.url_exists(file_location):
-                print('FAILED ({}): [db {}] URL for "{}" "{}" file (as bigWig) is not reachable: {}'
-                      .format(ut.print_time(), organism, track_name, tr_type, file_location))
-                continue
+            file_location = ut.find_bw_location_for_wig(organism, track_name)
+            if file_location is None: continue
             print('DONE ({}): [db {}] Fetched remote location for "{}" "wig" file, as bigWig.'.format(ut.print_time(),
                     organism, track_name))
-            save_to_db = True
 
         # BED, genePred, PSL, GVF, and narrowPeak processing - need to save and convert these to bigBed
         elif bedlike_format:
@@ -184,25 +190,24 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             os.remove(bed_location)
             if not as_location.startswith(os.path.join(script_directory, 'autosql')): 
                 os.remove(as_location)
-            save_to_db = True
             
         else:
             print('INFO ({}): [db {}] Unhandled track type "{}" for table "{}".'.format(ut.print_time(), organism,
                                                                                         tr_type, track_name))
             continue
 
-        if save_to_db:
-            local_settings = ut.translate_settings(cur, organism, track_name, parent_track, 
-                    is_composite_or_super and not is_super_track, sample_item, remote_settings, bed_plus_fields, url)
-            row_vals = (track_name, track_info[track_name]['displayName'], tr_type, group, track_info[track_name]['groupLabel'], 
-                    parent_track, track_info[track_name]['trackLabel'], short_label, long_label, track_priority[track_name], 
-                    file_location, html_description, update_date, settings, local_settings, is_composite_or_super)
-            command = 'INSERT INTO tracks VALUES (' + (','.join(['?'] * len(row_vals))) + ')'
-            localcur.execute(command, row_vals)
-            
-            for child_track_name in children:
-                print('INFO ({}): [db {}] Also updated parentTrack on child "{}" for supertrack "{}".'.format(ut.print_time(), 
-                        organism, child_track_name, track_name))
-                localcur.execute('UPDATE tracks SET parentTrack = ? WHERE name = ?', (track_name, child_track_name))
-            
-        localconn.commit()
+        # Everything went OK! If we've reached this point, it's safe to save track data to the local database.
+        local_settings = ut.translate_settings(cur, organism, track_name, parent_track, 
+                is_composite_or_super and not is_super_track, sample_item, remote_settings, bed_plus_fields, url)
+        row_vals = (track_name, track_info[track_name]['displayName'], tr_type, group, track_info[track_name]['groupLabel'], 
+                parent_track, track_info[track_name]['trackLabel'], short_label, long_label, track_priority[track_name], 
+                file_location, html_description, update_date, settings, local_settings, is_composite_or_super, sort)
+        ut.save_to_local_database(organism, localconn, row_vals, children)
+
+    # ===================================================================================================
+    # = Finally, check the composite and super tracks and if they are empty, mark them as low priority. =
+    # ===================================================================================================
+    
+    if not args.dry_run:
+        ut.deprioritize_empty_parent_tracks(organism, localconn)
+    

@@ -6,12 +6,17 @@ This is where we define functions specific to particular genome formats.
     for `$.ui.genobrowser` (see `CustomGenome.defaults` for what the default object for that is), and if
     sequence information is given, that should be stored as a continuous string in `this.data.sequence` so that
     `.getSequence()` can retrieve it.
+    
+    - If sequence information is available, `this.canGetSequence` SHOULD be set to `true`.
 
 + If the genome contains information on annotation tracks, they should be added as entries to `this.opts.availTracks` 
     with all the necessary information for `$.ui.genobrowser` to add them to the "show tracks..." track picker.
 
 + `.searchTracks()` MAY be defined for genomes that have additional annotation tracks somewhere online that are not
-    provided with the genome itself (e.g., if there are too many of them to send in one go).
+    provided with the genome itself (e.g., if there are too many of them to send in one go). The first argument for
+    this function is a `params` object for the search, and the second is a callback that is called with the results.
+    
+    - If more online tracks are available, `.canSearchTracks` SHOULD be set to `true`.
 
-+ Composite tracks should be added to this.opts.compositeTracks, and the entries in this.opts.availTracks
-    should have .parent attributes that refer to the these tracks by name (`.n`).
++ Composite tracks should be added to `this.opts.compositeTracks`, and the entries in `this.opts.availTracks`
+    should have `.parent` attributes that refer to the these tracks by name (`.n`).

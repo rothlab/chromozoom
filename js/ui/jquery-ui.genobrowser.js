@@ -47,7 +47,7 @@ module.exports = (function($){
       ],
       availTracks: [],
       compositeTracks: [],
-      groupTracksByCategory: false,
+      groupTracksByCategories: false, // affects the track picker, set to EITHER true OR an array to set the order
       searchableTracks: false,  // can set to a URL to allow even more tracks to be added via AJAX
       chrOrder: [],
       chrLengths: {},
@@ -150,7 +150,6 @@ module.exports = (function($){
         $elem = self.element,
         o = self.options,
         tracksToParse,
-        finishSetupAfterParsing,
         $overlay = $(o.overlay[0]),
         $overlayMessage = $(o.overlay[1]),
         nextDirectives = _.extend({}, self._nextDirectives),
@@ -163,18 +162,6 @@ module.exports = (function($){
       self._initInstanceVars();
       
       tracksToParse = _.filter(o.availTracks, function(t) { return t.customData; });
-      // a subset of options that CustomTracks needs to parse tracks
-      function browserOpts() {
-        return {
-          bppps: o.bppps,
-          chrPos: self.chrPos,
-          genome: o.genome,
-          pos: nextDirectivesPosition ? nextDirectivesPosition.pos : self.pos,
-          chrLengths: o.chrLengths,
-          genomeSize: o.genomeSize,
-          ajaxDir: o.ajaxDir
-        };
-      }
       
       function finishSetup() {
         _.each(o.tracks, function(t) { 
@@ -192,19 +179,7 @@ module.exports = (function($){
         });
       }
       
-      if (tracksToParse.length > 0) {
-        finishSetupAfterParsing = _.after(tracksToParse.length, finishSetup);
-        _.each(tracksToParse, function(t) {
-          CustomTracks.parseAsync(t.customData, browserOpts(), function(customTracks) {
-            var customTrack = customTracks[0]; // t.customData should only contain data for one track
-            _.each(o.bppps, function(bppp) { 
-              self.availTracks[t.n].fh[o.bpppFormat(bppp)] = {dense: customTrack.heights.min}; 
-            });
-            self.availTracks[t.n].custom = t.custom = customTrack;
-            finishSetupAfterParsing();
-          });
-        });
-      } else { finishSetup(); }
+      self._parseCustomGenomeTracks(tracksToParse, finishSetup, nextDirectivesPosition);
     },
     
     _initInstanceVars: function() {
@@ -389,7 +364,7 @@ module.exports = (function($){
       var self = this,
         o = self.options,
         d = o.trackDesc,
-        allTracks = o.availTracks.concat(o.compositeTracks),
+        allTracks = self._sortedTracks(o.availTracks.concat(o.compositeTracks)),
         groups = {},
         ungrouped = {},
         $toggleBtn = $(o.trackPicker[0]),
@@ -400,7 +375,7 @@ module.exports = (function($){
         $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div),
         $search;
-        
+      
       function addSection(cat) {
         var $li = $('<li class="category-section"/>').appendTo($ul),
           $header = $('<div class="category-header"/>').text(cat).appendTo($li);
@@ -408,7 +383,8 @@ module.exports = (function($){
         return $('<ul/>').appendTo($li);
       }
             
-      if (o.groupTracksByCategory) {
+      if (o.groupTracksByCategories) {
+        var groupNames;
         _.each(allTracks, function(t) {
           var n = t.n,
             cat = d[n].cat;
@@ -417,9 +393,13 @@ module.exports = (function($){
           groups[cat] = groups[cat] || {};
           groups[cat][n] = t;
         });
+        groupNames = _.keys(groups);
+        if (_.isArray(o.groupTracksByCategories)) { 
+          groupNames = _.sortBy(groupNames, function(cat) { return _.indexOf(o.groupTracksByCategories, cat); });
+        }
         self._addTracks(ungrouped);
-        _.each(groups, function(tracks, cat) { 
-          self._addTracks(tracks, addSection(cat));
+        _.each(groupNames, function(cat) { 
+          self._addTracks(groups[cat], addSection(cat));
         });
       } else { self._addTracks(allTracks); }
       
@@ -1055,9 +1035,9 @@ module.exports = (function($){
           // This is an unaltered set of chromosome sizes pulled from UCSC
           chromSizes = remoteMetadata.chromsizes;
           metadata.name = remoteMetadata.db;
-          metadata.tracks = remoteMetadata.tracks;
-          metadata.moreTracks = remoteMetadata.moreTracks;
-          metadata.cytoBandIdeo = remoteMetadata.cytoBandIdeo;
+          _.each(['tracks', 'moreTracks', 'categories', 'cytoBandIdeo'], function(k) { 
+            metadata[k] = remoteMetadata[k]; 
+          });
           origMetadata = remoteMetadata;
           if (chose == 'ucsc') {
             $origOption = $chromSizesDialog.find('[name=ucscGenome] > option[value='+metadata.name+']');
@@ -1302,6 +1282,45 @@ module.exports = (function($){
       }
     },
     
+    // =========================================================
+    // = The following functions handle parsing of custom data =
+    // =========================================================
+    
+    _parseCustomGenomeTracks(tracksToParse, finishSetup, posAfterParsing) {
+      var self = this,
+        $elem = self.element,
+        o = self.options,
+        finishSetupAfterParsing;
+      
+      function browserOpts() {
+        return {
+          bppps: o.bppps,
+          chrPos: self.chrPos,
+          genome: o.genome,
+          pos: posAfterParsing ? posAfterParsing.pos : self.pos,
+          chrLengths: o.chrLengths,
+          genomeSize: o.genomeSize,
+          ajaxDir: o.ajaxDir
+        };
+      }
+      
+      if (tracksToParse.length > 0) {
+        finishSetupAfterParsing = _.after(tracksToParse.length, finishSetup);
+        _.each(tracksToParse, function(t) {
+          // Allow for inheritance of options from parent tracks (e.g. subtracks inheriting from compositeTracks)
+          var parentOpts = t.parent && self.compositeTracks[t.parent] && self.compositeTracks[t.parent].opts;
+          CustomTracks.parseAsync(t.customData, browserOpts(), parentOpts, function(customTracks) {
+            var customTrack = customTracks[0]; // t.customData should only contain data for one track
+            _.each(o.bppps, function(bppp) { 
+              self.availTracks[t.n].fh[o.bpppFormat(bppp)] = {dense: customTrack.heights.min}; 
+            });
+            self.availTracks[t.n].custom = t.custom = customTrack;
+            finishSetupAfterParsing();
+          });
+        });
+      } else { finishSetup(); }
+    },
+    
     // =====================================================================================
     // = The following functions coordinate the display of browser lines ($.ui.genoline's) =
     // =====================================================================================
@@ -1477,15 +1496,36 @@ module.exports = (function($){
     _trackSpec: function(trackSpec) {
       var self = this,
         $checkboxes = self.$trackPicker.find(':checkbox').add(self.$customTracks.find(':checkbox'));
+      
+      // Pull the trackSpec from the state of the checkboxes, or vice versa if trackSpec was provided
       if (!trackSpec || !_.isArray(trackSpec) || !trackSpec.length) {
         trackSpec = [];
-        $checkboxes.filter(':checked').each(function() { trackSpec.push({n: $(this).attr('name')}); });
+        $checkboxes.filter(':checked').each(function() {
+          var n = $(this).attr('name');
+          if (self.availTracks[n]) { trackSpec.push({n: n}); }
+        });
       } else {
         // Cleanup external trackSpecs: for now, disallow dupes, and make sure all tracks actually exist
-        trackSpec = _.uniq(_.filter(trackSpec, function(t) { return self.availTracks[t.n]; }), function(t) { return t.n; });
+        trackSpec = _.uniq(_.filter(trackSpec, function(t) { return self.availTracks[t.n]; }), 'n');
         $checkboxes.attr('checked', false);
         _.each(trackSpec, function(t) { $checkboxes.filter('[name="'+t.n+'"]').attr('checked', true); });
       }
+      
+      // For checkboxes on composite tracks, use the "indeterminate" state if a fraction of child tracks are selected
+      $checkboxes.filter('.composite').each(function() {
+        var $ul = $(this).closest('.choice').find('ul:first'),
+          childrenChecked = $ul.find(':checked:not(.composite)').length,
+          childrenTotal = $ul.find(':checkbox:not(.composite)').length,
+          partiallyLoaded = $ul.find('.choice.composite.unloaded').length > 0;
+        if (!partiallyLoaded && childrenChecked > 0 && childrenChecked == childrenTotal) {
+          $(this).attr('checked', true).data('indeterminate', false).get(0).indeterminate = false;
+        } else if (childrenChecked > 0) {
+          $(this).attr('checked', false).data('indeterminate', true).get(0).indeterminate = true;
+        } else {
+          $(this).attr('checked', false).data('indeterminate', false).get(0).indeterminate = false;
+        }
+      });
+      
       // if there is only one newTrack, disable the checkbox so there are always ≥1 tracks
       if (trackSpec.length === 1) { $checkboxes.filter(':checked').attr('disabled', true); }
       else { $checkboxes.attr('disabled', false); }
@@ -1554,8 +1594,9 @@ module.exports = (function($){
       var self = this,
         o = self.options,
         d = o.trackDesc,
+        allTracks = self._sortedTracks(o.availTracks.concat(o.compositeTracks)),
         $ul = to ? $(to) : $(o.trackPicker[1]).children('ul').eq(0);
-      
+            
       _.each(tracks, function(t) {
         // TODO: This needs to distinguish between traditional tracks and custom annotation tracks brought in
         //       by custom genomes. The latter should have an options dialog and download links instead of "more info";
@@ -1563,13 +1604,13 @@ module.exports = (function($){
           composite = !!t.c,
           $li = $('<li class="choice"/>').appendTo($ul),
           $l = $('<' + (composite ? 'div' : 'label') + ' class="clickable"/>').appendTo($li),
-          $c = $('<input type="checkbox"/>').attr('name', n).prependTo($l),
-          $d = $('<div class="desc"></div>').appendTo($l),
+          $c = $('<input type="checkbox"/>').attr('name', n).prependTo($('<div class="chk"/>').prependTo($l)),
+          $d = $('<div class="desc"/>').appendTo($l),
           db = o.genome.split(':'),
           href = o.trackDescURL + '?db=' + (db[0] === 'ucsc' ? db[1] : db[0]) + '&g=' + n + '#TRACK_HTML',
           $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '',
           $span = $('<span/>').text(d[n].sm),
-          $innerUl;
+          $innerUl, childTracks;
           
         if (!composite && !self.availTracks[t.n]) {
           o.availTracks.push(t);
@@ -1583,7 +1624,13 @@ module.exports = (function($){
           $l.add($c).add($li).addClass('composite');
           $('<div class="collapsible-btn collapsed"><div class="arrow"/></div>').insertBefore($d);
           $innerUl = $('<ul/>').hide().appendTo($li);
-          self._addTracks(_.filter(self.availTracks, function(t) { return t.parent == n; }), $innerUl);
+          childTracks = self._sortedTracks(_.filter(allTracks, function(t) { return t.parent == n; }));
+          
+          // Recursively add children tracks if they are already provided in o.availTracks/o.compositeTracks
+          if (childTracks.length > 0) { 
+            self._addTracks(childTracks, $innerUl);
+            _.each(childTracks, function(t) { $innerUl.find('input:checkbox[name='+t.n+']').addClass('default'); });
+          } else { $li.addClass('unloaded'); }
         } else {
           if (_.find(o.tracks, function(trk) { return trk.n==n; })) { $c.attr('checked', true); }
         }
@@ -1604,23 +1651,63 @@ module.exports = (function($){
         $li = $target.closest('li'),
         $ul = $li.children('ul').eq(0),
         $btn = $li.find('.collapsible-btn').eq(0),
+        $chk = $li.find('input:checkbox').eq(0),
+        unloadedChildren = $li.hasClass('unloaded') && !$li.hasClass('loading'),
         collapsed = $btn.hasClass('collapsed'),
         isHeader = $li.hasClass('category-section');
       
-      // FIXME: Add code for handling clicks to compositeTrack checkboxes, which may have to load the subtracks, then
-      // uncollapse, and show the default subtracks. We also have to handle the checkbox.indeterminate state appropriately
-      if ($(e.target).is('input')) {
-        
-        return;
+      function loadChildren(callback) {
+        o.custom.searchTracksAsync({children_of: $chk.attr('name')}, function(newOpts) {
+          Array.prototype.push.apply(o.availTracks, newOpts.availTracks);
+          Array.prototype.push.apply(o.compositeTracks, newOpts.compositeTracks);
+          _.each(newOpts.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
+          _.each(newOpts.compositeTracks, function(v) { self.compositeTracks[v.n] = v; });
+          _.extend(o.trackDesc, newOpts.trackDesc);
+          
+          self._parseCustomGenomeTracks(newOpts.availTracks, function() {
+            self._addTracks(self._sortedTracks(newOpts.availTracks.concat(newOpts.compositeTracks)), $ul);
+            _.each(newOpts.tracks, function(t) { $ul.find('input:checkbox[name='+t.n+']').addClass('default'); });
+            $li.removeClass('loading unloaded');
+            callback(newOpts);
+          });
+        });
       }
       
-      if (collapsed) { 
-        $ul.slideDown();
-        // FIXME: Add code for loading subtracks for unloaded compositeTracks
+      // Clicking composite track checkboxes may need to load and display subtracks...
+      if ($(e.target).is($chk)) {
+        if ($li.hasClass('composite')) {
+          if (!$chk.data('indeterminate') && $chk.is(':checked')) {
+            if (unloadedChildren) {
+              loadChildren(function(newOpts) {
+                _.each(newOpts.tracks, function(t) {
+                  $ul.find('input:checkbox[name='+t.n+']').attr('checked', true).change();
+                });
+              });
+            } else {
+              $ul.find('input:checkbox.default').attr('checked', true).change();
+            }
+          } else {
+            $ul.find('input:checkbox:not(.composite)').attr('checked', false).change();
+          }
+        }
+        return; // Checkbox clicks should not affect collapsed/uncollapsed elements.
+      }
+      
+      // Handle collapsing and uncollapsing of composite tracks, including loading of subtracks
+      if (collapsed) {
+        if ($ul.children().length > 0) {
+          $ul.slideDown();
+          $btn.removeClass('collapsed');
+        } else if (unloadedChildren && o.custom && o.custom.canSearchTracks) {
+          $li.addClass('loading');
+          loadChildren(function() { 
+            $btn.hasClass('collapsed') && $ul.children().length && $btn.click();
+          });
+        }
       } else {
         $ul.slideUp();
+        $btn.addClass('collapsed');
       }
-      $btn.toggleClass('collapsed');
     },
     
     // After a custom track file is parsed, this function is called to add them to the custom track picker and each
@@ -1644,7 +1731,7 @@ module.exports = (function($){
         if (newTrack) {
           $li = $('<li class="choice"/>').appendTo($ul);
           $l = $('<label class="clickable"/>').appendTo($li);
-          $c = $('<input type="checkbox" checked="checked"/>').attr('name', n).prependTo($l);
+          $c = $('<input type="checkbox"/>').attr('name', n).prependTo($('<div class="chk"/>').prependTo($l));
           $d = $('<div class="desc"></div>').appendTo($l);
           $o = $('<button class="opts"><img src="css/gear.png" alt="gear" /></button>').appendTo($li),
           $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
@@ -1690,7 +1777,7 @@ module.exports = (function($){
         // If browser directives were included, we need to obey them.
         self._nextDirectives = {};
         // Right now only position is supported.
-        // TODO: other browser directives at http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#lines
+        // TODO (maybe): other browser directives at http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#lines
         if (_.keys(browserDirectives).length) { self._initFromParams(browserDirectives); }
       }}); 
     },
@@ -1793,6 +1880,12 @@ module.exports = (function($){
       if (prevOrder && !_.isEqual(order, prevOrder)) { 
         $elem.find('.browser-track-'+t.n).genotrack('updateDensity');
       }
+    },
+    
+    // Sorts tracks for a track picker based on their title and then the .srt attribute
+    _sortedTracks: function(tracks) {
+      var d = this.options.trackDesc;
+      return _.sortBy(_.sortBy(tracks, function(t) { return d[t.n].sm || t.n; }), 'srt');
     },
     
     // ================================================================================================

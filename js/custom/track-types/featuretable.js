@@ -125,6 +125,7 @@ var FeatureTableFormat = {
         }
       });
     }
+    if (feature.name == 'Q') { console.log(feature); }
     
     return feature;
   },

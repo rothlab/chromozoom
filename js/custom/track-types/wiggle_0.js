@@ -32,14 +32,20 @@ var WiggleFormat = {
   
   initOpts: function() {
     var o = this.opts,
-      _binFunctions = this.type()._binFunctions;
+      _binFunctions = this.type()._binFunctions,
+      viewLimitsProvided;
     if (!this.validateColor(o.altColor)) { o.altColor = ''; }
     o.viewLimits = _.map(o.viewLimits.split(':'), parseFloat);
+    viewLimitsProvided = o.viewLimits.length >= 2 && !_.isNaN(o.viewLimits[0]) && !_.isNaN(o.viewLimits[1]);
     o.maxHeightPixels = _.map(o.maxHeightPixels.split(':'), parseInt10);
     o.yLineOnOff = this.isOn(o.yLineOnOff);
     o.yLineMark = parseFloat(o.yLineMark);
-    o.autoScale = this.isOn(o.autoScale);
+    o.autoScale = viewLimitsProvided ? false : this.isOn(o.autoScale);
     o.windowingFunction = o.windowingFunction.toLowerCase();
+    if (o.windowingFunction == 'mean+whiskers') { 
+      o.windowingFunction = 'mean'; 
+      console.warn('FIXME: mean+whiskers --> mean');
+    }
     if (_binFunctions && !_binFunctions[o.windowingFunction]) {
       throw new Error("invalid windowingFunction `" + o.windowingFunction + "` at line " + o.lineNum); 
     }

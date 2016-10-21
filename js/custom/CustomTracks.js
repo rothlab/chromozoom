@@ -19,7 +19,7 @@ module.exports = (function(global){
   var CustomTracks = {
     _tracks: {},
     
-    parse: function(chunks, browserOpts) {
+    parse: function(chunks, browserOpts, parentOpts) {
       var customTracks = [],
         data = [],
         track, opts, m;
@@ -44,6 +44,7 @@ module.exports = (function(global){
             if (track) { pushTrack(); }
             opts = parseDeclarationLine(line, (/^track\s+/i));
             if (!opts) { throw new Error("Could not parse track line found at line " + (lineno + 1)); }
+            if (parentOpts && _.isObject(parentOpts)) { opts = _.extend({}, parentOpts, opts); }
             opts.lineNum = lineno + 1;
             track = new CustomTrack(opts, browserOpts);
             data = [];

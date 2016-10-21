@@ -56,7 +56,8 @@ CustomGenome.defaults = {
                      //    formatted like {"1.00e+05":{"dense":15}}
       n: "ruler",    // short unique name for the track
       s: ["dense"],  // possible densities for tiles, e.g. ["dense", "squish", "pack"]
-      h: 25          // starting height in px
+      h: 25,         // starting height in px
+      srt: 0         // put this at the top of its category
     }
   ],
   compositeTracks: [],
@@ -79,7 +80,8 @@ CustomGenome.defaults = {
   // These last three will be overridden using knowledge of the window's width
   bppps: [],
   bpppNumbersBelow: [],
-  initZoom: null
+  initZoom: null,
+  ajaxDir: 'php/'
 };
 
 CustomGenome.formats = {

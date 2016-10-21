@@ -103,9 +103,6 @@ var BamFormat = {
       cache = new PairedIntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}, 
           {startKey: 'templateStart', endKey: 'templateEnd', pairedLengthKey: 'tlen', pairingKey: 'qname'}),
       ajaxUrl = self.ajaxDir() + 'bam.php',
-      // Like IGV, we simply use the current browser position to start pulling reads for BAM statistics.
-      // It might be worth considering whether a broader search is more reliable for chromozoom's purposes
-      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + 10000)),
       remote;
     
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
@@ -137,9 +134,23 @@ var BamFormat = {
     self.renderSequenceCallbacks = {};
     self.coverageRange = [0, 0];
     self.prevOpts = deepClone(o);  // used to detect which drawing options have been changed by the user
+        
+    return true;
+  },
+  
+  // Before the RemoteTrack can start caching data, we need to use general info on the BAM track to setup its binning scheme.
+  // We defer this in a .finishSetup() method because it's potentially expensive HTTP GET that is only necessary if the track
+  // is actually going to be displayed in the browser.
+  finishSetup: function() {
+    var self = this,
+      o = self.opts,
+      ajaxUrl = self.ajaxDir() + 'bam.php',
+      remote = self.data.remote,
+      // Like IGV, we simply use the current browser position to start pulling reads for BAM statistics.
+      // It might be worth considering whether a broader search is more reliable for chromozoom's purposes
+      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + 10000));
     
-    // FIXME: Move this to .finishSetup()
-    // Get general info on the bam (e.g. `samtools idxstats`), use mapped reads per reference sequence
+    // Get general info on the BAM (e.g. `samtools idxstats`), use mapped reads per reference sequence
     // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
     // We also fetch a bunch of reads from around infoChrRange (by default, where the browser is when
     // it first loads this track) to estimate meanItemLength, mate pairing, and the insert size distribution.
@@ -155,7 +166,7 @@ var BamFormat = {
           lowerBound = 10, 
           upperBound = 5000, 
           sampleIntervals, meanItemLength, hasAMatePair, chrScheme, meanItemsPerBp;
-        
+      
         if (infoParts[0] == '') { throw new Error("samtools failed to retrieve data for this BAM track."); }
         _.each(infoParts[0].split("\n"), function(line) {
           var fields = line.split("\t"),
@@ -165,12 +176,12 @@ var BamFormat = {
           if (_.isNaN(readsMappedToContig)) { throw new Error("Invalid output for samtools idxstats on this BAM track."); }
           mappedReads += readsMappedToContig;
         });
-        
+      
         self.data.info.chrScheme = chrScheme = guessChrScheme(bamChrs);
         if (chrScheme && self.browserChrScheme) {
           self.data.info.convertChrScheme = chrScheme != self.browserChrScheme ? chrScheme + '_' + self.browserChrScheme : null;
         }
-        
+      
         sampleIntervals = _.compact(_.map(infoParts[1].split("\n"), function(line) {
           return self.type('bam').parseLine.call(self, line);
         }));
@@ -185,7 +196,7 @@ var BamFormat = {
           }));
           estimatedInsertSizes.sort(function(a, b) { return a - b; });  // NOTE: JavaScript does string sorting by default -_-
         }
-        
+      
         self.data.info.meanItemsPerBp = meanItemsPerBp = mappedReads / self.browserOpts.genomeSize;
         self.data.info.meanItemLength = meanItemLength = _.isUndefined(meanItemLength) ? 100 : meanItemLength;
         if (!o.optimalFetchWindow || !o.maxFetchWindow) {
@@ -194,7 +205,7 @@ var BamFormat = {
         }
         if (!self.coverageRange[1]) { self.coverageRange[1] = Math.ceil(meanItemsPerBp * meanItemLength * 2); }
         self.type('bam').applyOpts.call(self);
-        
+      
         // If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes should trigger pairing.
         if (hasAMatePair) {
           if (estimatedInsertSizes.length) {
@@ -209,8 +220,6 @@ var BamFormat = {
         remote.setupBins(self.browserOpts.genomeSize, o.optimalFetchWindow, o.maxFetchWindow);
       }
     });
-    
-    return true;
   },
   
   // Sets feature.flags[...] to a human interpretable version of feature.flag (expanding the bitwise flags)

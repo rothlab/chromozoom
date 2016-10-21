@@ -172,12 +172,18 @@ body {
 .picker .choice .more { display: none; font-size: 0.8em; font-weight: normal; padding-top: 2px; color: #346; }
 .picker .choice .clickable.hover { background: #f3f6fa; }
 .picker .choice .clickable.hover .more { display: block; float: right; }
-.picker .choice input { float: left; }
-.picker .choice.composite .choice input { margin-left: 20px; }
+.picker .choice input { margin: 0 0 0 3px; position: relative; top: -2px; }
+.picker .choice .chk { float: left; width: 20px; }
+.picker .choice.loading > .clickable > .chk {
+  background: url(loading-sm.gif) no-repeat top left 1px; 
+}
+.picker .choice.loading > .clickable > .chk input { visibility: hidden; }
+.picker .choice.composite .choice .chk { margin-left: 16px; }
+.picker .choice.composite .choice.composite .choice .chk { margin-left: 31px; }
 .picker .choice .desc { width: 99%; }
 .picker .choice .collapsible-btn {
   height: 14px;
-  padding: 6px 4px 0 2px;
+  padding: 6px 5px 0 1px;
 }
 .picker .button-line { text-align: center; margin: 0em; }
 .choice .name {

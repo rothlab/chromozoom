@@ -204,6 +204,7 @@ $.widget('ui.genoline', {
           return a - b;
         });
         self.fixFirstLabel(true);
+        self.redrawAreaLabels();
       },
       update: function(e, ui) {
         var newOrder = [];
@@ -247,6 +248,7 @@ $.widget('ui.genoline', {
     
     this.$side.sortable('refresh');
     this.fixFirstLabel(true);
+    this.redrawAreaLabels();
   },
   
   jumpTo: function(pos, forceRepos) {
@@ -266,10 +268,17 @@ $.widget('ui.genoline', {
     this.$cont.children('.browser-track').genotrack('fixTiles', forceRepos);
   },
   
+  redrawAreaLabels: function() {
+    var $elem = this.element;
+    _.each(this.options.browser.genobrowser('tracks'), function(t) {
+      if (t.custom) { $elem.find('.browser-track-'+t.n).genotrack('redrawAreaLabels'); }
+    });
+  },
+  
   getPos: function() {
     return this.pos;
   },
-  
+    
   // Adds a $.ui.genotrack for the track specification in `track` to the $.ui.genoline at position `pos`
   //    `pos` can be a numerical index or a jQuery object for the $.ui.genotrack element
   _addTrack: function(track, pos) {

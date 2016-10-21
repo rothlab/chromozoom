@@ -8,7 +8,6 @@ header("Cache-control: max-age=172800, public, must-revalidate");
 header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
 
 require_once("../lib/setup.php");
-require_once("../lib/chromsizes.php");
 require_once("../lib/ucsc_tracks.php");
 
 $response = array();
@@ -20,8 +19,6 @@ $prefix = parse_url(preg_replace('/%s.*$/', '', $chrom_info_url), PHP_URL_PATH);
 $big_zips = $ucsc_config['data_urls']['big_zips'];
 $track_db_path = $ucsc_config['ucsc_cached_track_db'];
 $cytoband_bed_path = $ucsc_config['ucsc_cached_track_cytoband'];
-$chromozoom_port = $_SERVER["SERVER_PORT"] != 80 ? ":".$_SERVER["SERVER_PORT"] : '';
-$chromozoom_uri = "http://" . $_SERVER["SERVER_NAME"] . $chromozoom_port . dirname(dirname($_SERVER['REQUEST_URI']));
 
 function getAllGenomes() {
   global $all_genomes_url, $prefix, $big_zips;
@@ -66,9 +63,10 @@ if (isset($_GET['db'])) {
     $response['mem'] = memory_get_usage();
     $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
     
-    $response['tracks'] = getTracksForDb($track_db_path, $chromozoom_uri, $db, 100);
-    $more_tracks = getTracksForDb($track_db_path, $chromozoom_uri, $db, 1000000, TRUE) > count($response['tracks']);
-    $response['moreTracks'] = $more_tracks ? (dirname($_SERVER['REQUEST_URI']) . '/ucsc_tracks.php') : FALSE;
+    $response['tracks'] = getTracksForDb($track_db_path, $db, 100);
+    $more_tracks = getTracksForDb($track_db_path, $db, 10000, FALSE, FALSE, TRUE) > count($response['tracks']);
+    $response['moreTracks'] = $more_tracks ? (dirname($_SERVER['REQUEST_URI']) . "/ucsc_tracks.php?db=$db") : FALSE;
+    $response['categories'] = $ucsc_config['ucsc_track_category_order'];
     
     $response['cytoBandIdeo'] = getCytoBandIdeo($cytoband_bed_path, $db);
   

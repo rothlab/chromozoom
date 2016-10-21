@@ -149,24 +149,31 @@ $.widget('ui.genotrack', {
       $cont.append($('<div class="subtrack unsized"/>').text(text));
     }
     // TODO: Next, draw the ticks for subtrack scales, which can be set by certain custom tracks.
-    this._fixVerticalTicks(density);
+    this._fixSideYAxisTicks(density);
     $cont.data('densBppp', densBpppMemo);
   },
   
   // fixes vertical tick elements for scales specified in o.scales on certain custom tracks
-  _fixVerticalTicks: function(density) {
+  _fixSideYAxisTicks: function(density) {
     var self = this,
       o = self.options,
       // o.scales is supposed to be an object with densities as the keys (or "_all", which is used for all densities)
       //    and each value is an array containing objects that each specify a scale
-      // each scale is in the form {limits: [low, high], specialTicks: [val], yLine: false, top: pixels, height: pixels, bottom: pixels}
+      // each scale is in the form {limits: [low, high], specialTicks: [val], yLine: false, top: pixels, 
+      //                            height: pixels, bottom: pixels}
       //    WHERE specialTicks and yLine are optional AND only one of bottom or height is required
       scales = o.scales._all || o.scales[density],
       $cont = self.$side.children('.subtrack-cont'),
       $scales = $cont.find('.scales'),
       scaleHtml = '<div class="scale"><span class="tick top"/><span class="tick bottom"/></div>',
       $scale, extraTicks;
-
+    
+    function format(n) {
+      var log = Math.log10(Math.abs(n)),
+        hasDecimal = n !== Math.round(n);
+      return n === 0 || !hasDecimal ? n : n.toFixed(Math.max(-Math.floor(log) + 2, 0));
+    }
+    
     if (scales && !_.isArray(scales)) { scales = [scales]; }
     if (!scales || !scales.length) { $cont.find('.scale').remove(); return; }
     _.each(scales, function(scale, i) {
@@ -179,8 +186,8 @@ $.widget('ui.genotrack', {
       $scale.toggleClass('tiny', $scale.height() < 24);
       
       // create, position, and fill the limit ticks
-      $scale.children('.top').text(scale.limits[1]).prepend('<span class="mark">&nbsp;</span>');
-      $scale.children('.bottom').text(scale.limits[0]).prepend('<span class="mark">&nbsp;</span>');
+      $scale.children('.top').text(format(scale.limits[1])).prepend('<span class="mark">&nbsp;</span>');
+      $scale.children('.bottom').text(format(scale.limits[0])).prepend('<span class="mark">&nbsp;</span>');
       
       // create, position, and fill the special ticks and the yLineMark tick
       extraTicks = _.isArray(scale.specialTicks) ? scale.specialTicks : [];
@@ -619,6 +626,7 @@ $.widget('ui.genotrack', {
     var o = this.options,
       custom = o.track.custom,
       xPad = 2,
+      fillBg = $(this.element).is(':nth-child(even)') ? '#f3f6fa' : '#ffffff',
       zoom = o.browser.genobrowser('zoom'),
       bestDensity = this._bestDensity(bppp),
       $tdata = $tile.children('.tdata.dens-' + density),
@@ -646,23 +654,41 @@ $.widget('ui.genotrack', {
       var x = area[0] * canvasXScale - xPad + leftOverhang,
         y = floorHack((area[1] + area[3]) * 0.5),
         lineHeight = 12,
-        lines;
-      if (area[7]) { ctx.fillStyle = 'rgb(' + area[7] + ')'; }
+        textWidth, lines, lineTextColor;
+      
       if (area[8]) {
         lines = area[8].split("\n");
         // potentially marked up + multiline text
         _.each(lines, function(l, i) {
           var altColorRegexp = /\[(\d+,\d+,\d+)\]$/,
-            m = l.match(altColorRegexp);
-          if (m) { 
-            ctx.fillStyle = 'rgb(' + m[1] + ')'; 
+            m = l.match(altColorRegexp),
+            lineY = y - (lines.length - 1) * lineHeight/2 + i * lineHeight,
+            lineTextColor = null;
+          if (m) {
+            lineTextColor = m[1];
             l = l.replace(altColorRegexp, ''); 
           }
-          ctx.fillText(l, x, y - (lines.length - 1) * lineHeight/2 + i * lineHeight);
-          if (m) { ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')'; }
+          if (fillBg) {
+            ctx.fillStyle = fillBg;
+            textWidth = ctx.measureText(l).width + 1;
+            ctx.fillRect(x - textWidth, lineY - lineHeight * 0.5, textWidth, lineHeight);
+          }
+          if (lineTextColor || area[7] || fillBg) { 
+            ctx.fillStyle = 'rgb(' + (lineTextColor ? lineTextColor : (area[7] ? area[7] : defaultColor)) + ')'; 
+          }
+          ctx.fillText(l, x, lineY);
+          if (lineTextColor) { ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')'; }
         });
-      } else { ctx.fillText(area[4], x, y); }
-      if (area[7]) { ctx.fillStyle = 'rgb(' + defaultColor + ')'; }
+      } else {
+        if (fillBg) {
+          ctx.fillStyle = fillBg;
+          textWidth = ctx.measureText(area[4]).width + 1;
+          ctx.fillRect(x - textWidth, y - lineHeight * 0.5, textWidth, lineHeight);
+        }
+        if (area[7] || fillBg) { ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')'; }
+        ctx.fillText(area[4], x, y); 
+      }
+      if (area[7] || fillBg) { ctx.fillStyle = 'rgb(' + defaultColor + ')'; }
       // FIXME: add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
       //        This allows the user to mouseover the text instead of just the feature itself (which can be very small)
       //        Can measure text width with ctx.measureText(text).

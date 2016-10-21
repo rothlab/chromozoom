@@ -28,6 +28,11 @@ BEDLIKE_FORMATS = {
 # length, roughly 27GB. Therefore, it's best to disable extraIndex'es for such large BED files.
 MAX_INDEXABLE_BED_SIZE = 27000 * 1000000
 
+class TrackInfo(dict):
+    def __init__(self, *args):
+        self.groups = {}
+        dict.__init__(self, args)
+
 
 def open_ucsc_yaml():
     global config_yaml
@@ -62,16 +67,14 @@ def create_sqllite3_db(xorganism):
         new_db = False
 
     xconn = sqlite3.connect(db_loc)
-    c = xconn.cursor()
     if new_db:
-        c.execute("CREATE TABLE tracks (name, displayName, type, grp, grpLabel, parentTrack, trackLabel, "
-                  "shortLabel, longLabel, priority, location, html longblob, updateDate, "
-                  "remoteSettings, localSettings, compositeTrack)")
-    return db_loc, c, xconn
+        xconn.execute("CREATE TABLE tracks (name, displayName, type, grp, grpLabel, parentTrack, trackLabel, "
+                      "shortLabel, longLabel, priority, location, html longblob, updateDate, "
+                      "remoteSettings, localSettings, compositeTrack, srt)")
+    return db_loc, xconn
 
-def get_last_local_updates(localcur):
-    localcur.execute('SELECT name, updateDate FROM tracks;')
-    return dict(localcur.fetchall())
+def get_last_local_updates(localconn):
+    return dict(localconn.execute('SELECT name, updateDate FROM tracks;').fetchall())
 
 def get_ucsc_base_url():
     return open_ucsc_yaml()['browser_hosts']['authoritative']
@@ -127,7 +130,7 @@ def connect_to_ucsc_mysql(host, db):
         conn = pymysql.connect(host=host, user='genome', database=db)
         return conn.cursor()
     except pymysql.err.InternalError:
-        print('WARNING ({}): No MySQL tables found for "{}". Omitting.'.format(ut.print_time(), organism))
+        print('WARNING ({}): No MySQL tables found for "{}". Omitting.'.format(print_time(), organism))
         return None
 
 
@@ -167,7 +170,7 @@ def get_organisms_list(host='', prefix=None):
         conn = pymysql.connect(host=host, user='genome', database='hgcentral')
         xcur = conn.cursor()
     except pymysql.err.InternalError:
-        print('FATAL ({}): Could not connect to UCSC MySQL server at "{}".'.format(ut.print_time(), host))
+        print('FATAL ({}): Could not connect to UCSC MySQL server at "{}".'.format(print_time(), host))
         sys.exit(1)
     
     org_names = qups("SELECT name FROM dbDb WHERE active = 1" + prefix_query, xcur)
@@ -290,7 +293,7 @@ def create_hierarchy(organism, table_source):
 
 def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
     selected_tracks = []
-    track_info = {"_groups": {}}
+    track_info = TrackInfo()
     curr_tgroupname = None
     curr_track = None
     curr_trackname = None
@@ -336,7 +339,7 @@ def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
             if re.match(r'^\s*Trackgroup:', line):
                 process_tables()
                 curr_tgroupname = line.split('(', 1)[1][:-2]
-                track_info['_groups'][line.split()[1]] = curr_tgroupname
+                track_info.groups[line.split()[1]] = curr_tgroupname
             elif re.match(r'^\s*Track:', line):
                 process_tables()
                 curr_track = line.split()[1]
@@ -383,10 +386,10 @@ def fetch_tracks(xcur, selection=None):
         # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
         fixed_selection = [re.sub(r'^all_', '', element) for element in selection]
         in_clause = ','.join(['"' + element + '"' for element in fixed_selection])
-        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url "
+        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url, priority "
                        "FROM trackDb WHERE tableName in ({})").format(in_clause), xcur)
     else:
-        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url "
+        tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url, priority "
                        "FROM trackDb ORDER BY tableName"), xcur)
     
     tracks = [list(track) for track in tracks]
@@ -402,7 +405,7 @@ def fetch_supertracks(xcur, track_info):
     """
     Fetches supertrack information from the specified UCSC database, which is in the trackDb table
     """
-    tracks = qups("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url "
+    tracks = qups("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url, priority "
                   "FROM trackDb WHERE settings REGEXP '\\nsuperTrack on[ [.newline.]]' ORDER BY tableName", xcur)
     
     tracks = [list(track) for track in tracks]
@@ -411,7 +414,7 @@ def fetch_supertracks(xcur, track_info):
         track_info[track[0]] = {
             'displayName': track[3],
             'trackLabel': track[3],
-            'groupLabel': track_info['_groups'][track[2]],
+            'groupLabel': track_info.groups[track[2]],
             'parentTrack': track[0]
         }
         children = qups(("SELECT tableName FROM trackDb WHERE settings REGEXP '\\nsuperTrack {}[ [.newline.]]'"
@@ -422,9 +425,9 @@ def fetch_supertracks(xcur, track_info):
 
 
 def fetch_view_settings(xcur, view_track_name, parent_track):
-    track = qups(("SELECT settings FROM trackDb WHERE tableName = \"{}\"").format(view_track_name), xcur)
+    tracks = qups(("SELECT settings FROM trackDb WHERE tableName = \"{}\"").format(view_track_name), xcur)
     if len(tracks) > 0:
-        settings = parse_trackdb_settings(track[0][0])
+        settings = parse_trackdb_settings(tracks[0][0])
         if 'view' in settings and 'parent' in settings and settings['parent'] == parent_track:
             return settings
         else:
@@ -831,6 +834,26 @@ def test_default_remote_item_url(organism, table_name, sample_item):
     return no_errors and html.find(b"subheadingBar") >= 0
 
 
+def find_bw_location_for_wig(organism, track_name):
+    """
+    Try to find a bigwig file on http://hgdownload.cse.ucsc.edu/goldenPath/ that corresponds to this wig track
+    """
+    file_location = get_wig_as_bigwig() % (organism, track_name, organism, track_name)
+    
+    if not url_exists(file_location):
+        # Admittedly this hack was built entirely for phastCons100Way in hg19. Not sure if worth it.
+        first_digit = re.search('\\d', track_name)
+        if first_digit is not None:
+            inverted_name = track_name[first_digit.start():] + '.' + track_name[0:first_digit.start()]
+            file_location = get_wig_as_bigwig() % (organism, track_name, organism, inverted_name)
+        if first_digit is None or not url_exists(file_location):
+            print('FAILED ({}): [db {}] URL for "{}" wig track (as bigWig file) is not reachable: {}'
+                    .format(print_time(), organism, track_name, file_location))
+            return None
+
+    return file_location
+
+
 def translate_settings(xcur, organism, table_name, parent_track, is_composite_track, sample_item, old_settings, 
                        bed_plus_fields=None, url=None):
     """
@@ -839,16 +862,22 @@ def translate_settings(xcur, organism, table_name, parent_track, is_composite_tr
     whitelisted_keys = ['autoScale', 'altColor', 'alwaysZero', 'color', 'colorByStrand', 'container', 'itemRgb', 
                         'maxHeightPixels', 'url', 'useScore', 'viewLimits', 'windowingFunction']
     new_settings = dict()
+
+    if 'superTrack' in old_settings:
+        super_track_pieces = re.split(r'\s+', old_settings['superTrack'])
+        new_settings['visibility'] = 'hide' if parent_pieces[-1] == 'off' else 'show'
     
-    # Inherit settings from a parent trackDb View, if it exists
-    # See: https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html#Composite_-_Views_Settings
-    # We need to actually merge these into new_settings because we don't save View trackDb entries to tracks.db
     if 'parent' in old_settings:
         parent_pieces = re.split(r'\s+', old_settings['parent'])
-        new_settings['visibility'] = 'show' if parent_pieces[-1] else 'hide'
+        new_settings['visibility'] = 'hide' if parent_pieces[-1] == 'off' else 'show'
+        # Inherit settings from a parent trackDb View, if it exists
+        # See: https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html#Composite_-_Views_Settings
+        # We need to forcibly merge these into new_settings because we don't save View trackDb entries to tracks.db
         if parent_pieces[0] != parent_track:
             view_settings = fetch_view_settings(xcur, parent_pieces[0], parent_track)
             if view_settings is not None:
+                if view_settings.get('visibility') == 'hide':
+                    new_settings['visibility'] = 'hide'
                 view_settings.update(old_settings)
                 old_settings = view_settings
     
@@ -887,3 +916,47 @@ def translate_settings(xcur, organism, table_name, parent_track, is_composite_tr
         new_settings['url'] = get_remote_item_url() % ('$D', '$S', '${', '$}', '${', '$}', table_name, '$$')
     
     return json.dumps(new_settings)
+
+
+def save_to_local_database(organism, localconn, row_vals, children = []):
+    """
+    Saves row_vals to the tracks table in the local SQLite database, and updates parentTrack on children, if provided
+    """
+    query = 'INSERT INTO tracks VALUES (' + (','.join(['?'] * len(row_vals))) + ')'
+    localconn.execute(query, row_vals)
+    track_name = row_vals[0]
+    print('INFO ({}): [db {}] Saved local database entry for track "{}".'.format(print_time(), organism, track_name))
+    
+    # Ensure child tracks of super tracks have parentTrack set correctly.
+    for child_track_name in children:
+        print('INFO ({}): [db {}] Also updated parentTrack on child "{}" for supertrack "{}".'.format(print_time(), 
+                organism, child_track_name, track_name))
+        localconn.execute('UPDATE tracks SET parentTrack = ? WHERE name = ?', (track_name, child_track_name))
+    
+    localconn.commit()
+
+
+def deprioritize_empty_parent_tracks(organism, localconn):
+    """
+    If a super or composite track doesn't actually contain any real tracks, deprioritize to 999999
+    """
+    query = '''SELECT name FROM tracks AS t1 WHERE
+                    t1.compositeTrack = 1 AND
+                    t1.type {} 'supertrack' AND
+                    (SELECT COUNT(*) FROM tracks as t2 WHERE 
+                        t2.parentTrack = t1.name AND t2.name != t1.name {}) == 0'''
+    empty_composite_tracks = [row[0] for row in localconn.execute(query.format('!=', '')).fetchall()]
+    for track_name in empty_composite_tracks:
+        print('INFO ({}): [db {}] Setting composite track "{}" priority=999999 for having no children.'.format(
+                print_time(), organism, track_name))
+        localconn.execute('UPDATE tracks SET priority = 999999 WHERE name = ?', (track_name,))
+    
+    extra_clause = ' AND name NOT IN (' + (','.join(['?'] * len(empty_composite_tracks))) + ')'
+    empty_supertracks = [row[0] for row in 
+                         localconn.execute(query.format('==', extra_clause), empty_composite_tracks).fetchall()]
+    for track_name in empty_supertracks:
+        print('INFO ({}): [db {}] Setting supertrack "{}" priority=999999 for having no non-empty children.'.format(
+                print_time(), organism, track_name))
+        localconn.execute('UPDATE tracks SET priority = 999999 WHERE name = ?', (track_name,))
+    
+    localconn.commit()

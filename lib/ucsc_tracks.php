@@ -1,11 +1,13 @@
 <?php
 
+require_once dirname(__FILE__) . "/chromsizes.php";
+
 /* 
  * Utility functions for working with SQLite tracks.db databases saved by UCSC_tracks/get_tracks.py
  */
 
 // Returns all tracks from tracks.db at or below the given `priority` for the UCSC genome $db
-function getTracksForDb($track_db_path, $chromozoom_uri, $db, $priority=100, $count_only=FALSE) {
+function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE, $search=FALSE, $count_only=FALSE) {
   $tracks = array();
   $track_data_dir = dirname(dirname($track_db_path));
   $track_db_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $track_db_path, $db)); 
@@ -14,8 +16,21 @@ function getTracksForDb($track_db_path, $chromozoom_uri, $db, $priority=100, $co
   } catch (Exception $e) { return $count_only ? 0 : $tracks; }
   
   $what = $count_only ? 'COUNT(*)' : '*';
-  $stmt = $track_db->prepare("SELECT $what FROM tracks WHERE priority <= :priority ORDER BY priority, name");
-  $stmt->bindValue(':priority', $priority, SQLITE3_INTEGER);
+  $where = '1=1';
+  if ($priority !== FALSE) { $where .= ' AND priority <= :priority'; }
+  if ($parent_track !== FALSE) { $where .= ' AND parentTrack = :parent1 AND name != :parent2'; }
+  if ($search !== FALSE) { $search .= ' AND (shortLabel LIKE :search1 OR longLabel LIKE :search2 OR name LIKE :search3)'; }
+  $stmt = $track_db->prepare("SELECT $what FROM tracks WHERE $where ORDER BY priority, srt, name");
+  if ($priority !== FALSE) { $stmt->bindValue(':priority', $priority, SQLITE3_INTEGER); }
+  if ($parent_track !== FALSE) { 
+    $stmt->bindValue(':parent1', $parent_track, SQLITE3_TEXT);
+    $stmt->bindValue(':parent2', $parent_track, SQLITE3_TEXT); 
+  }
+  if ($search !== FALSE) { 
+    $stmt->bindValue(':search1', "%$search%", SQLITE3_TEXT);
+    $stmt->bindValue(':search2', "%$search%", SQLITE3_TEXT);
+    $stmt->bindValue(':search3', "%$search%", SQLITE3_TEXT);
+  }
   $result = $stmt->execute();
   
   if ($count_only) { $row = $result->fetchArray(); return $row[0]; }
@@ -38,6 +53,7 @@ function getTracksForDb($track_db_path, $chromozoom_uri, $db, $priority=100, $co
       'shortLabel' => $row['shortLabel'],
       'composite' => $row['compositeTrack'],
       'grp' => $row['grpLabel'],
+      'srt' => $row['srt'],
       'type' => littleToBigFormat($row['type']),
       'opts' => array_merge($local_settings, $override_settings)
     );

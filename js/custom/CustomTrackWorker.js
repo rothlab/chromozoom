@@ -13,9 +13,9 @@ if (!global.console || !global.console.log) {
 var CustomTrackWorker = {
   _tracks: [],
   _throwErrors: false,
-  parse: function(text, browserOpts) {
+  parse: function() {
     var self = this,
-      tracks = CustomTracks.parse(text, browserOpts);
+      tracks = CustomTracks.parse.apply(CustomTracks, arguments);
     return _.map(tracks, function(t) {
       // we want to keep the track object in our private store, and delete the data from the copy that
       // is sent back over the fence, since it is expensive/impossible to serialize

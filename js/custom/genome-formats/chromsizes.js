@@ -19,6 +19,7 @@ var ChromSizesFormat = {
     o.assemblyDate = m.assemblyDate || '';
     
     if (m.tracks) { self.format().createTracks(m.tracks); }
+    if (_.isArray(m.categories)) { o.groupTracksByCategories = m.categories; }
     o.searchableTracks = m.moreTracks || (m.tracks && m.tracks.length > 15);
     self.canSearchTracks = _.isString(m.moreTracks);
     
@@ -31,62 +32,63 @@ var ChromSizesFormat = {
       categories = {};
       
     _.each(tracks, function(t) {
-      var trackOpts, 
-        visible = true,
-        cat = t.grp || "Feature Tracks",
-        container, trackSpec, tagging;
-      
-      t.lines = t.lines || [];
-      trackOpts = /^track\s+/i.test(t.lines[0]) ? global.CustomTracks.parseDeclarationLine(t.lines.shift()) : {};
-      _.extend(trackOpts, t.opts, {name: t.name, type: t.type});
-      if (t.parent || trackOpts.visibility == 'hide') { visible = false; }
-      delete trackOpts.visibility;
-      
-      if (t.composite) {
-        
-        container = trackOpts.container && trackOpts.container == 'multiWig' ? 'multiWig' : 'composite';
-        tagging = trackOpts.tagging;
-        delete trackOpts.container;
-        delete trackOpts.tagging;
-        
-        trackSpec = {
-          n: t.name,
-          c: container,
-          opts: trackOpts,
-          tagging: tagging
-        };
-        if (t.parent) { trackSpec.parent = t.parent; }
-        o.compositeTracks.push(trackSpec);
-    
-      } else {
-        trackSpec = {
-          fh: {},
-          n: t.name,
-          s: ['dense', 'squish', 'pack'],
-          h: trackHeightForType(t.type),
-          m: ['pack'],
-          customData: t.lines
-        };
-        
-        if (t.parent) { trackSpec.parent = t.parent; }
-        if (trackOpts.tags) { trackSpec.tags = trackOpts.tags; }
-        delete trackOpts.tags;
-        
-        t.lines.unshift('track ' + optsAsTrackLine(trackOpts) + '\n');
-        o.availTracks.push(trackSpec);
-        if (visible) { o.tracks.push({n: t.name}); }
-      }
-      
-      o.trackDesc[t.name] = {
-        cat: cat,
-        sm: t.shortLabel || t.name,
-        lg: t.description || t.name
-      };
-      
-      categories[cat] = true;
+      self.format()._convertTrackToOpts.call(self, t, o, true);
+      categories[o.trackDesc[t.name].cat] = true;
     });
     
-    if (_.keys(categories).length > 1) { o.groupTracksByCategory = true; }
+    if (!o.groupTracksByCategories && _.keys(categories).length > 1) { o.groupTracksByCategories = true; }
+  },
+  
+  _convertTrackToOpts: function(t, o, hideAllChildren) {
+    var visible = true,
+      cat = t.grp || "Feature Tracks",
+      trackOpts, container, trackSpec, tagging;
+    
+    t.lines = t.lines || [];
+    trackOpts = /^track\s+/i.test(t.lines[0]) ? global.CustomTracks.parseDeclarationLine(t.lines.shift()) : {};
+    _.extend(trackOpts, t.opts, {name: t.name, type: t.type});
+    if ((hideAllChildren && t.parent) || trackOpts.visibility == 'hide') { visible = false; }
+    delete trackOpts.visibility;
+  
+    trackSpec = {n: t.name};
+    if (t.parent) { trackSpec.parent = t.parent; }
+    if (t.srt) { trackSpec.srt = t.srt; }
+  
+    if (t.composite) {
+      container = trackOpts.container && trackOpts.container == 'multiWig' ? 'multiWig' : 'composite';
+      tagging = trackOpts.tagging;
+      delete trackOpts.container;
+      delete trackOpts.tagging;
+    
+      _.extend(trackSpec, {
+        c: container,
+        opts: trackOpts,
+        tagging: tagging
+      });
+      o.compositeTracks.push(trackSpec);
+    } else {
+      _.extend(trackSpec, {
+        fh: {},
+        s: ['dense', 'squish', 'pack'],
+        h: trackHeightForType(t.type),
+        m: ['pack'],
+        customData: t.lines
+      });
+      if (trackOpts.tags) { trackSpec.tags = trackOpts.tags; }
+      delete trackOpts.tags;
+    
+      t.lines.unshift('track ' + optsAsTrackLine(trackOpts) + '\n');
+      o.availTracks.push(trackSpec);
+      if (visible) { o.tracks.push({n: t.name}); }
+    }
+  
+    o.trackDesc[t.name] = {
+      cat: cat,
+      sm: t.shortLabel || t.name,
+      lg: t.description || t.name
+    };
+    
+    return o;
   },
   
   createChrBands: function(cytoBandIdeo) {
@@ -123,14 +125,20 @@ var ChromSizesFormat = {
     }
   },
   
-  searchTracks: function(query, callback) {
+  searchTracks: function(params, callback) {
     var self = this,
       o = self.opts;
     if (!_.isString(o.searchableTracks)) { callback([]); }
     
-    $.ajax(self.ajaxDir() + o.searchableTracks, {
-      data: {url: self.opts.bigDataUrl, search: query},
+    $.ajax(o.searchableTracks, {
+      data: params,
       success: function(data) {
+        if (data.error) { callback(data); }
+        else {
+          var opts = {compositeTracks: [], availTracks: [], tracks: [], trackDesc: {}};
+          _.each(data.tracks, function(t) { self.format()._convertTrackToOpts.call(self, t, opts, false); });
+          callback(opts);
+        }
       }
     });
   }
