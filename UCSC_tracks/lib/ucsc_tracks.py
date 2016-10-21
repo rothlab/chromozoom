@@ -865,7 +865,7 @@ def translate_settings(xcur, organism, table_name, parent_track, is_composite_tr
 
     if 'superTrack' in old_settings:
         super_track_pieces = re.split(r'\s+', old_settings['superTrack'])
-        new_settings['visibility'] = 'hide' if parent_pieces[-1] == 'off' else 'show'
+        new_settings['visibility'] = 'hide' if super_track_pieces[-1] == 'off' else 'show'
     
     if 'parent' in old_settings:
         parent_pieces = re.split(r'\s+', old_settings['parent'])
