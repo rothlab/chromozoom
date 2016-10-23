@@ -1291,7 +1291,7 @@ module.exports = (function($){
     // = The following functions handle parsing of custom data =
     // =========================================================
     
-    _parseCustomGenomeTracks(tracksToParse, finishSetup, posAfterParsing) {
+    _parseCustomGenomeTracks: function(tracksToParse, finishSetup, posAfterParsing) {
       var self = this,
         $elem = self.element,
         o = self.options,
