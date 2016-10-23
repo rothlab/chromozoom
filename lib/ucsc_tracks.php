@@ -6,8 +6,13 @@ require_once dirname(__FILE__) . "/chromsizes.php";
  * Utility functions for working with SQLite tracks.db databases saved by UCSC_tracks/get_tracks.py
  */
 
-// Returns all tracks from tracks.db at or below the given `priority` for the UCSC genome $db
-function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE, $search=FALSE, $count_only=FALSE) {
+// Returns all tracks from the local UCSC track cache database $track_db_path at or below the given $priority
+// Optional:
+//   $parent_track - FALSE or string; only return tracks that are children of this track
+//   $search - FALSE or string; only return tracks matching this keyword
+//   $also_include - FALSE or array; force the given tracks to be included in the result
+function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE, $search=FALSE, $also_include=FALSE,
+                        $count_only=FALSE) {
   $tracks = array();
   $track_data_dir = dirname(dirname($track_db_path));
   $track_db_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $track_db_path, $db)); 
@@ -19,7 +24,11 @@ function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE,
   $where = '1=1';
   if ($priority !== FALSE) { $where .= ' AND priority <= :priority'; }
   if ($parent_track !== FALSE) { $where .= ' AND parentTrack = :parent1 AND name != :parent2'; }
-  if ($search !== FALSE) { $search .= ' AND (shortLabel LIKE :search1 OR longLabel LIKE :search2 OR name LIKE :search3)'; }
+  if ($search !== FALSE) { $where .= ' AND (shortLabel LIKE :search1 OR longLabel LIKE :search2 OR name LIKE :search3)'; }
+  if (is_array($also_include) && count($also_include)) { 
+    $where .= ' OR name IN (' . implode(',', preg_filter('/^/', ':inc', range(1, count($also_include)))) . ')';
+  }
+  
   $stmt = $track_db->prepare("SELECT $what FROM tracks WHERE $where ORDER BY priority, srt, name");
   if ($priority !== FALSE) { $stmt->bindValue(':priority', $priority, SQLITE3_INTEGER); }
   if ($parent_track !== FALSE) { 
@@ -31,6 +40,10 @@ function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE,
     $stmt->bindValue(':search2', "%$search%", SQLITE3_TEXT);
     $stmt->bindValue(':search3', "%$search%", SQLITE3_TEXT);
   }
+  if (is_array($also_include)) {
+    foreach($also_include as $i => $track) { $stmt->bindValue(":inc" . ($i + 1), $track, SQLITE3_TEXT); }
+  }
+  
   $result = $stmt->execute();
   
   if ($count_only) { $row = $result->fetchArray(); return $row[0]; }

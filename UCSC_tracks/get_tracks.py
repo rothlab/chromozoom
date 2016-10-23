@@ -13,6 +13,8 @@ parser.add_argument('-o', '--out', action='store', type=str, default='./data',
                     help='Directory where finished data will be stored (default is ./data).')
 parser.add_argument('-n', '--dry_run', action='store_true', default=False,
                     help='Don\'t actually fetch any data, just list the tracks and what would be updated.')
+parser.add_argument('-N', '--update_metadata_only', action='store_true', default=False,
+                    help='Don\'t fetch any track data, just update each track\'s metadata in the local database.')
 parser.add_argument('-g', '--org_prefix', action='store', type=str, default='',
                     help='Restrict scraping to organism database names matching this prefix.')
 parser.add_argument('-C', '--composite_tracks', action='store_true', default=False,
@@ -99,7 +101,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
         parent_track = track_info[track_name]['parentTrack']
         print('INFO ({}): [db {}] Checking table "{}" (track {}).'.format(ut.print_time(), organism, track_name, parent_track))
         
-        file_location = None
+        file_location, bed_location, as_location = (None, None, None)
         bed_plus_fields = None
         sample_item = None
         track_has_a_table = track_name in selected_tracks_having_tables
@@ -112,7 +114,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
         # First, check if we need to update the table at all
         if track_has_a_table and track_name in last_updates:
             update_date = ut.get_update_time(cur, organism, track_name)
-            if last_updates[track_name] == update_date:
+            if not args.update_metadata_only and last_updates[track_name] == update_date:
                 print('INFO ({}): [db {}] data for table "{}" is up to date.'.format(ut.print_time(),
                         organism, track_name))
                 continue
@@ -122,7 +124,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             track_noun = "supertrack" if is_super_track else ("composite track" if is_composite_or_super else "table")
             print('INFO ({}): [db {}] Need to fetch {} "{}".'.format(ut.print_time(), organism, track_noun, track_name))
         if track_name in last_updates and not args.dry_run:
-            localconn.execute('DELETE FROM tracks WHERE name="{}";'.format(track_name))
+            file_location, bed_plus_fields = ut.get_last_location_and_bed_plus_fields(localconn, track_name)
         
         if args.dry_run: continue
         
@@ -158,37 +160,39 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             print('DONE ({}): [db {}] Fetched remote location for "{}" "wig" file, as bigWig.'.format(ut.print_time(),
                     organism, track_name))
 
-        # BED, genePred, PSL, GVF, and narrowPeak processing - need to save and convert these to bigBed
+        # BED, genePred, rmsk, PSL, GVF, and narrowPeak processing - need to save and convert these to bigBed
         elif bedlike_format:
-            bed_location = ut.fetch_bed_table(cur, track_name, organism, bedlike_format)
-            if bed_location is None:
-                continue
-            # An uncompressed copy of the cytoBandIdeo track is kept alongside tracks.db
-            if track_name == 'cytoBandIdeo':
-                copyfile(bed_location, './{}/cytoBandIdeo.bed'.format(organism))
+            if not args.update_metadata_only:
+                bed_location = ut.fetch_bed_table(cur, track_name, organism, bedlike_format)
+                if bed_location is None:
+                    continue
+                # An uncompressed copy of the cytoBandIdeo track is kept alongside tracks.db
+                if track_name == 'cytoBandIdeo':
+                    copyfile(bed_location, './{}/cytoBandIdeo.bed'.format(organism))
             
-            as_location, bed_type = ut.get_as_and_bed_type_for_bedlike_format(bedlike_format)
-            if as_location is None: # Generic BED tracks have autoSql specifying their fields on UCSC's MySQL server
-                as_location = ut.fetch_as_file(bed_location, cur, track_name)
-                bed_type = tr_type.replace(' ', '').rstrip('.')
+                as_location, bed_type = ut.get_as_and_bed_type_for_bedlike_format(bedlike_format)
+                if as_location is None: # Generic BED tracks have autoSql specifying their fields on UCSC's MySQL server
+                    as_location = ut.fetch_as_file(bed_location, cur, track_name)
+                    bed_type = tr_type.replace(' ', '').rstrip('.')
             
-            bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_location=as_location)
-            file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
+                bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_location=as_location)
+                file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
 
-            # If bigBed building failed, try fixing the autosql file once and retrying
-            if file_location is None:
-                try:
-                    ut.fix_bed_as_files(bed_location, bed_type)
-                    file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location)
-                except:
-                    pass
+                # If bigBed building failed, try fixing the autosql file once and retrying
+                if file_location is None:
+                    try:
+                        ut.fix_bed_as_files(bed_location, bed_type)
+                        file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location)
+                    except:
+                        pass
+            
             if file_location is None:
                 continue
             
             # Delete interim files for successful builds
-            sample_item = ut.get_first_item_from_bed(bed_location)
-            os.remove(bed_location)
-            if not as_location.startswith(os.path.join(script_directory, 'autosql')): 
+            sample_item = ut.get_first_item_from_bigbed(file_location)
+            if bed_location is not None: os.remove(bed_location)
+            if as_location is not None and not as_location.startswith(os.path.join(script_directory, 'autosql')): 
                 os.remove(as_location)
             
         else:
@@ -203,6 +207,8 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
                 parent_track, track_info[track_name]['trackLabel'], short_label, long_label, track_priority[track_name], 
                 file_location, html_description, update_date, settings, local_settings, is_composite_or_super, sort)
         ut.save_to_local_database(organism, localconn, row_vals, children)
+
+    # ..ends the loop iterating over my_tracks.
 
     # ===================================================================================================
     # = Finally, check the composite and super tracks and if they are empty, mark them as low priority. =

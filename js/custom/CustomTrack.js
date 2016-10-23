@@ -20,6 +20,7 @@ function CustomTrack(opts, browserOpts) {
   var type = this.type();
   if (type === null) { throw new Error("Unsupported track type '"+opts.type+"' encountered on line " + opts.lineNum); }
   this.opts = _.extend({}, this.constructor.defaults, type.defaults || {}, opts);
+  this.opts.priority = parseInt10(this.opts.priority);
   _.extend(this, {
     browserOpts: browserOpts,
     typeArgs: typeWithArgs.slice(1),
@@ -41,7 +42,8 @@ function CustomTrack(opts, browserOpts) {
 CustomTrack.defaults = {
   name: 'User Track',
   description: 'User Supplied Track',
-  color: '0,0,0'
+  color: '0,0,0',
+  priority: 1
 };
 
 CustomTrack.types = {

@@ -12,7 +12,7 @@ import time
 import gzip
 from .autosql import AutoSqlDeclaration
 
-script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRIPT_DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Cache the parsed config file after the first access
 config_yaml = None
 
@@ -22,7 +22,8 @@ BEDLIKE_FORMATS = {
     'genePred': ('autosql/genePredFull.as', 'bed12+8'),
     'psl': ('autosql/bigPsl.as', 'bed12+12'),
     'gvf': ('autosql/bigGvf.as', 'bed8+3'),
-    'narrowPeak': ('autosql/bigNarrowPeak.as', 'bed6+4')
+    'narrowPeak': ('autosql/bigNarrowPeak.as', 'bed6+4'),
+    'rmsk' : ('autosql/bigRmsk.as', 'bed6+6')
 }
 # For some reason bedToBigBed fails to create an extraIndex for BED files above this
 # length, roughly 27GB. Therefore, it's best to disable extraIndex'es for such large BED files.
@@ -70,11 +71,13 @@ def create_sqllite3_db(xorganism):
     if new_db:
         xconn.execute("CREATE TABLE tracks (name, displayName, type, grp, grpLabel, parentTrack, trackLabel, "
                       "shortLabel, longLabel, priority, location, html longblob, updateDate, "
-                      "remoteSettings, localSettings, compositeTrack, srt)")
+                      "remoteSettings, localSettings, compositeTrack, srt);")
+        xconn.execute("CREATE UNIQUE INDEX ix_tracks_name on tracks(name);")
     return db_loc, xconn
 
 def get_last_local_updates(localconn):
     return dict(localconn.execute('SELECT name, updateDate FROM tracks;').fetchall())
+
 
 def get_ucsc_base_url():
     return open_ucsc_yaml()['browser_hosts']['authoritative']
@@ -153,6 +156,18 @@ def get_update_time(xcur, db, table_name):
     """
     return str(qups(("SELECT UPDATE_TIME FROM information_schema.tables "
                      "WHERE TABLE_SCHEMA='{}' AND TABLE_NAME='{}'").format(db, table_name), xcur)[0][0])
+
+
+def get_last_location_and_bed_plus_fields(localconn, track_name):
+    """
+    Fetches these metadata for a track entry that was saved to the local database during the last update
+    """
+    prev_row = localconn.execute(
+            'SELECT location, localSettings FROM tracks WHERE name="{}";'.format(track_name)).fetchone()
+    if prev_row is None:
+        raise RuntimeError("Previous entry for track {} could not be retrieved".format(track_name))
+    settings = json.loads(prev_row[1])
+    return prev_row[0], settings['bedPlusFields'].split(',') if settings.get('bedPlusFields') else None
 
 
 def get_numrows(xcur, table_name):
@@ -382,12 +397,14 @@ def fetch_tracks(xcur, selection=None):
     """
     Fetches track information from the specified UCSC database, which is in the trackDb table
     """
-    if selection:
+    if selection is not None:
+        if len(selection) == 0:
+            sys.exit("FATAL: No tracks were selected by your criteria. Check your use of -C, -S, -P, -t, and -s...")
         # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
         fixed_selection = [re.sub(r'^all_', '', element) for element in selection]
         in_clause = ','.join(['"' + element + '"' for element in fixed_selection])
         tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url, priority "
-                       "FROM trackDb WHERE tableName in ({})").format(in_clause), xcur)
+                       "FROM trackDb WHERE tableName IN ({})").format(in_clause), xcur)
     else:
         tracks = qups(("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url, priority "
                        "FROM trackDb ORDER BY tableName"), xcur)
@@ -462,7 +479,6 @@ def is_bedlike_format(track_type):
 
 
 def get_as_and_bed_type_for_bedlike_format(track_type):
-    global script_directory
     """
     Is the given track type convertable to BED/bigBed? 
     If so, returns the location of the autoSql file for this type, and the BED subtype (bedN+N).
@@ -471,7 +487,7 @@ def get_as_and_bed_type_for_bedlike_format(track_type):
     track_type = re.split(r'\s+', track_type)
     location, bed_subtype = BEDLIKE_FORMATS[track_type[0]]
     if location is not None:
-        location = os.path.normpath(os.path.join(script_directory, location))
+        location = os.path.normpath(os.path.join(SCRIPT_DIRECTORY, location))
     return location, bed_subtype
 
 
@@ -592,7 +608,7 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
         return None
     
     if bedlike_format == 'genePred':
-        # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html
+        # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html which explains what we're doing here
         awk_script = """
         {
           split($11, chromEnds, ",")
@@ -620,6 +636,17 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
             awk_script = awk_script.replace('%s', col_vars)
         else:
             awk_script = awk_script.replace('%s', '"", "unk", "unk", blankExonFrames')
+        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
+                                                                                                    awk_script, location)
+    elif bedlike_format == 'rmsk':
+        awk_script = """
+        {
+          score = 1000 - $3 - $4 - $5
+          print ($6, $7, $8, $11, score < 0 ? 0 : score, $10, $12, $13, $3 / 10, $4 / 10, $5 / 10, $2)
+        }
+        """
+        if not has_bin_column:
+            awk_script = re.sub(r'\$(\d+)\b', lambda m: '$' + str(int(m.group(1)) - 1), awk_script)
         command = "cat '{}' | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
                                                                                                     awk_script, location)
     elif bedlike_format == 'psl':
@@ -900,6 +927,8 @@ def translate_settings(xcur, organism, table_name, parent_track, is_composite_tr
     
     # special exception for knownGene
     if table_name == 'knownGene': new_settings['itemRgb'] = 'on'
+    # special exception for rmsk
+    if table_name == 'rmsk': new_settings['useScore'] = 1
     # save bedPlusFields parsed from the autoSql file
     if bed_plus_fields is not None: new_settings['bedPlusFields'] = ",".join(bed_plus_fields)
     
@@ -922,7 +951,7 @@ def save_to_local_database(organism, localconn, row_vals, children = []):
     """
     Saves row_vals to the tracks table in the local SQLite database, and updates parentTrack on children, if provided
     """
-    query = 'INSERT INTO tracks VALUES (' + (','.join(['?'] * len(row_vals))) + ')'
+    query = 'INSERT OR REPLACE INTO tracks VALUES (' + (','.join(['?'] * len(row_vals))) + ')'
     localconn.execute(query, row_vals)
     track_name = row_vals[0]
     print('INFO ({}): [db {}] Saved local database entry for track "{}".'.format(print_time(), organism, track_name))

@@ -380,6 +380,7 @@ module.exports = (function($){
         var $li = $('<li class="category-section"/>').appendTo($ul),
           $header = $('<div class="category-header"/>').text(cat).appendTo($li);
         $('<div class="collapsible-btn"><div class="arrow"/></div>').prependTo($header);
+        $header.click(_.bind(self._trackPickerClicked, self));
         return $('<ul/>').appendTo($li);
       }
             
@@ -397,9 +398,9 @@ module.exports = (function($){
         if (_.isArray(o.groupTracksByCategories)) { 
           groupNames = _.sortBy(groupNames, function(cat) { return _.indexOf(o.groupTracksByCategories, cat); });
         }
-        self._addTracks(ungrouped);
+        self._addTracks(ungrouped, null, 100);
         _.each(groupNames, function(cat) { 
-          self._addTracks(groups[cat], addSection(cat));
+          self._addTracks(groups[cat], addSection(cat), 100);
         });
       } else { self._addTracks(allTracks); }
       
@@ -415,7 +416,6 @@ module.exports = (function($){
         }
       } else { $searchBar.hide(); }
       
-      $trackPicker.find('.category-header,.composite.clickable').click(_.bind(self._trackPickerClicked, self));
       if (o.tracks.length === 1) { $ul.find('input[name='+o.tracks[0].n+']').attr('disabled', true); }
       $reset.click(function(e) { self._resetToDefaultTracks(); });
       return self._createPicker($toggleBtn, $trackPicker, $b).hide();
@@ -1230,7 +1230,12 @@ module.exports = (function($){
           $overlay.show();
           $overlayMessage.show().text('Loading genome ' + remote.messageText + '...');
           if (customGenomeSource == 'ucsc') {
-            remoteParams = { db: customGenomePieces[1], limit: customGenomePieces[2], meta: 1 };
+            remoteParams = {
+              db: customGenomePieces[1],
+              tracks: params.tracks.replace(/:\d+/g, ''), 
+              limit: customGenomePieces[2],
+              meta: 1
+            };
           } else { // customGenomeSource == 'igb'
             remoteParams = { url: customGenomePieces.slice(2).join(':'), limit: customGenomePieces[1] };
           }
@@ -1513,10 +1518,11 @@ module.exports = (function($){
       
       // For checkboxes on composite tracks, use the "indeterminate" state if a fraction of child tracks are selected
       $checkboxes.filter('.composite').each(function() {
-        var $ul = $(this).closest('.choice').find('ul:first'),
+        var $li = $(this).closest('.choice'),
+          $ul = $li.find('ul:first'),
           childrenChecked = $ul.find(':checked:not(.composite)').length,
           childrenTotal = $ul.find(':checkbox:not(.composite)').length,
-          partiallyLoaded = $ul.find('.choice.composite.unloaded').length > 0;
+          partiallyLoaded = $li.hasClass('unloaded') || $ul.find('.choice.composite.unloaded').length > 0;
         if (!partiallyLoaded && childrenChecked > 0 && childrenChecked == childrenTotal) {
           $(this).attr('checked', true).data('indeterminate', false).get(0).indeterminate = false;
         } else if (childrenChecked > 0) {
@@ -1590,7 +1596,7 @@ module.exports = (function($){
     },
     
     // Adds non-custom tracks to the track picker, also adds them to o.availTracks and self.availTracks as necessary
-    _addTracks: function(tracks, to) {
+    _addTracks: function(tracks, to, loadedUpToPriority) {
       var self = this,
         o = self.options,
         d = o.trackDesc,
@@ -1622,15 +1628,22 @@ module.exports = (function($){
         
         if (composite) {
           $l.add($c).add($li).addClass('composite');
+          $l.click(_.bind(self._trackPickerClicked, self));
           $('<div class="collapsible-btn collapsed"><div class="arrow"/></div>').insertBefore($d);
           $innerUl = $('<ul/>').hide().appendTo($li);
           childTracks = self._sortedTracks(_.filter(allTracks, function(t) { return t.parent == n; }));
+          childTracksUnderPriority = _.filter(childTracks, function(t) { 
+            return t.custom ? t.custom.opts.priority <= loadedUpToPriority : true;
+          });
           
           // Recursively add children tracks if they are already provided in o.availTracks/o.compositeTracks
           if (childTracks.length > 0) { 
             self._addTracks(childTracks, $innerUl);
             _.each(childTracks, function(t) { $innerUl.find('input:checkbox[name='+t.n+']').addClass('default'); });
-          } else { $li.addClass('unloaded'); }
+          }
+          if (loadedUpToPriority ? !childTracksUnderPriority.length : !childTracks.length) {
+            $li.addClass('unloaded');
+          }
         } else {
           if (_.find(o.tracks, function(trk) { return trk.n==n; })) { $c.attr('checked', true); }
         }
@@ -1665,7 +1678,7 @@ module.exports = (function($){
           _.extend(o.trackDesc, newOpts.trackDesc);
           
           self._parseCustomGenomeTracks(newOpts.availTracks, function() {
-            self._addTracks(self._sortedTracks(newOpts.availTracks.concat(newOpts.compositeTracks)), $ul);
+            self._addTracks(self._sortedTracks(newOpts.availTracks.concat(newOpts.compositeTracks)), $ul, 100);
             _.each(newOpts.tracks, function(t) { $ul.find('input:checkbox[name='+t.n+']').addClass('default'); });
             $li.removeClass('loading unloaded');
             callback(newOpts);
@@ -1684,6 +1697,7 @@ module.exports = (function($){
                 });
               });
             } else {
+              if ($ul.find('input:checkbox.default').length > 10) { console.log('too many'); return; }
               $ul.find('input:checkbox.default').attr('checked', true).change();
             }
           } else {
@@ -1695,13 +1709,15 @@ module.exports = (function($){
       
       // Handle collapsing and uncollapsing of composite tracks, including loading of subtracks
       if (collapsed) {
-        if ($ul.children().length > 0) {
+        if ($ul.children().length > 0 && !unloadedChildren) {
           $ul.slideDown();
           $btn.removeClass('collapsed');
         } else if (unloadedChildren && o.custom && o.custom.canSearchTracks) {
           $li.addClass('loading');
+          $ul.empty();
           loadChildren(function() { 
             $btn.hasClass('collapsed') && $ul.children().length && $btn.click();
+            self._fixTracks();
           });
         }
       } else {

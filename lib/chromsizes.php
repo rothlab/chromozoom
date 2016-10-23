@@ -146,8 +146,8 @@ function getTopChromSizes($chrom_info_url, $contig_limit) {
 // e.g., bed -> bigBed; psl -> bigBed; wig -> bigWig etc.
 function littleToBigFormat($format) {
   $format_map = array('bed' => 'bigBed', 'gvf' => 'bigBed', 'wig' => 'bigWig', 'psl' => 'bigBed',
-                      'genePred' => 'bigGenePred', 'narrowPeak' => 'bigBed');
-                      // FIXME: make dedicated big* formats for gvf, psl, genePred, and narrowPeak
+                      'genePred' => 'bigGenePred', 'narrowPeak' => 'bigBed', 'rmsk' => 'bigBed 6 +');
+                      // FIXME: make dedicated big* formats for gvf, psl and narrowPeak
   $format_parts = explode(' ', $format);
   if (isset($format_map[$format_parts[0]])) { $format_parts[0] = $format_map[$format_parts[0]]; }
   return implode(' ', $format_parts);
