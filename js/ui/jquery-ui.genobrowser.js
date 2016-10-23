@@ -406,7 +406,7 @@ module.exports = (function($){
       
       if (o.searchableTracks) {
         $search = $('<input type="search"/>').appendTo($searchBar);
-        $search.bind('keyup click', function(e) { _.defer(function() { self._searchTracks($search.val()); }); });
+        $search.bind('keyup click', _.debounce(function() { self._searchTracks($search.val()); }, 100));
         $search.attr('placeholder', o.searchableTracks === true ? 'Filter available tracks...' 
             : 'Find more tracks for this genome...');
         $('<li class="search-warn"/>').hide().appendTo($ul);
@@ -1576,11 +1576,13 @@ module.exports = (function($){
           $(this).toggle(match).toggleClass('matches', match);
         });
         $list.find('.category-section, .choice.composite').each(function() {
-          var $innerUl = $(this).children('ul').eq(0),
-            matchWithin = $innerUl.find('.choice').hasClass('matches');
-          if ($(this).is('.category-section')) { $(this).toggle(matchWithin); }
+          var $li = $(this),
+            $innerUl = $li.children('ul').eq(0),
+            matchWithin = $innerUl.find('.choice.matches').length > 0;
+          if ($li.hasClass('category-section')) { $li.toggle(matchWithin); }
+          if ($li.is('.choice.composite') && matchWithin) { $li.show(); }
           if (query !== '') {
-            $(this).find('.collapsible-btn').toggleClass('collapsed', !matchWithin);
+            $li.find('.collapsible-btn').eq(0).toggleClass('collapsed', !matchWithin);
             $innerUl.toggle(matchWithin);
           }
         });
@@ -1692,16 +1694,19 @@ module.exports = (function($){
           if (!$chk.data('indeterminate') && $chk.is(':checked')) {
             if (unloadedChildren) {
               loadChildren(function(newOpts) {
-                _.each(newOpts.tracks, function(t) {
-                  $ul.find('input:checkbox[name='+t.n+']').attr('checked', true).change();
+                _.each(_.first(newOpts.tracks, 10), function(t) {
+                  $ul.find('input:checkbox[name='+t.n+']').attr('checked', true);
                 });
+                if (newOpts.tracks.length > 10 && $btn.hasClass('collapsed')) { $btn.click(); }
+                $ul.find('input:checkbox').eq(0).change();
               });
             } else {
-              if ($ul.find('input:checkbox.default').length > 10) { console.log('too many'); return; }
-              $ul.find('input:checkbox.default').attr('checked', true).change();
+              $defaults = $ul.find('input:checkbox.default');
+              if ($defaults.length > 0) { $defaults.slice(0, 10).attr('checked', true).eq(0).change(); }
+              if ((!$defaults.length || $defaults.length > 10) && collapsed) { $btn.click(); }
             }
           } else {
-            $ul.find('input:checkbox:not(.composite)').attr('checked', false).change();
+            $ul.find('input:checkbox:not(.composite)').attr('checked', false).eq(0).change();
           }
         }
         return; // Checkbox clicks should not affect collapsed/uncollapsed elements.
@@ -2275,6 +2280,7 @@ module.exports = (function($){
     recvTrackResize: function($src, name, height, callback) {
       var holdSteady = $src && this.$lines.index($src);
       this._resizeTrack(name, height, holdSteady, _.isFunction(callback) ? callback : true);
+      this._saveParamsDebounced();
     },
     
     // Handle a track reorder action on one of the lines, propagating its changes to the other lines
@@ -2285,6 +2291,7 @@ module.exports = (function($){
       o.tracks.sort(function(a, b) { return newOrder[a._i] - newOrder[b._i]; });
       _.each(o.tracks, function(v, i) { delete v._i; });
       this.$lines.not($src).genoline('fixTracks').genoline('fixTrackTiles');
+      this._saveParamsDebounced();
     },
     
     // Handle a mousewheel event on one of the lines, propagating its changes to all lines.
