@@ -75,7 +75,7 @@ if (isset($_GET['db'])) {
     $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
     
     $also_include_tracks = FALSE;
-    if (isset($_GET['tracks'])) {
+    if (isset($_GET['tracks']) && strlen($_GET['tracks']) > 0) {
       $also_include_tracks = explode('|', preg_replace('/[^a-z0-9_|]/i', '', $_GET['tracks']));
     }
     
