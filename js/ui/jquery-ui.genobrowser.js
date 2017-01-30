@@ -1232,7 +1232,7 @@ module.exports = (function($){
           if (customGenomeSource == 'ucsc') {
             remoteParams = {
               db: customGenomePieces[1],
-              tracks: params.tracks.replace(/:\d+/g, ''), 
+              tracks: params.tracks ? params.tracks.replace(/:\d+/g, '') : '', 
               limit: customGenomePieces[2],
               meta: 1
             };
