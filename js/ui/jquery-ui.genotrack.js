@@ -637,14 +637,16 @@ $.widget('ui.genotrack', {
       canvasHeight = $tdata.height(),
       canvasAttrs = {"class": 'labels dens-' + density + ($oldC.length ? ' hidden' : ''), width: canvasWidth, height: canvasHeight},
       $c = $.mk('canvas').css('height', canvasHeight).attr(canvasAttrs).data('density', density).appendTo($tile),
-      ctx = $c.get(0).getContext && $c.get(0).getContext('2d'),
+      ctx = $c.get(0).getContext,
       defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif",
       defaultColor = (custom && custom.opts.color) || '0,0,0';
     
+    if (!ctx) { return; }
     if (!areas) { areas = $tdata.data('areas'); }
     areas = _.filter(areas, function(v) { return !v[6]; }) // Don't draw labels for areas continuing from previous tile
     if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
-    if (!ctx) { return; }
+    
+    ctx = $c.get(0).getContext('2d');
     ctx.font = defaultFont;
     ctx.textAlign = 'end';
     ctx.textBaseline = 'middle';
@@ -930,14 +932,15 @@ $.widget('ui.genotrack', {
         $oldC = $t.children('canvas.ticks'),
         canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": "ticks" + ($oldC.length ? ' hidden' : '')},
         $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
-        ctx = $c.get(0).getContext && $c.get(0).getContext('2d'),
+        ctx = $c.get(0).getContext,
         textY = o.chrBands ? 16 : (offsetForNtText ? 10 : 16),
         defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif";
       if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
       if (!ctx) { return; }
 
       // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
-      $c.attr(canvasAttrs);
+      $c.canvasAttr(canvasAttrs);
+      ctx = $c.get(0).getContext('2d');
       ctx.font = defaultFont;
       for (var t = start; t + chr.p < tileId + bppp * o.tileWidth + step; t += step) {
         if (t > o.chrLengths[chr.n]) {
@@ -998,13 +1001,14 @@ $.widget('ui.genotrack', {
         $oldC = $t.children('canvas.bands'),
         canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": 'bands' + ($oldC.length ? ' hidden' : '')},
         $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
-        ctx = $c.get(0).getContext && $c.get(0).getContext('2d'),
+        ctx = $c.get(0).getContext,
         defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif";
       if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
       if (!ctx) { return; }
       
       // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
-      $c.attr(canvasAttrs);
+      $c.canvasAttr(canvasAttrs);
+      ctx = $c.get(0).getContext('2d');
       ctx.font = defaultFont;
       ctx.textAlign = 'center';
       _.each(bandsToDraw, function(band) {
@@ -1082,7 +1086,7 @@ $.widget('ui.genotrack', {
       }).text(dna).appendTo($svg);
     }
     canvas = extraData._c && extraData._c.get(0);
-    height = canvas.height;
+    height = canvas.unscaledHeight();
     ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) { return; }
     for (var i = 0; i < l; i++) {
@@ -1168,9 +1172,10 @@ $.widget('ui.genotrack', {
       end = tileId + bpPerTile;
     $t.addClass('tile-custom tile-full tile-loaded bppp-'+classFriendly(bppp));
     _.each(o.track.s, function(density) {
-      var canvasHTML = '<canvas width="'+o.tileWidth+'" height="'+o.track.h+'" class="tdata unrendered dens-'+density+'" '
-          + 'id="canvas-'+self._tileId(tileId, bppp)+'-'+density+'"></canvas>',
+      var canvasHTML = '<canvas class="tdata unrendered dens-' +density + '" id="canvas-' + self._tileId(tileId, bppp) + '-' + density 
+          + '"></canvas>',
         $c = $(canvasHTML).appendTo($t);
+      $c.canvasAttr({width: o.tileWidth, height: o.track.h});
       $c.bind('render', {start: tileId, end: end, density: density, self: self, custom: o.track.custom}, self._customTileRender);
       $c.bind('erase', function() { o.track.custom.erase($c.get(0)); $c.addClass('unrendered'); });
       if (density==bestDensity) { $c.addClass('dens-best').trigger('render'); }

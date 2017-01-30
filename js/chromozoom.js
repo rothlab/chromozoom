@@ -15,6 +15,7 @@ var jQuery = window['$'] = window.jQuery;
 
 require('./ui/jquery-ui.min.js')(jQuery);
 require('./ui/jquery-ui.touch-punch.js')(jQuery);
+require('./ui/jquery.retina-canvas.js')(window, jQuery);
 
 window._ = require('./underscore.min.js');
 
