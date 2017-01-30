@@ -195,7 +195,7 @@ var VcfTabixFormat = {
   },
 
   render: function(canvas, start, end, density, callback) {
-    var ctx = canvas.getContext && canvas.getContext('2d'),
+    var ctx = canvas.getContext,
       urlTemplate = this.opts.url ? this.opts.url : 'javascript:void("'+this.opts.name+':$$")',
       lineHeight = density == 'pack' ? 27 : 6,
       colors = {a:'255,0,0', t:'255,0,255', c:'0,0,255', g:'0,255,0', other:'114,41,218'},
@@ -205,7 +205,6 @@ var VcfTabixFormat = {
     if (!ctx) { throw "Canvas not supported"; }
     // TODO: I disabled regenerating areas here, which assumes that lineNum remains stable across re-renders. Should check on this.
     if (density == 'pack' && !this.areas[canvas.id]) { areas = this.areas[canvas.id] = []; }
-    ctx.fillStyle = "rgb(0,0,0)";
 
     this.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       if ((drawLimit && drawSpec.length > drawLimit) || drawSpec.tooMany) { 
@@ -214,11 +213,16 @@ var VcfTabixFormat = {
         canvas.className = canvas.className + ' too-many';
       } else if (density == 'dense') {
         canvas.unscaledHeight(15);
+        ctx = canvas.getContext('2d');
+        ctx.fillStyle = "rgb(0,0,0)";
+        
         _.each(drawSpec, function(pInt) {
           ctx.fillRect(pInt.x, 1, pInt.w, 13);
         });
       } else {
         canvas.unscaledHeight(drawSpec.layout.length * lineHeight);
+        ctx = canvas.getContext('2d');
+        
         _.each(drawSpec.layout, function(l, i) {
           _.each(l, function(data) {
             var altColor, refColor;
