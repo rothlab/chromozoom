@@ -228,11 +228,11 @@ var WiggleFormat = {
 
   render: function(canvas, start, end, density, callback) {
     var self = this,
-      width = canvas.width,
+      width = canvas.unscaledWidth(),
       ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) { throw "Canvas not supported"; }
     self.prerender(start, end, density, {width: width}, function(drawSpec) {
-      self.type().drawBars.call(self, ctx, drawSpec, canvas.height, width);
+      self.type().drawBars.call(self, ctx, drawSpec, canvas.unscaledHeight(), width);
       if (_.isFunction(callback)) { callback(); }
     });
   },

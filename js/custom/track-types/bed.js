@@ -349,7 +349,7 @@ var BedFormat = {
   
   drawSpec: function(canvas, drawSpec, density) {
     var self = this,
-      ctx = canvas.getContext && canvas.getContext('2d'),
+      ctx = canvas.getContext,
       urlTemplate = self.opts.url ? self.opts.url : 'javascript:void("'+self.opts.name+':$$")',
       drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
       lineHeight = density == 'pack' ? 15 : 6,
@@ -363,7 +363,8 @@ var BedFormat = {
     if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }
     
     if (density == 'dense') {
-      canvas.height = 15;
+      canvas.unscaledHeight(15);
+      ctx = canvas.getContext('2d');
       ctx.fillStyle = "rgb("+color+")";
       _.each(drawSpec, function(pInt) {
         if (self.opts.useScore) { ctx.fillStyle = "rgba("+self.type('bed').calcGradient(color, pInt.v)+")"; }
@@ -371,12 +372,13 @@ var BedFormat = {
       });
     } else {
       if ((drawLimit && drawSpec.layout && drawSpec.layout.length > drawLimit) || drawSpec.tooMany) { 
-        canvas.height = 0;
+        canvas.unscaledHeight(0);
         // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
         canvas.className = canvas.className + ' too-many';
         return;
       }
-      canvas.height = drawSpec.layout.length * lineHeight;
+      canvas.unscaledHeight(drawSpec.layout.length * lineHeight);
+      ctx = canvas.getContext('2d');
       ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
       _.each(drawSpec.layout, function(l, i) {
         _.each(l, function(data) {
@@ -389,7 +391,7 @@ var BedFormat = {
 
   render: function(canvas, start, end, density, callback) {
     var self = this;
-    self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
+    self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       self.type().drawSpec.call(self, canvas, drawSpec, density);
       if (_.isFunction(callback)) { callback(); }
     });

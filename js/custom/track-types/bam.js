@@ -557,8 +557,12 @@ var BamFormat = {
       ctx.fill();
     } else {
       ctx.fillStyle = 'rgb(140,140,140)';
-      ctx.fillRect(x + (xScale > 0 ? -2 : 1), blockY, 1, blockHeight);
-      ctx.fillRect(x + (xScale > 0 ? -1 : 0), blockY + 1, 1, blockHeight - 2);
+      ctx.beginPath();
+      ctx.moveTo(x - (2 * xScale), blockY);
+      ctx.lineTo(x + (1.5 * xScale), blockY + blockHeight/2);
+      ctx.lineTo(x - (2 * xScale), blockY + blockHeight);
+      ctx.closePath();
+      ctx.fill();
       ctx.fillStyle = prevFillStyle;
     }
   },
@@ -659,7 +663,7 @@ var BamFormat = {
   
   drawSpec: function(canvas, drawSpec, density) {
     var self = this,
-      ctx = canvas.getContext && canvas.getContext('2d'),
+      ctx = canvas.getContext,
       urlTemplate = 'javascript:void("'+self.opts.name+':$$")',
       drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
       lineHeight = density == 'pack' ? 14 : 4,
@@ -676,7 +680,7 @@ var BamFormat = {
       
       // If necessary, indicate there was too much data to load/draw and that the user needs to zoom to see more
       if (drawSpec.tooMany || (drawLimit && drawSpec.layout.length > drawLimit)) { 
-        canvas.height = 0;
+        canvas.unscaledHeight(0);
         canvas.className = canvas.className + ' too-many';
         return;
       }
@@ -685,9 +689,10 @@ var BamFormat = {
       // We have to empty this for every render, because areas can change if BAM display options change.
       if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }
       // Set the expected height for the canvas (this also erases it).
-      canvas.height = covHeight + ((density == 'dense') ? 0 : covMargin + drawSpec.layout.length * lineHeight);
+      canvas.unscaledHeight(covHeight + ((density == 'dense') ? 0 : covMargin + drawSpec.layout.length * lineHeight));
       
       // First draw the coverage graph
+      ctx = canvas.getContext('2d');
       ctx.fillStyle = "rgb(159,159,159)";
       self.type('bam').drawCoverage.call(self, ctx, drawSpec.coverage, covHeight);
                 
@@ -707,6 +712,7 @@ var BamFormat = {
         });
       }
     } else {
+      ctx = canvas.getContext('2d');
       // Second drawing pass, to draw things that are dependent on sequence:
       // (1) allele splits over coverage
       self.type('bam').drawAlleles.call(self, ctx, drawSpec.alleles, covHeight, 1 / drawSpec.bppp);
@@ -723,7 +729,7 @@ var BamFormat = {
 
   render: function(canvas, start, end, density, callback) {
     var self = this;
-    self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
+    self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       var callbackKey = start + '-' + end + '-' + density;
       self.type('bam').drawSpec.call(self, canvas, drawSpec, density);
       
@@ -744,7 +750,7 @@ var BamFormat = {
     if (!sequence) { return false; }
 
     function renderSequenceCallback() {
-      self.prerender(start, end, density, {width: canvas.width, sequence: sequence}, function(drawSpec) {
+      self.prerender(start, end, density, {width: canvas.unscaledWidth(), sequence: sequence}, function(drawSpec) {
         self.type('bam').drawSpec.call(self, canvas, drawSpec, density);
         if (_.isFunction(callback)) { callback(); }
       });

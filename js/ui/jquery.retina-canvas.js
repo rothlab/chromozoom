@@ -1,14 +1,15 @@
 module.exports = function(global, jQuery) {
 
-  (function(prototype) {
+  (function(prototype, $) {
   
     var _superGetContext = prototype.getContext;
   
     prototype.calculateRatio = function(context) {
-      var backingStore;
-      context = context || _superGetContext.call(this, '2d');
+      var ratio = $(this).data('ratio'),
+        backingStore, context;
     
-      if (context.ratio) { return context.ratio; }
+      if (ratio) { return ratio; }
+      context = context || _superGetContext.call(this, '2d');
     
       backingStore = context.backingStorePixelRatio ||
             context.webkitBackingStorePixelRatio ||
@@ -16,8 +17,9 @@ module.exports = function(global, jQuery) {
             context.msBackingStorePixelRatio ||
             context.oBackingStorePixelRatio || 1;
     
-      context.ratio = (global.devicePixelRatio || 1) / backingStore;
-      return context.ratio;
+      ratio = (global.devicePixelRatio || 1) / backingStore;
+      $(this).data('ratio', ratio);
+      return ratio;
     };
   
     prototype.unscaledHeight = function(height) {
@@ -40,26 +42,22 @@ module.exports = function(global, jQuery) {
   
     prototype.getContext = function(type) {
       var backingStore, ratio, currentScale,
-        context = _superGetContext.call(this, type);
+        context = _superGetContext.call(this, type),
+        currentScale = $(this).data('currentScale') || 1;
 
       if (type === '2d') {
         ratio = this.calculateRatio(context);
-      
-        currentScale = context.currentScale || 1;
 
-        //if (ratio / currentScale > 1) { 
-        //  context.currentScale = ratio;
-        context.scale(ratio, ratio);
+        if (ratio / currentScale > 1) { 
+          context.scale(ratio / currentScale, ratio / currentScale);
+          $(this).data('currentScale', ratio);
+        }
       }
 
       return context;
     };
-    
-    prototype.scaleByRatio = function() {
-      
-    }
   
-  })(global.HTMLCanvasElement.prototype);
+  })(global.HTMLCanvasElement.prototype, jQuery);
   
   
   
@@ -70,7 +68,7 @@ module.exports = function(global, jQuery) {
     // We create a new function instead of shimming $.fn.attr to avoid a massive performance penalty, 
     // as $.fn.attr is used everywhere in jQuery code and usually not on <canvas> elements
     
-    jQuery.fn.canvasAttr = function(attrs, val) {
+    $.fn.canvasAttr = function(attrs, val) {
       var name = attrs,
         elem;
       

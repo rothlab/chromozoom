@@ -636,7 +636,7 @@ $.widget('ui.genotrack', {
       leftOverhang = $tile.width() * 0.2,
       canvasHeight = $tdata.height(),
       canvasAttrs = {"class": 'labels dens-' + density + ($oldC.length ? ' hidden' : ''), width: canvasWidth, height: canvasHeight},
-      $c = $.mk('canvas').css('height', canvasHeight).attr(canvasAttrs).data('density', density).appendTo($tile),
+      $c = $.mk('canvas').css('height', canvasHeight).canvasAttr(canvasAttrs).data('density', density).appendTo($tile),
       ctx = $c.get(0).getContext,
       defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif",
       defaultColor = (custom && custom.opts.color) || '0,0,0';
@@ -1136,7 +1136,7 @@ $.widget('ui.genotrack', {
     pushCallback();
     
     d.custom.render(canvas, d.start, d.end, d.density, function() {
-      $canvas.css('width', '100%').css('height', d.custom.stretchHeight ? '100%' : canvas.height);
+      $canvas.css('width', '100%').css('height', d.custom.stretchHeight ? '100%' : canvas.unscaledHeight());
       $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
       $canvas.removeClass('unrendered').addClass('no-areas');
       

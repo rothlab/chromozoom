@@ -207,18 +207,18 @@ var VcfTabixFormat = {
     if (density == 'pack' && !this.areas[canvas.id]) { areas = this.areas[canvas.id] = []; }
     ctx.fillStyle = "rgb(0,0,0)";
 
-    this.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
+    this.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       if ((drawLimit && drawSpec.length > drawLimit) || drawSpec.tooMany) { 
-        canvas.height = 0;
+        canvas.unscaledHeight(0);
         // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
         canvas.className = canvas.className + ' too-many';
       } else if (density == 'dense') {
-        canvas.height = 15;
+        canvas.unscaledHeight(15);
         _.each(drawSpec, function(pInt) {
           ctx.fillRect(pInt.x, 1, pInt.w, 13);
         });
       } else {
-        canvas.height = drawSpec.layout.length * lineHeight;
+        canvas.unscaledHeight(drawSpec.layout.length * lineHeight);
         _.each(drawSpec.layout, function(l, i) {
           _.each(l, function(data) {
             var altColor, refColor;

@@ -155,7 +155,7 @@ var BigBedFormat = {
 
   render: function(canvas, start, end, density, callback) {
     var self = this;
-    self.prerender(start, end, density, {width: canvas.width}, function(drawSpec) {
+    self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
       if (_.isFunction(callback)) { callback(); }
     });
