@@ -10,7 +10,6 @@ module.exports = (function($){
 
   var utils = require('./utils.js')($),
     classFriendly = utils.classFriendly,
-    fps = utils.fps,
     basename = utils.basename,
     floorHack = utils.floorHack,
     decodeSafeOctets = utils.decodeSafeOctets,
@@ -2191,7 +2190,6 @@ module.exports = (function($){
       this.bppp = zoom;
       var now = (new Date).getTime();
       this._pos(pos, null, true);
-      fps("ZOOM", (new Date).getTime() - now, this.bppp);
       this._updateReticle(centeredOn);
     },
     
@@ -2269,11 +2267,10 @@ module.exports = (function($){
     
     // Handle a drag event on one of the lines, propagating its motion to the other lines
     recvDrag: function($src, linePos) {
-      var lineIndex = this.$lines.index($src),
+      var lineIndex = this.$lines.length == 1 ? 0 : this.$lines.index($src),
         pos = linePos - lineIndex * this.bpWidth();
       var now = (new Date).getTime();
       this._pos(pos, $src);
-      fps("MOVE", (new Date).getTime() - now, this.bppp);
     },
     
     // Handle a track resize event on one of the lines, propagating its changes to the other lines and fixing the layout
@@ -2295,6 +2292,7 @@ module.exports = (function($){
     },
     
     // Handle a mousewheel event on one of the lines, propagating its changes to all lines.
+    // TODO: should prefer handling "wheel" events instead of nonstandard "mousewheel"
     _recvZoom: function(e, manualDelta) {
       var self = this,
         o = this.options,
@@ -2306,7 +2304,7 @@ module.exports = (function($){
       // You can scroll the track pickers, select boxes, and textareas
       if ($(e.target).closest('.picker,select,textarea').length) { return; }
       
-      self.element.find('.drag-cont').stop();                           // Stop any current inertial scrolling
+      self.$lines.genoline('stopThrow');                                // Stop any current inertial throwing animation
       if (_.isUndefined(self._wheelDelta)) { self._wheelDelta = 0; }
       $.tipTip.hide();                                                  // Hide any tipTips showing
       d = _.reject(d, _.isUndefined).shift();

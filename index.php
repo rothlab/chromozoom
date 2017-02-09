@@ -123,7 +123,6 @@
     <div id="browser">
       <div id="overlay" class="ui-widget-overlay"></div>
       <div id="overlay-message"></div>
-      <div id="fps"></div>
     </div>
     
     <div id="footerbar" class="shadow">

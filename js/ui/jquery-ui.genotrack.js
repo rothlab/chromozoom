@@ -290,6 +290,8 @@ $.widget('ui.genotrack', {
     var bestDensity = self._bestDensity(topBppp);
     // Fix side labels (e.g. for subtracks) for the best density
     self._fixSide(bestDensity, topBppp);
+    // Set the class that shows the best bppp (and hide the rest)
+    $elem.find('.tile').removeClass('bppp-top').filter('.bppp-'+classFriendly(topBppp)).addClass('bppp-top');
     // Set the best density and trigger events on these tiles
     $elem.find('.tile-full').children('.tdata,.area.label,.labels').each(function() {
       var $this = $(this),
@@ -301,9 +303,12 @@ $.widget('ui.genotrack', {
     self.fixClipped();
   },
   
+  // returns a (possibly cached) object listing the nearest bppps to the current zoom (in `nearest:`),
+  // whether the bppp level is for background caching, in `cache:` (relevant only for <img> tiles),
+  // and what the topmost bppp level is, in `top:`.
   _nearestBppps: function(zoom) {
-    var o = this.options, 
-      bppps = { nearest: [o.bppps[0]], cache: [], top: o.bppps[0] },
+    var o = this.options,
+      bppps = { nearest: [o.bppps[0]], preload: [], top: o.bppps[0] },
       possibleBppps = this.ruler ? this.sliderBppps : o.bppps,
       l = possibleBppps.length,
       found = false,
@@ -312,11 +317,14 @@ $.widget('ui.genotrack', {
       var zoomDiff = zoom - possibleBppps[i];
       if (zoomDiff > 0) {
         shrinkableWindow = (possibleBppps[i + 1] || possibleBppps[i] / 3);
+        // Only also include the *next* zoomed-out level if the difference in zoom levels is close enough
+        // getNext == 0 if we don't include it; 1 if we do.
         getNext = 0 + (zoomDiff < shrinkableWindow);
         bppps.nearest = possibleBppps.slice(Math.max(i - 2 + getNext, 0), i + getNext);
-        if (getNext) { bppps.cache = [false, zoomDiff > shrinkableWindow / 2]; }
-        bppps.top = bppps.cache[1] ? bppps.nearest[0] : bppps.nearest.slice(-1)[0];
-        found = true; break;
+        if (getNext) { bppps.preload = [false, zoomDiff > shrinkableWindow / 2]; }
+        bppps.top = bppps.preload[1] ? bppps.nearest[0] : bppps.nearest.slice(-1)[0];
+        found = true;
+        break;
       }
     }
     if (!found) {
@@ -346,18 +354,18 @@ $.widget('ui.genotrack', {
       $notNeeded;
     _.each(bppps.nearest, function(bppp, i) {
       var bpPerTile = o.tileWidth * bppp,
-        tileId = floorHack((pos - availWidth * bppp * (bppps.cache[i] ? 0 : 1)) / bpPerTile) * bpPerTile + 1,
+        tileId = floorHack((pos - availWidth * bppp * (bppps.preload[i] ? 0 : 0.75)) / bpPerTile) * bpPerTile + 1,
         tilesNeeded = [tileId],
-        rightMargin = pos + (bppps.cache[i] ? 1 : 2) * availWidth * bppp,
+        rightMargin = pos + (bppps.preload[i] ? 1 : 1.75) * availWidth * bppp,
         bestDensity = self._bestDensity(bppp);
       while ((tileId += bpPerTile) < rightMargin) { tilesNeeded.push(tileId); }
       _.each(tilesNeeded, function(tileId) {
         var repos = false, $t = $('#' + self._tileId(tileId, bppp));
         if (!$t.length) { 
-          $t = self._addTile(tileId, bppp, bestDensity, bppps.cache[i]); 
+          $t = self._addTile(tileId, bppp, bestDensity, bppps.preload[i], bppps.top); 
           repos = true; 
         }
-        if (!bppps.cache[i]) { self._showTile($t); }
+        self._showTile($t);
         if (repos || forceRepos) { self._reposTile($t, tileId, zoom, bppp); }
         allTilesNeeded.push($t.get(0));
       });
@@ -393,26 +401,31 @@ $.widget('ui.genotrack', {
     if (--self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); };
   },
   
-  _addTile: function(tileId, bppp, bestDensity, cached) {
+  _addTile: function(tileId, bppp, bestDensity, cached, topBppp) {
     var self = this,
       o = self.options,
       $elem = self.element,
-      $d = $.mk('div').attr('class', 'tile'),
+      $d = $.mk('div').attr('class', 'tile' + (bppp == topBppp ? ' bppp-top' : '')),
       bpPerTile = o.tileWidth * bppp,
       special = self._specialTile(tileId, bppp),
       densities = self.availDensities[bppp],
       $tileBefore = $('#' + self._tileId(tileId - bpPerTile, bppp));
+
     if ($tileBefore.length) { $d.insertAfter($tileBefore); }
     else { $d.prependTo(self.element) };
     $d.attr('id', self._tileId(tileId, bppp)).data({zIndex: _.indexOf(self.sliderBppps, bppp), tileId: tileId});
     if ($.support.touch) { self._tileTouchEvents($d); }
     else { $d.mousemove({self: self}, self._tileMouseMove).mouseout({self: self}, self._tileMouseOut); }
+    
+    // The following handle special case tiles: blank tiles, custom track tiles, or ruler tiles
     if (special) {
       if (special.blank) { $d.addClass('tile-blank').addClass('tile-off-' + (special.left ? 'l' : 'r')); }
       else if (special.custom) { self._customTile($d, tileId, bppp, bestDensity); }
       else { self._rulerTile($d, tileId, bppp); } // special.ruler === true
       return $d;
     }
+    
+    // The remaining code here is for "chromozoom v1" <img> based tiles, which are deprecated
     $d.addClass('tile-full bppp-'+classFriendly(bppp));
     _.each(densities, function(density) {
       var tileSrc = self._tileSrc(tileId, bppp, density), 
@@ -485,6 +498,7 @@ $.widget('ui.genotrack', {
       o = self.options,
       prev = o.browser.genobrowser('areaHover'),
       areas, ratio, bppp;
+    if ($('body').hasClass('dragging')) { return; }
     if (!$tdata.length || !$tdata.hasClass('dens-best') || !(areas = $tdata.data('areas'))) {
       if (!$targ.is('.area')) { o.browser.genobrowser('areaHover', false); }
       return; 
@@ -575,15 +589,7 @@ $.widget('ui.genotrack', {
       if (oldTitle) { $name.text(oldTitle); }
       callback($tipTipDiv);
     }
-    if (tiptipData) {
-      createTipTipHtml(tiptipData);
-    } else if (href.indexOf(self.options.ucscURL.replace(/\w+$/, '')) === 0) {
-      $.ajax(self.options.ajaxDir + 'tooltip.php', {
-        data: {url: href},
-        dataType: 'json',
-        success: createTipTipHtml
-      });
-    }
+    if (tiptipData) { createTipTipHtml(tiptipData); }
   },
   
   makeAnchor: function($tile, area, bppp, density, flags) {

@@ -17,6 +17,7 @@ function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE,
   $track_data_dir = dirname(dirname($track_db_path));
   $track_db_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $track_db_path, $db)); 
   try { 
+    if (!file_exists($track_db_file)) { throw new Exception('No tracks.db database was created for this genome.'); }
     @$track_db = new SQLite3($track_db_file, SQLITE3_OPEN_READONLY);
   } catch (Exception $e) { return $count_only ? 0 : $tracks; }
   

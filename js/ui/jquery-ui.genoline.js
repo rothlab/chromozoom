@@ -3,6 +3,10 @@
 // ===================================================================
 
 module.exports = function($) {
+  
+var utils = require('./utils.js')($);
+
+require('./greensock/Draggable.min.js');
 
 $.widget('ui.genoline', {
 
@@ -33,7 +37,7 @@ $.widget('ui.genoline', {
     html = '<div class="start"></div><div class="end"></div>';
     $(html).appendTo(this.$indices);
     
-    this._initContDraggable();
+    this._initDraggable();
     this._initSideSortable();
     this.$trackCont.bind('dblclick', {self: this}, this._recvDoubleClick);
     $elem.addClass('shadow');
@@ -41,140 +45,39 @@ $.widget('ui.genoline', {
     this.jumpTo(this.pos);
   },
   
-  _initContDraggable: function() {
-    var self = this, $elem = this.element, o = this.options, 
-      dragEvents = [],
-      initKeyedOffset = 0,
-      snappingToAnimation = {},
-      fudge,
-      lineJump,
-      topOffsets,
-      snappingTo,
-      snappingToInterval;
-    function snappingToMotion() {
-      var dt = (new Date).getTime() - snappingToAnimation.start,
-        proportion = Math.min(dt / o.lineFixDuration, 1);
-      snappingTo = (1 - Math.pow(1 - proportion, 4)) * (snappingToAnimation.to - snappingToAnimation.from) + snappingToAnimation.from;
-      updateLineTop();
-      if (proportion == 1) { clearInterval(snappingToInterval); }
-    }
-    function animateSnap() {
-      snappingToAnimation = {from: snappingTo, to: $elem.data('naturalTop'), start: (new Date).getTime()};
-      clearInterval(snappingToInterval);
-      snappingToInterval = setInterval(snappingToMotion, 13);
-    }
-    function updateLineTop(top) {
-      if (!_.isUndefined(top)) { snappingToAnimation.top = top; }
-      var snapOffset = (snappingToAnimation.top - topOffsets.top - topOffsets.click - snappingTo),
-        deadZone = o.verticalDragDeadZone / 2,
-        snapOffsetSquashed = Math.abs(snapOffset) > deadZone ? snapOffset + (snapOffset > 0 ? -deadZone : deadZone) : 0,
-      // First apply a flat dead zone around the zero point
-        curved = 40 / (1 + Math.exp(0.1 * snapOffsetSquashed)) - 20 + snapOffsetSquashed;
-      // Then use a logistic function transformed to asymptotically approach a slope of 1
-      if (topOffsets.length > 1) { $elem.css('top', snappingTo + curved); }
-    }
-    function updatePos(left, top) {
-      var newJump = lineJump, 
-        zoom = o.browser.genobrowser('zoom');
-      if (!_.isUndefined(top)) {
-        _.each(topOffsets, function(v) {
-          if (newJump == lineJump && v[1] > lineJump && top < v[0] + fudge) { newJump = v[1]; }
-          if (v[1] < lineJump && top > v[0] - fudge) { newJump = v[1]; }
-        });
-        if (newJump != lineJump) {
-          o.browser.genobrowser('shiftLines', newJump - lineJump, $elem.get(0));
-          animateSnap();
-          self.fixTrackTiles(); 
-          lineJump = newJump;
-        }
-      }
-      self.pos = o.origin - left * zoom;
-      updateLineTop(top);
-      self.fixFirstLabel();
-      self.fixIndices();
-      o.browser.genobrowser('recvDrag', $elem, self.pos);
-    };
+  _initDraggable: function() {
+    var self = this, $elem = this.element, o = this.options,
+    throw_; // avoid conflict with throw keyword
     
-    self.$cont.mousedown(function() {
-      o.browser.find('.drag-cont').stop(); // Stop any current inertial scrolling immediately on mousedown
-    })
-    self.$cont.draggable({
-      axis: 'x',
-      cursor: '',
-      cancel: '.nts,:input,option',
-      start: function(e) { 
-        var width = o.browser.genobrowser('lineWidth'),
-          $lines =  o.browser.genobrowser('lines').removeClass('last-resized'),
-          lineIndex = $lines.index($elem.get(0));
+    // Instead of jQuery UI's $.ui.draggable, we use GreenSock Animation Platform for better performance
+    // GreenSock uses modern JS animation techniques and leverages hardware acceleration wherever possible
+    // We can't use GreenSock's ThrowPropsPlugin because it is non-free, but we can replicate the bit of
+    // functionality we need for "throwing" by measuring velocity and tweening a throw ourselves
+    // TODO: bounceCheck for bouncing off edges; do we really care about vertical dragging (lineShift)?
+    // TODO: fix the reticle & side indices
+    // TODO: need to re-incorporate fixFirstLabel
+    self.throw = throw_ = {};
+    self.draggable = new Draggable(self.$cont.get(0), {
+      type: "x",
+      onDragStart: function(e) {
+        self.fixTrackTiles();  // need to do this in case this interrupts a throw right before a refresh is needed
+        self.hideIndices();
         $('body').addClass('dragging');
-        $elem.addClass('last-resized');
-        lineJump = 0;
-        topOffsets = [];
-        fudge = (self.lineHeight() + o.betweenLines) * 0.3;
-        snappingTo = $elem.data('naturalTop');
-        snappingToAnimation = {};
-        topOffsets.click = e.originalEvent.pageY - $elem.offset().top;
-        _.each($lines, function(v, i) {
-          var top = $(v).offset().top;
-          if (i == 0) { topOffsets.top = top; }
-          topOffsets.push([top + topOffsets.click, lineIndex - i]); 
-        });
         o.browser.genobrowser('showReticle', 'dragging', true);
         $.tipTip.hide();
+        throw_.lastT = utils.now();
       },
-      drag: function(e, ui) {
-        var oe = e.originalEvent, now = (new Date).getTime();
-        updatePos(ui.position.left, oe.pageY);
-        dragEvents.push({t: now, x: oe.pageX});
-        while (dragEvents[0].t < now - 250) { dragEvents.shift(); }
+      onDrag: function(e) {
+        var now = utils.now(),
+          deltaT = now - throw_.lastT;                    // in ms
+        throw_.velocity = this.deltaX / deltaT;           // in px / ms
+        throw_.lastT = now;
+        self._setPosFromX(this.x, e.pageY);
       },
-      stop: function(e, ui) {
-        var x = e.originalEvent.pageX, 
-          now = (new Date).getTime(),
-          // the second to last dragEvent seems to be the most informative for velocity.
-          dragEvent = dragEvents.slice(-2,-1).pop(), 
-          dt = dragEvent && (now - dragEvent.t),
-          vInit = dragEvent && (x - dragEvent.x) / dt,
-          perfectPageY = (_.isUndefined(snappingToAnimation.to) ? $elem.data('naturalTop') : snappingToAnimation.to) 
-            + topOffsets.top + topOffsets.click;
-        self.fixTrackTiles();
+      onDragEnd: function(e) {
         $('body').removeClass('dragging');
-        updateLineTop(perfectPageY);
-        initKeyedOffset = o.browser.genobrowser('keyedOffset');
         o.browser.genobrowser('showReticle', 'dragging', false);
-        if (Math.abs(vInit) > 0.1) {
-          var xInit = ui.position.left, decel = vInit > 0 ? 0.001 : -0.001, lastRefresh = 0;
-          // Why animate margin-right? It's a dummy property that doesn't affect overall drawing. All the actual
-          // logic for the animation occurs within the step: function() {} below.
-          self.$cont.css('margin-right', -1);
-          self.$cont.animate({marginRight: 0}, {
-            queue: false,
-            duration: Math.abs(vInit / decel),
-            step: function() {
-              var newTime = (new Date).getTime(),
-                deltaT = newTime - now,
-                // allow the keyboard to shift the position *during* inertial scrolls
-                keyedOffset = o.browser.genobrowser('keyedOffset'),
-                deltaL = (vInit*deltaT) - (0.5*decel*deltaT*deltaT) + initKeyedOffset - keyedOffset;
-                left = xInit + deltaL;
-              // store the velocity on the browser element so it can catch the throw if a bounce is needed
-              o.browser.data('velocity', vInit - decel * deltaT);
-              // for those looong inertial scrolls, keep the tiles coming
-              if (Math.abs(deltaL - lastRefresh) > 1000) { lastRefresh = deltaL; self.fixTrackTiles(); }
-              self.$cont.css('left', left);
-              updatePos(left);
-              o.browser.genobrowser('bounceCheck');
-            },
-            complete: function() { 
-              self.fixTrackTiles(); 
-              o.browser.data('velocity', 0);
-              o.browser.genobrowser('bounceCheck');
-            }
-          });
-        } else {
-          self.fixTrackTiles();
-          o.browser.genobrowser('bounceCheck');
-        }
+        self.startThrow(throw_.velocity, this.x);
       }
     });
   },
@@ -251,17 +154,67 @@ $.widget('ui.genoline', {
     this.redrawAreaLabels();
   },
   
+  getPos: function() {
+    return this.pos;
+  },
+  
+  _setPosFromX: function(x, top) {
+    var o = this.options,
+      $elem = this.element,
+      zoom = o.browser.genobrowser('zoom');
+    this.pos = o.origin - x * zoom;
+    o.browser.genobrowser('recvDrag', $elem, this.pos);
+  },
+  
   jumpTo: function(pos, forceRepos) {
     var o = this.options,
       zoom = o.browser.genobrowser('zoom'),
-      left = (o.origin - pos) / zoom;
+      x = (o.origin - pos) / zoom;
     // Mozilla gets aggravated by CSS lengths outside of ±1.0e7; Opera gets aggravated somewhere outside of ±1.0e6
-    if (left > 1.0e+6 || left < -1.0e+6) { o.origin = pos; left = 0; forceRepos = true; }
+    if (x > 1.0e+6 || x < -1.0e+6) { o.origin = pos; x = 0; forceRepos = true; }
     this.pos = pos;
-    this.$cont.css('left', left);
+    TweenLite.set(this.$cont, {x: x});
+    this.draggable.x = x;
+    this.draggable.update();
     this.fixTrackTiles(forceRepos);
     this.fixFirstLabel();
     this.fixIndices();
+  },
+  
+  startThrow: function(vInit, xInit) {
+    var self = this,
+      throw_ = self.throw,
+      contEl = self.$cont.get(0),
+      duration, decel, throwDistance;
+    
+    if (!vInit || Math.abs(vInit) < 0.1) { return; }   // Don't allow throws below a certain initial speed
+    vInit = Math.max(-5.0, Math.min(vInit, 5.0));      // Clip the initial speed to a reasonable range
+    
+    if (_.isUndefined(xInit)) { xInit = contEl._gsTransform.x; }
+    throw_.lastRefresh = xInit;
+    decel = vInit > 0 ? 0.001 : -0.001;                // in px / ms^2
+    duration = vInit / decel;                          // in ms
+    throwDistance = (vInit * vInit) / (2 * decel);     // in px
+    
+    throw_.tween = TweenLite.to(self.$cont, duration / 1000.0, {
+      x: xInit + throwDistance,
+      ease: Power1.easeOut,
+      onUpdate: function() {
+        var x = contEl._gsTransform.x;
+        self._setPosFromX(x);
+        if (Math.abs(x - throw_.lastRefresh) > 1000) { throw_.lastRefresh = x; self.fixTrackTiles(); }
+      },
+      onComplete: function() {
+        var x = contEl._gsTransform.x;
+        self._setPosFromX(x);
+        self.fixTrackTiles();
+      }
+    });
+  },
+  
+  stopThrow: function() {
+    var tween = this.throw && this.throw.tween;
+    if (tween && tween.isActive()) { this.fixTrackTiles(); tween.kill(); }
   },
   
   fixTrackTiles: function(forceRepos) {
@@ -273,10 +226,6 @@ $.widget('ui.genoline', {
     _.each(this.options.browser.genobrowser('tracks'), function(t) {
       if (t.custom) { $elem.find('.browser-track-'+t.n).genotrack('redrawAreaLabels'); }
     });
-  },
-  
-  getPos: function() {
-    return this.pos;
   },
     
   // Adds a $.ui.genotrack for the track specification in `track` to the $.ui.genoline at position `pos`
@@ -306,7 +255,10 @@ $.widget('ui.genoline', {
   },
   
   fixFirstLabel: function(noHorizMotion) {
-    var self = this, $elem = self.element, o = self.options;
+    var self = this, $elem = self.element, o = self.options,
+      firstLabelOccluded = false,
+      predictedWidth, dragContLeft, label;
+    
     if (!self.$firstLabel) { return; }
     if ($elem.get(0) != o.browser.genobrowser('lines').get(0)) { 
       self.$firstLabel.addClass('occluded');
@@ -319,20 +271,40 @@ $.widget('ui.genoline', {
       else { this.$firstLabel.removeClass('no-ruler').css('top', $ruler.position().top); }
       return;
     }
+    
     // Horizontal motion means we may have to fix the content and occlusion of the label.
-    var label = o.browser.genobrowser('chrAt', self.pos), offsetLeft, width;
-    $elem.find('.browser-track-ruler .label').removeClass('occluded');
-    if (label===null) { self.$firstLabel.addClass('occluded'); return; } // We are behind chr1.
-    self.$firstLabel.text(label.n).removeClass('occluded');
-    offsetLeft = self.$firstLabel.offset().left;
-    width = self.$firstLabel.width();
-    $elem.find('.browser-track-ruler .label').each(function() {
-      var thisLeft = $(this).offset().left, thisWidth = $(this).width();
-      if (thisLeft + thisWidth > offsetLeft && thisLeft < offsetLeft + width) { 
-        self.$firstLabel.addClass('occluded');
-        $(this).addClass('occluded');
+    label = o.browser.genobrowser('chrAt', self.pos);
+    if (label !== self.$firstLabel.data('content')) {
+      if (label === null) { 
+        // We are behind chr1.
+        self.$firstLabel.addClass('occluded').data('content', null);
+        $elem.find('.browser-track-ruler .label').removeClass('occluded');
+      } else {
+        self.$firstLabel.text(label.n).removeClass('occluded').data('content', label);
       }
+    }
+    
+    // If we are behind chr1, it's impossible for the firstLabel to occlude any labels
+    if (label === null) { return; }
+    
+    // Check occlusion of other labels and set the appropriate classes so they are visible thru the firstLabel
+    // We take pains to avoid calling .offset(), because that triggers a re-layout (expensive!)
+    dragContLeft = parseInt(self.$cont.get(0).style.left, 10);
+    predictedWidth = label.n.length * 19;
+    $elem.find('.browser-track-ruler .label').each(function() {
+      var thisLeft = dragContLeft + parseInt(this.style.left, 10),
+        thisWidth = $(this).text().length * 19,
+        occlusion = thisLeft + thisWidth > 0 && thisLeft < predictedWidth;
+      firstLabelOccluded = firstLabelOccluded || occlusion;
+      $(this).toggleClass('occluded', occlusion);
     });
+    self.$firstLabel.toggleClass('occluded', firstLabelOccluded);
+  },
+  
+  hideIndices: function() {
+    this.$indices.children('.start').empty();
+    this.$indices.children('.end').empty();
+    this.$retic.children('.n').empty();
   },
   
   fixIndices: function() {
@@ -341,16 +313,17 @@ $.widget('ui.genoline', {
       bpWidth = o.browser.genobrowser('bpWidth'),
       zoom = o.browser.genobrowser('zoom'),
       elem = this.element.get(0),
-      multipleLines = o.browser.genobrowser('lines').length > 1,
+      $lines = o.browser.genobrowser('lines'),
+      multipleLines = $lines.length > 1,
       reticPos = this.centeredOn === null ? this.pos + 0.5 * (bpWidth - o.sideBarWidth * zoom) : this.centeredOn,
       chrStart, chrEnd, chrRetic;
       
-    if (elem == o.browser.genobrowser('lines').get(0)) {
+    if (elem == $lines.get(0)) {
       chrStart = o.browser.genobrowser('chrAt', pos) || o.chrLabels[0];
       this.$indices.children('.start').text((multipleLines ? chrStart.n + ':' : '') + Math.floor(pos - chrStart.p));
     } else { this.$indices.children('.start').empty(); }
     
-    if (elem == o.browser.genobrowser('lines').last().get(0)) {
+    if (elem == $lines.last().get(0)) {
       chrEnd = o.browser.genobrowser('chrAt', pos + bpWidth) || o.chrLabels[0];
       this.$indices.children('.end').text((multipleLines ? chrEnd.n + ':' : '') + Math.ceil(pos + bpWidth - chrEnd.p));
     } else { this.$indices.children('.end').empty(); }

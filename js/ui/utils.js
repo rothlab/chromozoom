@@ -18,11 +18,6 @@ module.exports = function($) {
   // Turns an arbitrary string into something that can be used as an element's class
   utils.classFriendly = function(val) { return val.toString().replace(/[^_a-zA-Z0-9-]/g, '-'); }
   
-  // Mostly for debugging; show the fps in the bottom-right corner of the browser
-  utils.fps = function(a, b, c) {
-    $('#fps').text(a + ' ' + utils.floorHack(1000/b) + ' ' + utils.floorHack(c*10)/10 + ' ' + $('#browser *').length);
-  }
-  
   // A simplistic hash function for quickly turning strings into numbers
   // Note that since the hash space is 2^32, collisions are practically guaranteed after 80k strings, 
   // and there's a 5% chance at 20k: http://betterexplained.com/articles/understanding-the-birthday-paradox/
@@ -49,6 +44,14 @@ module.exports = function($) {
   // Escape something so it can be inserted into a regular expression
   utils.regExpQuote = function(str) { return str.replace(/([.?*+^$[\]\\(){}-])/g, "\\$1"); };
   
-  return utils;
+  utils.now = (function() {
+    if ("performance" in window == false || "now" in window.performance == false) {
+      Date.now = (Date.now || function () { return new Date().getTime(); });
+      return function() { return Date.now(); };
+    } else {
+      return function() { return window.performance.now(); }
+    };
+  })();
   
+  return utils;
 };

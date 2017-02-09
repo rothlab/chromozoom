@@ -721,9 +721,13 @@ body {
   -moz-transition: opacity 0.5s ease-in-out;
   -o-transition: opacity 0.5s ease-in-out;
   transition: opacity 0.5s ease-in-out;
+  visibility: hidden;
 }
 .browser-track .tile.tile-loaded.tile-show {
   opacity: 1;
+}
+.browser-track .tile.bppp-top {
+  visibility: visible;
 }
 
 .browser-track .tile-blank {
@@ -736,9 +740,9 @@ body {
   font-size: 0.7em;
   text-align: center;
   border-bottom: 1px solid #bbb;
+  visibility: visible;
 }
 .browser-track .tile-full {
-/*  overflow: hidden; */      /* FIXME: Have to figure out whether we need this going forward! */
   background: white;
 }
 .browser-track:nth-child(even) .tile-full {
