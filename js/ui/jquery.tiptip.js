@@ -22,7 +22,7 @@
 
 var _ = require('../underscore.min.js');
 
-module.exports = function($){
+module.exports = function($, _){
     
   var defaults = { 
     activation: "hover",

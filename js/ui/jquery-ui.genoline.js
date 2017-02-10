@@ -1,9 +1,10 @@
 // ===================================================================
 // = Each line of the $.ui.genobrowser is managed by a $.ui.genoline =
 // ===================================================================
+/*jshint node: true */
 
-module.exports = function($) {
-  
+module.exports = function($, _) {
+
 var utils = require('./utils.js')($);
 
 require('./greensock/Draggable.min.js');
@@ -17,7 +18,7 @@ $.widget('ui.genoline', {
 
   // Called automatically when widget is instantiated
   _init: function() {
-    var $elem = this.element, 
+    var $elem = this.element,
       o = this.options,
       html;
     this.pos = parseInt(o.origin, 10) || 0;
@@ -29,14 +30,14 @@ $.widget('ui.genoline', {
     this.$indices = $('<div class="indices"/>').appendTo($elem);
     this.$zoomshield = $('<div class="zoom-shield hidden"/>').appendTo($elem);
     this.centeredOn = null; // for the reticle
-    
-    html = '<div class="c nw"/><div class="c ne"/><div class="c sw"/>'
-      + '<div class="c se"/><div class="v n"/><div class="v s"/><div class="inner-retic">'
-      + '<div class="c nw"/><div class="c ne"/><div class="c sw"/><div class="c se"/></div>';
+
+    html = '<div class="c nw"/><div class="c ne"/><div class="c sw"/>' +
+      '<div class="c se"/><div class="v n"/><div class="v s"/><div class="inner-retic">' +
+      '<div class="c nw"/><div class="c ne"/><div class="c sw"/><div class="c se"/></div>';
     $(html).appendTo(this.$retic);
     html = '<div class="start"></div><div class="end"></div>';
     $(html).appendTo(this.$indices);
-    
+
     this._initDraggable();
     this._initSideSortable();
     this.$trackCont.bind('dblclick', {self: this}, this._recvDoubleClick);
@@ -44,23 +45,25 @@ $.widget('ui.genoline', {
     this.fixTracks();
     this.jumpTo(this.pos);
   },
-  
+
   _initDraggable: function() {
     var self = this, $elem = this.element, o = this.options,
     throw_; // avoid conflict with throw keyword
-    
+
     // Instead of jQuery UI's $.ui.draggable, we use GreenSock Animation Platform for better performance
     // GreenSock uses modern JS animation techniques and leverages hardware acceleration wherever possible
     // We can't use GreenSock's ThrowPropsPlugin because it is non-free, but we can replicate the bit of
     // functionality we need for "throwing" by measuring velocity and tweening a throw ourselves
     // TODO: bounceCheck for bouncing off edges; do we really care about vertical dragging (lineShift)?
-    // TODO: fix the reticle & side indices
-    // TODO: need to re-incorporate fixFirstLabel
     self.throw = throw_ = {};
     self.draggable = new Draggable(self.$cont.get(0), {
       type: "x",
+      onPress: function(e) {
+        // Both of these are needed to refresh the UI in case this interrupted a throw
+        self.fixTrackTiles();
+        self.fixIndices();
+      },
       onDragStart: function(e) {
-        self.fixTrackTiles();  // need to do this in case this interrupts a throw right before a refresh is needed
         self.hideIndices();
         $('body').addClass('dragging');
         o.browser.genobrowser('showReticle', 'dragging', true);
@@ -73,6 +76,7 @@ $.widget('ui.genoline', {
         throw_.velocity = this.deltaX / deltaT;           // in px / ms
         throw_.lastT = now;
         self._setPosFromX(this.x, e.pageY);
+        self.fixFirstLabel();
       },
       onDragEnd: function(e) {
         $('body').removeClass('dragging');
@@ -81,7 +85,7 @@ $.widget('ui.genoline', {
       }
     });
   },
-  
+
   _initSideSortable: function() {
     var self = this,
       o = self.options,
@@ -93,7 +97,7 @@ $.widget('ui.genoline', {
       appendTo: '#' + o.browser.attr('id'),
       handle: '.subtrack-cont',
       helper: 'clone',
-      start: function() { 
+      start: function() {
         $('body').addClass('dragging');
         self.$cont.children('.browser-track').each(function(i) { $(this).data('oldIndex', i); });
       },
@@ -116,48 +120,48 @@ $.widget('ui.genoline', {
       }
     });
   },
-  
+
   fixTracks: function() {
-    var $elem = this.element, 
+    var $elem = this.element,
       o = this.options,
       $t = this.$cont.children('.browser-track').first(),
       tracks = o.browser.genobrowser('tracks'),
       $u;
-      
+
     if (!$t.length) { $t = this._addTrack(tracks[0], 0); }
-    
+
     // iterate through the new track spec, matching, inserting and deleting tracks as needed
     for (var i = 0; i < tracks.length; i++) {
       var track = tracks[i];
-      if ($t.hasClass('browser-track-' + track.n)) { 
-        $t = $t.next(); 
+      if ($t.hasClass('browser-track-' + track.n)) {
+        $t = $t.next();
       } else if ($t.next().hasClass('browser-track-' + track.n)) {
         $u = $t;
         $t = $t.next().next();
         $u.genotrack('side').remove();
         $u.remove();
-      } else { 
+      } else {
         this._addTrack(track, $t);
       }
     }
-    
+
     // deletion
-    do { 
-      $u = $t; 
+    do {
+      $u = $t;
       $t = $t.next();
       $u.genotrack('side').remove();
       $u.remove();
     } while ($t.length);
-    
+
     this.$side.sortable('refresh');
     this.fixFirstLabel(true);
     this.redrawAreaLabels();
   },
-  
+
   getPos: function() {
     return this.pos;
   },
-  
+
   _setPosFromX: function(x, top) {
     var o = this.options,
       $elem = this.element,
@@ -165,7 +169,7 @@ $.widget('ui.genoline', {
     this.pos = o.origin - x * zoom;
     o.browser.genobrowser('recvDrag', $elem, this.pos);
   },
-  
+
   jumpTo: function(pos, forceRepos) {
     var o = this.options,
       zoom = o.browser.genobrowser('zoom'),
@@ -180,63 +184,66 @@ $.widget('ui.genoline', {
     this.fixFirstLabel();
     this.fixIndices();
   },
-  
+
   startThrow: function(vInit, xInit) {
     var self = this,
       throw_ = self.throw,
       contEl = self.$cont.get(0),
       duration, decel, throwDistance;
-    
-    if (!vInit || Math.abs(vInit) < 0.1) { return; }   // Don't allow throws below a certain initial speed
+
+    // Don't allow throws below a certain initial speed
+    if (!vInit || Math.abs(vInit) < 0.1) { self.fixIndices(); return; }
+
     vInit = Math.max(-5.0, Math.min(vInit, 5.0));      // Clip the initial speed to a reasonable range
-    
     if (_.isUndefined(xInit)) { xInit = contEl._gsTransform.x; }
     throw_.lastRefresh = xInit;
     decel = vInit > 0 ? 0.001 : -0.001;                // in px / ms^2
     duration = vInit / decel;                          // in ms
     throwDistance = (vInit * vInit) / (2 * decel);     // in px
-    
+
     throw_.tween = TweenLite.to(self.$cont, duration / 1000.0, {
       x: xInit + throwDistance,
       ease: Power1.easeOut,
       onUpdate: function() {
         var x = contEl._gsTransform.x;
         self._setPosFromX(x);
+        self.fixFirstLabel();
         if (Math.abs(x - throw_.lastRefresh) > 1000) { throw_.lastRefresh = x; self.fixTrackTiles(); }
       },
       onComplete: function() {
         var x = contEl._gsTransform.x;
         self._setPosFromX(x);
+        self.fixIndices();
         self.fixTrackTiles();
       }
     });
   },
-  
+
   stopThrow: function() {
     var tween = this.throw && this.throw.tween;
     if (tween && tween.isActive()) { this.fixTrackTiles(); tween.kill(); }
   },
-  
+
   fixTrackTiles: function(forceRepos) {
     this.$cont.children('.browser-track').genotrack('fixTiles', forceRepos);
   },
-  
+
   redrawAreaLabels: function() {
     var $elem = this.element;
     _.each(this.options.browser.genobrowser('tracks'), function(t) {
       if (t.custom) { $elem.find('.browser-track-'+t.n).genotrack('redrawAreaLabels'); }
     });
   },
-    
+
   // Adds a $.ui.genotrack for the track specification in `track` to the $.ui.genoline at position `pos`
   //    `pos` can be a numerical index or a jQuery object for the $.ui.genotrack element
   _addTrack: function(track, pos) {
     var $elem = this.element,
       $trk = $('<div class="browser-track"></div>');
     if (!pos || !pos.length) { $trk[pos === 0 ? 'prependTo' : 'appendTo'](this.$cont); }
-    else { 
+    else {
       if (_.isNumber(pos)) { pos = this.$cont.children('.browser-track').eq(pos); }
-      $trk.insertBefore(pos); 
+      $trk.insertBefore(pos);
     }
     pos = this.$cont.children('.browser-track').index($trk.get(0));
     var $side = $('<div class="side"/>'), $sides = this.$side.children('.side');
@@ -244,23 +251,24 @@ $.widget('ui.genoline', {
     else { $side.prependTo(this.$side); }
     return $trk.genotrack($.extend({}, this.options, {track: track, line: $elem, side: $side}));
   },
-  
+
   _lineHeight: function() {
     var o = this.options, tracks = o.browser.genobrowser('tracks');
     return _.reduce(tracks, function(t, u) { return {h:t.h + u.h}; }).h;
   },
-  
+
   lineHeight: function() {
     return this._lineHeight();
   },
-  
+
   fixFirstLabel: function(noHorizMotion) {
     var self = this, $elem = self.element, o = self.options,
       firstLabelOccluded = false,
+      $rulerLabels = $elem.find('.browser-track-ruler .label'),
       predictedWidth, dragContLeft, label;
-    
+
     if (!self.$firstLabel) { return; }
-    if ($elem.get(0) != o.browser.genobrowser('lines').get(0)) { 
+    if ($elem.get(0) != o.browser.genobrowser('lines').get(0)) {
       self.$firstLabel.addClass('occluded');
       $elem.find('.browser-track-ruler .label').removeClass('occluded');
       return;
@@ -271,11 +279,11 @@ $.widget('ui.genoline', {
       else { this.$firstLabel.removeClass('no-ruler').css('top', $ruler.position().top); }
       return;
     }
-    
+
     // Horizontal motion means we may have to fix the content and occlusion of the label.
     label = o.browser.genobrowser('chrAt', self.pos);
     if (label !== self.$firstLabel.data('content')) {
-      if (label === null) { 
+      if (label === null) {
         // We are behind chr1.
         self.$firstLabel.addClass('occluded').data('content', null);
         $elem.find('.browser-track-ruler .label').removeClass('occluded');
@@ -283,30 +291,33 @@ $.widget('ui.genoline', {
         self.$firstLabel.text(label.n).removeClass('occluded').data('content', label);
       }
     }
-    
+
     // If we are behind chr1, it's impossible for the firstLabel to occlude any labels
     if (label === null) { return; }
-    
+    // If no labels are on the screen, no occlusion by firstLabel is possible...
+    if (!$rulerLabels.length) { return; }
+
     // Check occlusion of other labels and set the appropriate classes so they are visible thru the firstLabel
     // We take pains to avoid calling .offset(), because that triggers a re-layout (expensive!)
-    dragContLeft = parseInt(self.$cont.get(0).style.left, 10);
+    dragContLeft = self.$cont.get(0)._gsTransform.x;
     predictedWidth = label.n.length * 19;
-    $elem.find('.browser-track-ruler .label').each(function() {
+    $rulerLabels.each(function() {
       var thisLeft = dragContLeft + parseInt(this.style.left, 10),
-        thisWidth = $(this).text().length * 19,
+        maxWidth = parseInt($(this).children('.label-text').get(0).style.maxWidth, 10),
+        thisWidth = Math.min($(this).text().length * 19, maxWidth),
         occlusion = thisLeft + thisWidth > 0 && thisLeft < predictedWidth;
       firstLabelOccluded = firstLabelOccluded || occlusion;
       $(this).toggleClass('occluded', occlusion);
     });
     self.$firstLabel.toggleClass('occluded', firstLabelOccluded);
   },
-  
+
   hideIndices: function() {
     this.$indices.children('.start').empty();
     this.$indices.children('.end').empty();
     this.$retic.children('.n').empty();
   },
-  
+
   fixIndices: function() {
     var o = this.options,
       pos = this.pos,
@@ -317,21 +328,21 @@ $.widget('ui.genoline', {
       multipleLines = $lines.length > 1,
       reticPos = this.centeredOn === null ? this.pos + 0.5 * (bpWidth - o.sideBarWidth * zoom) : this.centeredOn,
       chrStart, chrEnd, chrRetic;
-      
+
     if (elem == $lines.get(0)) {
       chrStart = o.browser.genobrowser('chrAt', pos) || o.chrLabels[0];
       this.$indices.children('.start').text((multipleLines ? chrStart.n + ':' : '') + Math.floor(pos - chrStart.p));
     } else { this.$indices.children('.start').empty(); }
-    
+
     if (elem == $lines.last().get(0)) {
       chrEnd = o.browser.genobrowser('chrAt', pos + bpWidth) || o.chrLabels[0];
       this.$indices.children('.end').text((multipleLines ? chrEnd.n + ':' : '') + Math.ceil(pos + bpWidth - chrEnd.p));
     } else { this.$indices.children('.end').empty(); }
-    
+
     chrRetic = o.browser.genobrowser('chrAt', reticPos) || o.chrLabels[0];
     this.$retic.children('.n').text((multipleLines ? chrRetic.n + ':' : '') + Math.floor(reticPos - chrRetic.p));
   },
-  
+
   setReticle: function(nextZooms, centeredOn) {
     var o = this.options,
       zoom = o.browser.genobrowser('zoom'),
@@ -354,7 +365,7 @@ $.widget('ui.genoline', {
     this.$retic.css('left', left);
     this.centeredOn = noCenteredOn ? null : centeredOn;
   },
-  
+
   _recvDoubleClick: function(e) {
     var self = e.data.self,
       $browser = self.options.browser,
@@ -363,11 +374,11 @@ $.widget('ui.genoline', {
       offsetLeft = (e.pageX + 8) - offset.left; // compensating for the center of the cursor?
     $browser.genobrowser('zoom', !e.shiftKey, self.pos + (offsetLeft * zoom), 1000);
   },
-  
+
   toggleZoomShield: function(show) {
     this.$zoomshield.toggleClass('hidden', !show);
   }
-  
+
 });
 
 };

@@ -1,8 +1,9 @@
 // ====================================================================
 // = Each track within a $.ui.genoline is managed by a $.ui.genotrack =
 // ====================================================================
+/*jshint node: true */
 
-module.exports = function($) {
+module.exports = function($, _) {
 
 var utils = require('./utils.js')($),
   pad = utils.pad,
@@ -11,7 +12,7 @@ var utils = require('./utils.js')($),
   floorHack = utils.floorHack;
 
 $.widget('ui.genotrack', {
-  
+ 
   // Default options that can be overridden
   options: {
     disabled: false,
@@ -19,29 +20,28 @@ $.widget('ui.genotrack', {
     line: null,       // must be specified on instantiation
     side: null        // must be specified on instantiation
   },
-  
+ 
   // Called automatically when widget is instantiated
   _init: function() {
     var self = this,
-      $elem = this.element, 
-      o = this.options,
-      bppps;
+      $elem = this.element,
+      o = this.options;
     if (!o.line) { throw "Cannot instantiate ui.genotrack without specifying 'line' option"; }
     if (!o.side) { throw "Cannot instantiate ui.genotrack without specifying 'side' option"; }
-    self.ruler = o.track.n == 'ruler';
+    self.ruler = o.track.n === 'ruler';
     self.sliderBppps = o.bppps.concat(o.overzoomBppps);
     self.tileLoadCounter = self.areaLoadCounter = 0;
     self.custom = !!o.track.custom;
-    self.birth = (new Date).getTime();
+    self.birth = (new Date()).getTime();
     self.$side = $(o.side).append('<div class="subtrack-cont"><div class="scales"></div></div>');
     self.fixClippedDebounced = _.debounce(self.fixClipped, 500);
     if (self.custom) {
       o.scales = o.track.custom.scales;
       // Some custom track types defer expensive parts of setup until they're about to be displayed
       o.track.custom.finishSetupAsync();
-      o.track.custom.onSyncProps = function(props) { self._customTrackPropsUpdated(props); }; 
+      o.track.custom.onSyncProps = function(props) { self._customTrackPropsUpdated(props); };
     }
-    
+   
     $elem.addClass('browser-track-'+o.track.n).toggleClass('no-ideograms', self.ruler && !o.chrBands);
     self._nearestBppps(o.browser.genobrowser('zoom'));
     // If the track has multiple densities, or its single density has multiple fixed heights,
@@ -53,7 +53,7 @@ $.widget('ui.genotrack', {
     self.resize(o.track.h);
     self.updateDensity();
   },
-  
+ 
   // the side element is resizable to permit track resizing
   _initSideResizable: function() {
     var self = this,
@@ -65,7 +65,7 @@ $.widget('ui.genotrack', {
       minHeight = (self.custom ? o.track.custom.heights.min : Math.min(_.min(o.track.fh[bF]), 32)) - paddingBordersY,
       $linesBelow, $h;
     var opts = {
-      handles: 's', 
+      handles: 's',
       minHeight: minHeight,
       start: function(e, ui) {
         var bppp = self.bppps().top,
@@ -74,8 +74,8 @@ $.widget('ui.genotrack', {
         $('body').addClass('row-resizing');
         if (!self.ruler && !self.custom) {
           var $imgs = $('.browser-track-'+o.track.n+'>.bppp-'+classFriendly(bppp)+' img.tdata'),
-            maxHeight = Math.max.apply(Math, $imgs.map(function() { 
-              return this.naturalHeight || this.height; 
+            maxHeight = Math.max.apply(Math, $imgs.map(function(){
+              return this.naturalHeight || this.height;
             }).get());
           $(this).resizable('option', 'maxHeight', Math.max(maxHeight * 1.2, ui.originalSize.height, 18));
         }
@@ -84,7 +84,7 @@ $.widget('ui.genotrack', {
           if (customHeights.min) { $(this).resizable('option', 'minHeight', customHeights.min - paddingBordersY); }
         }
         if (!self.ruler) {
-          self.snaps = fixedHeights && _.map(fixedHeights, function(v, k) { return k=='dense' ? v : v + 1; });
+          self.snaps = fixedHeights && _.map(fixedHeights, function(v, k) { return k==='dense' ? v : v + 1; });
           if (self.snaps) { self.snaps.always = fixedHeights && !!(fixedHeights.pack || fixedHeights.full); }
         }
         o.browser.find('.browser-line').removeClass('last-resized');
@@ -108,7 +108,7 @@ $.widget('ui.genotrack', {
         $('body').removeClass('row-resizing');
         $(this).removeClass('resizing-side');
         $(this).css('width', '');
-        o.browser.genobrowser('recvTrackResize', o.line, o.track.n, self.$side.outerHeight()); 
+        o.browser.genobrowser('recvTrackResize', o.line, o.track.n, self.$side.outerHeight());
       }
     };
     if (self.ruler) { opts.maxHeight = o.track.oh - paddingBordersY; }
@@ -116,10 +116,10 @@ $.widget('ui.genotrack', {
     $h = self.$side.find('.ui-resizable-handle');
     $h.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
   },
-  
+ 
   // getter for the side element (holding track labels)
   side: function() { return this.$side; },
-  
+ 
   _fixSide: function(density, bppp, force) {
     var self = this,
       o = self.options,
@@ -143,7 +143,7 @@ $.widget('ui.genotrack', {
         h = v[1] || 15;
         $('<div class="subtrack"/>').css({height: h, lineHeight: h+'px'}).html(v[0]).appendTo($cont);
       });
-    } else { // sometimes they are not 
+    } else { // sometimes they are not
       text = (trackDesc[n] && trackDesc[n].sm) || o.track.n;
       h = o.track.h;
       $cont.append($('<div class="subtrack unsized"/>').text(text));
@@ -152,14 +152,14 @@ $.widget('ui.genotrack', {
     this._fixSideYAxisTicks(density);
     $cont.data('densBppp', densBpppMemo);
   },
-  
+ 
   // fixes vertical tick elements for scales specified in o.scales on certain custom tracks
   _fixSideYAxisTicks: function(density) {
     var self = this,
       o = self.options,
       // o.scales is supposed to be an object with densities as the keys (or "_all", which is used for all densities)
       //    and each value is an array containing objects that each specify a scale
-      // each scale is in the form {limits: [low, high], specialTicks: [val], yLine: false, top: pixels, 
+      // each scale is in the form {limits: [low, high], specialTicks: [val], yLine: false, top: pixels,
       //                            height: pixels, bottom: pixels}
       //    WHERE specialTicks and yLine are optional AND only one of bottom or height is required
       scales = o.scales._all || o.scales[density],
@@ -167,13 +167,13 @@ $.widget('ui.genotrack', {
       $scales = $cont.find('.scales'),
       scaleHtml = '<div class="scale"><span class="tick top"/><span class="tick bottom"/></div>',
       $scale, extraTicks;
-    
+   
     function format(n) {
       var log = Math.log10(Math.abs(n)),
         hasDecimal = n !== Math.round(n);
       return n === 0 || !hasDecimal ? n : n.toFixed(Math.max(-Math.floor(log) + 2, 0));
     }
-    
+   
     if (scales && !_.isArray(scales)) { scales = [scales]; }
     if (!scales || !scales.length) { $cont.find('.scale').remove(); return; }
     _.each(scales, function(scale, i) {
@@ -184,11 +184,11 @@ $.widget('ui.genotrack', {
       if (scale.height) { $scale.css('height', scale.height); }
       else { $scale.css('bottom', scale.bottom || 0); }
       $scale.toggleClass('tiny', $scale.height() < 24);
-      
+     
       // create, position, and fill the limit ticks
       $scale.children('.top').text(format(scale.limits[1])).prepend('<span class="mark">&nbsp;</span>');
       $scale.children('.bottom').text(format(scale.limits[0])).prepend('<span class="mark">&nbsp;</span>');
-      
+     
       // create, position, and fill the special ticks and the yLineMark tick
       extraTicks = _.isArray(scale.specialTicks) ? scale.specialTicks : [];
       if (!_.isUndefined(scale.yLine) && scale.yLine !== false) { extraTicks = extraTicks.concat(scale.yLine); }
@@ -209,7 +209,7 @@ $.widget('ui.genotrack', {
     });
     $scales.children('.scale').slice(scales.length).remove();
   },
-  
+ 
   // public resize function that updates the entire UI accordingly.
   resize: function(height, animCallback) {
     var $elem = this.element,
@@ -219,23 +219,23 @@ $.widget('ui.genotrack', {
     // can pass callback==true to animate without a callback
     if (!_.isFunction(animCallback) && animCallback) { animCallback = function() {}; }
     if (o.track.custom && o.track.custom.stretchHeight) {
-      alsoEraseStretchedTiles = function() { 
+      alsoEraseStretchedTiles = function() {
         $elem.find('.tile-custom canvas').each(function() {
           if (this.height < height) { $(this).attr('height', height).trigger('render'); }
         });
-      }
+      };
     }
     // this._resize(height, animCallback);
-    if (animCallback) { 
+    if (animCallback) {
       this._resize(height, function() { alsoEraseStretchedTiles(); animCallback(); });
-      this.$side.animate({height: height - paddingBordersY}, o.lineFixDuration); 
-    } else { 
+      this.$side.animate({height: height - paddingBordersY}, o.lineFixDuration);
+    } else {
       this._resize(height);
       this.$side.outerHeight(height);
       alsoEraseStretchedTiles();
     }
   },
-  
+ 
   // internal resize handler, used by the resizable side handle, does not update the side height.
   _resize: function(height, callback) {
     var o = this.options,
@@ -250,11 +250,11 @@ $.widget('ui.genotrack', {
     this.fixTiles();
     this.fixClipped();
     this.$side.find('.scale').each(function() { $(this).toggleClass('tiny', $(this).height() < 24); });
-    if (_.isFunction(callback)) { 
-      this.element.animate({height: height}, o.lineFixDuration, callback).css('overflow', 'visible'); 
+    if (_.isFunction(callback)) {
+      this.element.animate({height: height}, o.lineFixDuration, callback).css('overflow', 'visible');
     } else { this.element.height(height); }
   },
-  
+ 
   // what densities can this track display for the given bppp (tile zoom level)?
   _availDensities: function(bppp) {
     var self = this,
@@ -273,15 +273,15 @@ $.widget('ui.genotrack', {
     });
     return self.availDensities;
   },
-  
+ 
   // at the given bppp, what is the best density to display? Requires calling up to the browser
   // level for a densityOrder calculation on all lines showing this track.
   _bestDensity: function(bppp) {
     var densities = this.availDensities[bppp],
       densityOrder = this.options.browser.genobrowser('densityOrder', this.options.track.n);
-    return _.min(densities, function(d) { return densityOrder[d]; })
+    return _.min(densities, function(d) { return densityOrder[d]; });
   },
-  
+ 
   updateDensity: function() {
     var self = this,
       o = self.options,
@@ -302,7 +302,7 @@ $.widget('ui.genotrack', {
     // Finally, fix clipping indicators
     self.fixClipped();
   },
-  
+ 
   // returns a (possibly cached) object listing the nearest bppps to the current zoom (in `nearest:`),
   // whether the bppp level is for background caching, in `cache:` (relevant only for <img> tiles),
   // and what the topmost bppp level is, in `top:`.
@@ -334,15 +334,15 @@ $.widget('ui.genotrack', {
     bppps.topFormatted = this._bpppFormat(bppps.top);
     return (this._bppps = bppps);
   },
-  
+ 
   bppps: function(forceRecalc) {
     var zoom = this.options.browser.genobrowser('zoom');
     return (forceRecalc || !this._bppps) ? this._nearestBppps(zoom) : this._bppps;
   },
-  
+ 
   fixTiles: function(forceRepos) {
     var self = this,
-      $elem = self.element, 
+      $elem = self.element,
       o = self.options;
     if (!o.browser.genobrowser('tileFixingEnabled')) { return; }
     var pos = o.line.genoline('getPos'),
@@ -361,9 +361,9 @@ $.widget('ui.genotrack', {
       while ((tileId += bpPerTile) < rightMargin) { tilesNeeded.push(tileId); }
       _.each(tilesNeeded, function(tileId) {
         var repos = false, $t = $('#' + self._tileId(tileId, bppp));
-        if (!$t.length) { 
-          $t = self._addTile(tileId, bppp, bestDensity, bppps.preload[i], bppps.top); 
-          repos = true; 
+        if (!$t.length) {
+          $t = self._addTile(tileId, bppp, bestDensity, bppps.preload[i], bppps.top);
+          repos = true;
         }
         self._showTile($t);
         if (repos || forceRepos) { self._reposTile($t, tileId, zoom, bppp); }
@@ -377,14 +377,14 @@ $.widget('ui.genotrack', {
     this._fixChrLabels(forceRepos);
     this._fixSideClipped();
   },
-  
+ 
   _setImgDims: function(e) {
     // NOTE: this is only used as bound to a tile <img>'s onLoad! See _addTile
     var self = this,
       h = this.naturalHeight || this.height;
     $(this).css('height', h).css('width', '100%');
   },
-  
+ 
   _trackLoadFire: function(e) {
     // NOTE: this is only used as bound to a tile <img>'s onLoad! See _addTile
     var self = e.data.self,
@@ -392,15 +392,15 @@ $.widget('ui.genotrack', {
       $t = e.data.tile,
       h = this.naturalHeight || this.height;
     $(this).removeClass('loading');
-    if (e.data.isBest && e.type != 'error') { 
+    if (e.data.isBest && e.type !== 'error') {
       $t.addClass('tile-loaded');
       if (h > trackH) { $t.addClass('clipped'); }
       if (!e.data.cached) { self._showTile($t); }
     }
     // e.data.self.availDensities[bppp] = _.without(densities, density); // FIXME, how to knock out tracks that don't load?
-    if (--self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); };
+    if (--self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); }
   },
-  
+ 
   _addTile: function(tileId, bppp, bestDensity, cached, topBppp) {
     var self = this,
       o = self.options,
@@ -412,11 +412,11 @@ $.widget('ui.genotrack', {
       $tileBefore = $('#' + self._tileId(tileId - bpPerTile, bppp));
 
     if ($tileBefore.length) { $d.insertAfter($tileBefore); }
-    else { $d.prependTo(self.element) };
+    else { $d.prependTo(self.element); }
     $d.attr('id', self._tileId(tileId, bppp)).data({zIndex: _.indexOf(self.sliderBppps, bppp), tileId: tileId});
     if ($.support.touch) { self._tileTouchEvents($d); }
     else { $d.mousemove({self: self}, self._tileMouseMove).mouseout({self: self}, self._tileMouseOut); }
-    
+   
     // The following handle special case tiles: blank tiles, custom track tiles, or ruler tiles
     if (special) {
       if (special.blank) { $d.addClass('tile-blank').addClass('tile-off-' + (special.left ? 'l' : 'r')); }
@@ -424,11 +424,11 @@ $.widget('ui.genotrack', {
       else { self._rulerTile($d, tileId, bppp); } // special.ruler === true
       return $d;
     }
-    
+   
     // The remaining code here is for "chromozoom v1" <img> based tiles, which are deprecated
     $d.addClass('tile-full bppp-'+classFriendly(bppp));
     _.each(densities, function(density) {
-      var tileSrc = self._tileSrc(tileId, bppp, density), 
+      var tileSrc = self._tileSrc(tileId, bppp, density),
         fixedHeight = o.track.fh[tileSrc.bpppFormat] && o.track.fh[tileSrc.bpppFormat][density],
         $i;
       if (fixedHeight) {
@@ -442,12 +442,12 @@ $.widget('ui.genotrack', {
       $i.bind('load error', {self: self, tile: $d, isBest: density==bestDensity, cached: cached}, self._trackLoadFire);
       $i.toggleClass('dens-best', density == bestDensity);
       if (o.track.m && _.include(o.track.m, density)) { $i.addClass('no-areas'); }
-      
+     
       $i.attr('src', o.tileDir + tileSrc.full);
     });
     return $d;
   },
-  
+ 
   // Shows orange clipping indicators if any of the best density tiles have data cut off at the bottom
   fixClipped: function() {
     var $elem = this.element,
@@ -462,7 +462,7 @@ $.widget('ui.genotrack', {
     });
     this._fixSideClipped();
   },
-  
+ 
   _fixSideClipped: function() {
     var bppps = this.bppps(),
       o = this.options,
@@ -477,7 +477,7 @@ $.widget('ui.genotrack', {
     });
     this.$side.toggleClass('clipped', clipped);
   },
-  
+ 
   _tileTouchEvents: function($tile) {
     var self = this;
     $tile.bind('touchstart', {self: self}, function(e) {
@@ -501,7 +501,7 @@ $.widget('ui.genotrack', {
     if ($('body').hasClass('dragging')) { return; }
     if (!$tdata.length || !$tdata.hasClass('dens-best') || !(areas = $tdata.data('areas'))) {
       if (!$targ.is('.area')) { o.browser.genobrowser('areaHover', false); }
-      return; 
+      return;
     }
     bppp = $tdata.data('bppp');
     ratio = bppp / o.browser.genobrowser('zoom');
@@ -521,7 +521,7 @@ $.widget('ui.genotrack', {
     if (!$targ.is('.area')) { o.browser.genobrowser('areaHover', false); }
     return;
   },
-  
+ 
   _tileMouseOut: function(e) {
     var $targ = $(e.target),
       $tdata = $targ.closest('.tdata'),
@@ -530,13 +530,13 @@ $.widget('ui.genotrack', {
     if (!$tdata.length) { return; }
     if (!$relTarget.is('.tile') && !$relTarget.closest('.tile').length) { self.options.browser.genobrowser('areaHover', false); }
   },
-  
+ 
   _areaMouseOver: function(e) {
     var d = e.data,
       o = d.self.options;
     o.browser.genobrowser('areaHover', [o.track.n, d.bppp, d.density, 'hrefHash', d.hrefHash], d.areaId);
   },
-  
+ 
   fixClickAreas: function() {
     var self = this,
       o = this.options,
@@ -555,7 +555,7 @@ $.widget('ui.genotrack', {
       });
     });
   },
-  
+ 
   _areaTipTipEnter: function(callback) {
     var self = $(this).data('genotrack'),
       href = $(this).attr('href'),
@@ -591,7 +591,7 @@ $.widget('ui.genotrack', {
     }
     if (tiptipData) { createTipTipHtml(tiptipData); }
   },
-  
+ 
   makeAnchor: function($tile, area, bppp, density, flags) {
     var bestDensity = this._bestDensity(bppp),
       o = this.options,
@@ -608,9 +608,9 @@ $.widget('ui.genotrack', {
       $a = $.mk('a').addClass('area dens-'+density+' href-hash-'+hash).attr('title', area[4]);
     $a.attr('href', (custom ? '' : this.baseURL) + area[5]).attr('target', '_blank');
     $a.css({top: area[1], height: area[3] - area[1] - 2});
-    if (flags.label) { 
+    if (flags.label) {
       $a.css({right: (100 - area[0] * scaleToPct) + '%', color: 'rgb(' + (area[7] || defaultColor) + ')'}).addClass('label');
-      if (area[8]) { $a.html(area[8]) } else { $a.text(area[4]); }
+      if (area[8]) { $a.html(area[8]); } else { $a.text(area[4]); }
       $a.mouseover({self: this, bppp: bppp, density: density, hrefHash: hash, areaId: $tile.attr('id') + '.' + flags.i}, this._areaMouseOver);
     } else {
       // FIXME: We'd need to respect area[10] if set, see FIXME in _drawAreaLabels below
@@ -627,7 +627,7 @@ $.widget('ui.genotrack', {
     if (area[9]) { $a.data('tiptipData', area[9]); }
     return $a.data('hrefHash', hash).toggleClass('dens-best', density == bestDensity).appendTo($tile);
   },
-  
+ 
   _drawAreaLabels: function($tile, bppp, density, areas) {
     var o = this.options,
       custom = o.track.custom,
@@ -646,24 +646,24 @@ $.widget('ui.genotrack', {
       ctx = $c.get(0).getContext,
       defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif",
       defaultColor = (custom && custom.opts.color) || '0,0,0';
-    
+   
     if (!ctx) { return; }
     if (!areas) { areas = $tdata.data('areas'); }
-    areas = _.filter(areas, function(v) { return !v[6]; }) // Don't draw labels for areas continuing from previous tile
+    areas = _.filter(areas, function(v) { return !v[6]; }); // Don't draw labels for areas continuing from previous tile
     if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
-    
+   
     ctx = $c.get(0).getContext('2d');
     ctx.font = defaultFont;
     ctx.textAlign = 'end';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgb(' + defaultColor + ')';
-    
+   
     _.each(areas, function(area, i) {
       var x = area[0] * canvasXScale - xPad + leftOverhang,
         y = floorHack((area[1] + area[3]) * 0.5),
         lineHeight = 12,
         textWidth, lines, lineTextColor;
-      
+     
       if (area[8]) {
         lines = area[8].split("\n");
         // potentially marked up + multiline text
@@ -674,15 +674,15 @@ $.widget('ui.genotrack', {
             lineTextColor = null;
           if (m) {
             lineTextColor = m[1];
-            l = l.replace(altColorRegexp, ''); 
+            l = l.replace(altColorRegexp, '');
           }
           if (fillBg) {
             ctx.fillStyle = fillBg;
             textWidth = ctx.measureText(l).width + 1;
             ctx.fillRect(x - textWidth, lineY - lineHeight * 0.5, textWidth, lineHeight);
           }
-          if (lineTextColor || area[7] || fillBg) { 
-            ctx.fillStyle = 'rgb(' + (lineTextColor ? lineTextColor : (area[7] ? area[7] : defaultColor)) + ')'; 
+          if (lineTextColor || area[7] || fillBg) {
+            ctx.fillStyle = 'rgb(' + (lineTextColor ? lineTextColor : (area[7] ? area[7] : defaultColor)) + ')';
           }
           ctx.fillText(l, x, lineY);
           if (lineTextColor) { ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')'; }
@@ -694,7 +694,7 @@ $.widget('ui.genotrack', {
           ctx.fillRect(x - textWidth, y - lineHeight * 0.5, textWidth, lineHeight);
         }
         if (area[7] || fillBg) { ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')'; }
-        ctx.fillText(area[4], x, y); 
+        ctx.fillText(area[4], x, y);
       }
       if (area[7] || fillBg) { ctx.fillStyle = 'rgb(' + defaultColor + ')'; }
       // FIXME: add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
@@ -707,15 +707,15 @@ $.widget('ui.genotrack', {
       //          - substituting $tile.attr('id')'s last number with this number gets the HTML ID of the next tile.
       //        Finally, makeAnchor() above needs to respect area[10] when actually positioning the <a>
     });
-    
+   
     $c.toggleClass('dens-best', density == bestDensity);
-    if ($oldC.length) { 
+    if ($oldC.length) {
       $oldC.addClass('hidden');
       $c.removeClass('hidden');
       setTimeout(function() { $oldC.remove(); }, 1000);
     }
   },
-  
+ 
   redrawAreaLabels: function() {
     var self = this,
       $elem = self.element,
@@ -727,7 +727,7 @@ $.widget('ui.genotrack', {
       self._drawAreaLabels($tile, $tdata.data('bppp'), density);
     });
   },
-  
+ 
   _areaDataFetch: function(e) {
     $.ajax(e.data.src + '.json', {
       dataType: 'json',
@@ -735,7 +735,7 @@ $.widget('ui.genotrack', {
       beforeSend: e.data.beforeSend
     });
   },
-  
+ 
   _areaDataLoad: function(data, statusText, jqXHR) {
     // NOTE: this is used as an AJAX callback, so this/self must be reobtained from the jqXHR object
     var self = jqXHR._self,
@@ -743,14 +743,14 @@ $.widget('ui.genotrack', {
       $tile = $(jqXHR._appendTo),
       tileId = $tile.attr('id'),
       $tdata = $tile.children('.tdata.dens-'+jqXHR._density);
-    
+   
     function createAreaLabels(e) {
       if (jqXHR._custom.noAreaLabels) { return; }
       self._drawAreaLabels($tile, jqXHR._bppp, jqXHR._density, $tdata.data('areas'));
     };
-    
+   
     // Areas are stored in a global index, so that mousing over an area in one tile can retrieve
-    // areas with a similar name/hrefHash that must also be highlighted. 
+    // areas with a similar name/hrefHash that must also be highlighted.
     // See $.ui.genobrowser's .areaHover() for how it is traversed during mouseover.
     // Add to global area index: areaIndex[track][bppp][density]["hrefHash"|"name"][hrefHash|name][tileId][i] = true
     // FIXME: the global area index can get very big over time; as of now, it is never pruned.
@@ -772,24 +772,24 @@ $.widget('ui.genotrack', {
       });
     });
     $tdata.data('areas', data).data('bppp', jqXHR._bppp).data('density', jqXHR._density).removeClass('areas-loading');
-    
+   
     if (jqXHR._custom) {
       $tdata.one('bestDensity', createAreaLabels);
       if (jqXHR._density == jqXHR._bestDensity) { $tdata.trigger('bestDensity'); }
     }
-    if (--self.areaLoadCounter === 0) { $(jqXHR._self.element).trigger('areaload', jqXHR._bestDensity); };
+    if (--self.areaLoadCounter === 0) { $(jqXHR._self.element).trigger('areaload', jqXHR._bestDensity); }
   },
-  
+ 
   _addClickableAreas: function(tdataElem, bppp, density, bestDensity) {
     var self = this,
       o = self.options,
       tagName = tdataElem.tagName.toLowerCase(),
       $tdata = $(tdataElem),
-      areaData, edata;
+      areaData, edata, mockJqXHR;
     self.areaLoadCounter++;
     $tdata.addClass('areas-loading');
     self.baseURL = self.baseURL || o.ucscURL.replace(/[^\/]+$/, '');
-    function beforeSend(jqXHR) { 
+    function beforeSend(jqXHR) {
       $.extend(jqXHR, {
         _appendTo: tdataElem.parentNode,
         _self: self,
@@ -799,7 +799,7 @@ $.widget('ui.genotrack', {
         _areaIndex: o.browser.genobrowser('areaIndex')
       });
     }
-    
+   
     if (tagName == 'img') {
       // TODO: make this abortable, for when fixTiles(forceRepos=true) is called before it finishes!
       edata = {src: tdataElem.src, success: self._areaDataLoad, beforeSend: beforeSend};
@@ -810,16 +810,16 @@ $.widget('ui.genotrack', {
       mockJqXHR = {_custom: o.track.custom};
       beforeSend(mockJqXHR);
       self._areaDataLoad(areaData, '', mockJqXHR);
-    } else { 
+    } else {
       self.areaLoadCounter--;
       $(tdataElem).removeClass('areas-loading');
     }
   },
-  
+ 
   _showTile: function($t) {
     $t.addClass('tile-show').css('z-index', $t.data('zIndex'));
   },
-  
+ 
   _reposTile: function($tile, tileId, zoom, bppp) {
     var o = this.options,
       left = (tileId - o.line.genoline('option', 'origin')) / zoom,
@@ -829,7 +829,7 @@ $.widget('ui.genotrack', {
     if (left === -o.tileWidth && zoom === o.bppps[0]) { width += 0.1; }
     $tile.css('left', left);
     $tile.css('width', width);
-    
+   
     if (this.ruler && bppp <= o.ntsBelow[0]) {
       $tile.find('svg').each(function() {
         var width = $tile.width() + 'px';
@@ -838,7 +838,7 @@ $.widget('ui.genotrack', {
       });
     }
   },
-  
+ 
   // Is the tile given by tileId and bppp "special", meaning it is either:
   // (1) blank (2) from a custom track or (3) part of a ruler
   // If so, return a simple object describing what kind of special tile it is
@@ -848,7 +848,7 @@ $.widget('ui.genotrack', {
     if (o.track.custom) { return {custom: true}; }
     if (this.ruler && (bppp <= o.ideogramsAbove || !o.chrBands)) { return {ruler: true}; }
   },
-  
+ 
   _tileSrc: function(tileId, bppp, density) {
     var o = this.options,
       bF = this._bpppFormat(bppp),
@@ -860,13 +860,13 @@ $.widget('ui.genotrack', {
     };
     return ret;
   },
-  
+ 
   _bpppFormat: function(bppp) { return this.options.bpppFormat(bppp); },
-  
-  _tileId: function(tileId, bppp) { 
+ 
+  _tileId: function(tileId, bppp) {
     return this.uniqId + '-tile-' + bppp.toString().replace('.', '-') + '-' + tileId;
   },
-  
+ 
   _fixChrLabels: function(forceRepos) {
     if (!this.ruler) { return; }
     var self = this,
@@ -889,17 +889,17 @@ $.widget('ui.genotrack', {
     });
     $elem.children('.label').not(labelElements).remove();
   },
-  
+ 
   _rulerTile: function($t, tileId, bppp) {
     var self = this,
       o = self.options,
       bpPerTile = bppp * o.tileWidth,
       zoom = o.browser.genobrowser('zoom');
     $t.addClass('tile-ruler bppp-'+classFriendly(bppp)).data('bppp', bppp);
-    
+   
     self._drawRulerCanvasTicks($t, tileId, bppp, zoom);
     self._drawRulerCanvasChrBands($t, tileId, bppp, zoom);
-    
+   
     if (bppp <= o.ntsBelow[0]) {
       var showNtText = bppp <= o.ntsBelow[1],
         canvasHeight = (showNtText ? 12 : 3) + (o.chrBands ? 1 : 0), // with bands, we need an extra pixel
@@ -915,7 +915,7 @@ $.widget('ui.genotrack', {
       });
     }
   },
-  
+ 
   _drawRulerCanvasTicks: function($t, tileId, bppp, zoom) {
     var self = this,
       o = self.options,
@@ -927,7 +927,7 @@ $.widget('ui.genotrack', {
       majorStep = scale % 2 ? (tooLong ? [step * 2, step * 2] : [step * 5, step * 5]) : [step * 5, step * 10],
       start = floorHack((tileId - chr.p) / step) * step + step,
       newChr;
-    
+   
     if (bppp <= o.bpppNumbersBelow[0]) {
       $t.toggleClass('tile-halfway', bppp <= o.bpppNumbersBelow[0] && bppp > o.bpppNumbersBelow[1]);
       $t.toggleClass('tile-loaded', bppp <= o.bpppNumbersBelow[1]);
@@ -968,7 +968,7 @@ $.widget('ui.genotrack', {
             ctx.fillText(major, x - 1, textY);
           }
           ctx.textAlign = 'start';
-          ctx.fillRect(x, offsetForNtText ? 1 : 3, 1, 19); 
+          ctx.fillRect(x, offsetForNtText ? 1 : 3, 1, 19);
         } else {
           ctx.fillStyle = '#666666';
           ctx.fillRect(x, offsetForNtText ? 1 : 7, 1, 14);
@@ -979,24 +979,24 @@ $.widget('ui.genotrack', {
       }
 
       // fade between the old & new canvas elements
-      if ($oldC.length) { 
+      if ($oldC.length) {
         $oldC.addClass('hidden');
         $c.removeClass('hidden');
         setTimeout(function() { $oldC.remove(); }, 1000);
       }
     }
   },
-  
+ 
   _drawRulerCanvasChrBands: function($t, tileId, bppp, zoom) {
     var self = this,
       o = self.options,
       leftMarg = tileId,
       bpPerTile = bppp * o.tileWidth,
       rightMarg = tileId + bpPerTile,
-      giemsaColors = {gneg: '#e3e3e3', gpos25: '#8e8e8e', gpos50: '#555', stalk: '#555', gpos75: '#393939', 
+      giemsaColors = {gneg: '#e3e3e3', gpos25: '#8e8e8e', gpos50: '#555', stalk: '#555', gpos75: '#393939',
           gpos100: '#000', gvar: '#000', acen: '#963232'},
       whiteLabel = {gpos50: true, stalk: true, gpos75: true, gpos100: true, gvar: true};
-      
+     
     if (!o.chrBands) { return; }
     if (zoom <= o.ideogramsAbove) {
       var firstBandIndex = _.sortedIndex(o.chrBands, [0, 0, leftMarg], function(v) { return v[2]; }),
@@ -1011,17 +1011,17 @@ $.widget('ui.genotrack', {
         defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif";
       if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
       if (!ctx) { return; }
-      
+     
       // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
       $c.canvasAttr(canvasAttrs);
       ctx = $c.get(0).getContext('2d');
       ctx.font = defaultFont;
       ctx.textAlign = 'center';
       _.each(bandsToDraw, function(band) {
-        var left = (band[1] - tileId) / zoom,
-          right = (band[2] - tileId) / zoom,
+        var left = Math.max((band[1] - tileId) / zoom, 0),
+          right = Math.min((band[2] - tileId) / zoom, canvasWidth),
           width = right - left;
-        
+       
         if (band[4] == 'acen') {
           var base = left, tip = right;
           if (band[3].substr(0, 1) == 'q') { base = right; tip = left; }
@@ -1046,19 +1046,19 @@ $.widget('ui.genotrack', {
           }
         }
       });
-      
+     
       // fade between the old & new canvas elements
-      if ($oldC.length) { 
+      if ($oldC.length) {
         $oldC.addClass('hidden');
         $c.removeClass('hidden');
         setTimeout(function() { $oldC.remove(); }, 1000);
       }
     }
   },
-  
+ 
   redrawRulerCanvasTicksAndBands: function() {
     var self = this,
-      $elem = self.element, 
+      $elem = self.element,
       o = self.options,
       zoom = o.browser.genobrowser('zoom');
     $elem.children('.tile-ruler').each(function() {
@@ -1067,7 +1067,7 @@ $.widget('ui.genotrack', {
       self._drawRulerCanvasChrBands($t, $t.data('tileId'), $t.data('bppp'), zoom);
     });
   },
-  
+ 
   _ntSequenceLoad: function(dna, extraData) {
     if (!dna) { return; }
     var o = extraData._self.options,
@@ -1104,7 +1104,7 @@ $.widget('ui.genotrack', {
       prevColor = nextColor;
     }
   },
-  
+ 
   _addLabel: function(label, zoom) {
     var o = this.options,
       $l = $.mk('div').addClass('label label-'+label.p),
@@ -1112,11 +1112,10 @@ $.widget('ui.genotrack', {
     if (label.n.indexOf('chr') === 0) { $lt.prepend('<span class="chr">chr</span>'); }
     $l.prepend('<span class="start-line"></span>');
     if (label.end === true) { $l.addClass('label-end'); }
-    //$l.css('z-index', 200 + label.i);
     return $l.appendTo(this.element);
   },
-  
-  _reposLabel: function($l, label, zoom) {  
+ 
+  _reposLabel: function($l, label, zoom) {
     // constrain width of label so it doesn't run over into the next one
     // max-width doesn't include padding (5px)
     if (label.end !== true) { $l.children('.label-text').css('max-width', Math.max(label.w / zoom - 5, 0)); }
@@ -1124,7 +1123,7 @@ $.widget('ui.genotrack', {
     // `- 1` --> label is offset 1px to left to compensate for the 2px width of the red indicator line
     $l.css('left', (label.p + 1 - this.options.line.genoline('option', 'origin')) / zoom - 1);
   },
-  
+ 
   _customTileRender: function(e, callback) {
     var canvas = this,
       $canvas = $(this),
@@ -1132,36 +1131,36 @@ $.widget('ui.genotrack', {
       self = d.self,
       track = self.options.track,
       $browser = self.options.browser;
-      
+     
     function pushCallback() { _.isFunction(callback) && $canvas.data('renderingCallbacks').push(callback); }
     if ($canvas.data('rendering') === true) { pushCallback(); return; }
-    
+   
     $canvas.data('rendering', true);
     $canvas.data('renderingCallbacks', []);
     if (d.density != 'dense') { self.tileLoadCounter++; }
     pushCallback();
-    
+   
     d.custom.render(canvas, d.start, d.end, d.density, function() {
       $canvas.css('width', '100%').css('height', d.custom.stretchHeight ? '100%' : canvas.unscaledHeight());
       $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
       $canvas.removeClass('unrendered').addClass('no-areas');
-      
+     
       self.fixClickAreas();
       self.fixClippedDebounced();
-      
+     
       // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
       // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoom
       if ($canvas.hasClass('too-many')) {
         if (d.density != 'pack') { $canvas.parent().addClass('too-many'); }
         if (d.density == 'dense') { $canvas.parent().addClass('too-many-for-dense'); }
       }
-      
+     
       _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
       $canvas.data('rendering', false);
-      
-      if (d.density != 'dense' && --self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); };
+     
+      if (d.density != 'dense' && --self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); }
     });
-    
+   
     if (d.custom.expectsSequence && (d.end - d.start) < $browser.genobrowser('option', 'maxNtRequest')) {
       $browser.genobrowser('getDNA', d.start, d.end, function(sequence) {
         d.custom.renderSequence(canvas, d.start, d.end, d.density, sequence, function() {
@@ -1170,7 +1169,7 @@ $.widget('ui.genotrack', {
       });
     }
   },
-  
+ 
   _customTile: function($t, tileId, bppp, bestDensity) {
     var self = this,
       o = self.options,
@@ -1178,8 +1177,8 @@ $.widget('ui.genotrack', {
       end = tileId + bpPerTile;
     $t.addClass('tile-custom tile-full tile-loaded bppp-'+classFriendly(bppp));
     _.each(o.track.s, function(density) {
-      var canvasHTML = '<canvas class="tdata unrendered dens-' +density + '" id="canvas-' + self._tileId(tileId, bppp) + '-' + density 
-          + '"></canvas>',
+      var canvasHTML = '<canvas class="tdata unrendered dens-' +density + '" id="canvas-' + self._tileId(tileId, bppp) + '-' +
+          density + '"></canvas>',
         $c = $(canvasHTML).appendTo($t);
       $c.canvasAttr({width: o.tileWidth, height: o.track.h});
       $c.bind('render', {start: tileId, end: end, density: density, self: self, custom: o.track.custom}, self._customTileRender);
@@ -1200,7 +1199,7 @@ $.widget('ui.genotrack', {
       self._fixSide(self._bestDensity(topBppp), topBppp, true);
     }
   }
-  
+ 
 });
 
 };

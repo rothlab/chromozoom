@@ -2,7 +2,7 @@
 // = The following are short jQuery extensions used by chromozoom =
 // ================================================================
 
-module.exports = function($) {
+module.exports = function($, _) {
   
 var utils = require('./utils.js')($),
   floorHack = utils.floorHack;

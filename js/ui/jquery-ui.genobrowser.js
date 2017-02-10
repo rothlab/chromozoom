@@ -1,12 +1,13 @@
-module.exports = (function($){
+/*jshint node: true */
 
-  require('./jquery.misc-plugins.js')($);
-  require('./jquery.tiptip.js')($);  
+module.exports = function($, _) {
+
+  require('./jquery.misc-plugins.js')($, _);
+  require('./jquery.tiptip.js')($, _);
   require('./jquery.farbtastic.js')($);
-  
-  var _ = require('../underscore.min.js');
+
   // Sum elements of an array
-  _.sum = function(arr) { return _.reduce(arr, function(memo, next) { return memo + next; }, 0); }
+  _.sum = function(arr) { return _.reduce(arr, function(memo, next) { return memo + next; }, 0); };
 
   var utils = require('./utils.js')($),
     classFriendly = utils.classFriendly,
@@ -24,8 +25,8 @@ module.exports = (function($){
   //
   /****************************************************************************************/
 
-  require('./jquery-ui.genoline.js')($);
-  require('./jquery-ui.genotrack.js')($);
+  require('./jquery-ui.genoline.js')($, _);
+  require('./jquery-ui.genotrack.js')($, _);
 
   // =======================================================================================
   // = $.ui.genobrowser is the central widget that coordinates the front-end of chromozoom =
@@ -90,21 +91,21 @@ module.exports = (function($){
     // Called automatically when widget is instantiated
     _init: function() {
       var self = this,
-        $elem = self.element, 
+        $elem = self.element,
         o = self.options;
-      
+
       // Some user agents need some minor style tweaking
       $.browser.actuallySafari = $.browser.safari && navigator && !(/chrome/i).test(navigator.userAgent);
-      
+
       // Setup internal variables
       self._initInstanceVars();
-      
+
       // Initialize some of the navbar widgets
       self.$slider = self._initSlider();
       self.$trackPicker = self._initTrackPicker();
       self.$customTracks = self._initCustomTracks();
       self.$links = self._initLinking();
-      
+
       // Debounce some of the handler functions; this prevents it from firing more than once per X milliseconds
       // This cuts down on the load of some of the more expensive actions
       self._finishZoomDebounced = _.debounce(self._finishZoomDebounced, o.snapZoomAfter || 500);
@@ -113,16 +114,16 @@ module.exports = (function($){
       self._fixZoomedTrackDebounced = _.debounce(self._fixZoomedTrackDebounced, 500);
       self._fixClickAreasDebounced = _.debounce(self._fixClickAreasDebounced, 500);
       self._saveParamsDebounced = _.debounce(self._saveParamsDebounced, 500);
-      
+
       // Bind event handlers for the window and main widgets
-      $(window).resize(function(e, callback) { 
+      $(window).resize(function(e, callback) {
         if (this == e.target) {
           self._width = $elem.width();
           self._fixNumLines(null, {duration: 0, complete: callback});
           $(o.navBar).toggleClass('narrow', self._width < 950).find('.picker').trigger('remaxheight');
         }
       });
-      $(document.body).bind('DOMMouseScroll mousewheel', _.bind(self._recvZoom, self));
+      $(document.body).bind('wheel DOMMouseScroll mousewheel', _.bind(self._recvZoom, self));
       $(o.zoomBtns[0]).click(function() { delete self.centeredOn; self._animateZoom(true, 1000); });
       $(o.zoomBtns[1]).click(function() { delete self.centeredOn; self._animateZoom(false, 1000); });
       $elem.mouseenter(function() { self.showReticle('mouseArea', false); });
@@ -131,7 +132,7 @@ module.exports = (function($){
       $(o.lineMode).find('input,a').focus(function() { var $t = $(this); _.defer(function() { $t.blur(); }); });
       $elem.bind('trackload', _.bind(self._recvTrackLoad, self));
       $(window).bind('popstate', function() { self._initFromParams(null, true); });
-      
+
       // Initialize the footer, the search bar, hotkeys, the AJAX proxy, mobile interactions, IE fixes
       // Finally, apply params from either the URL or the session state
       self._initFooter();
@@ -142,7 +143,7 @@ module.exports = (function($){
       if ($.browser.msie) { self._initIEFixes(); }
       $(window).trigger('resize', function() { self._initFromParams(null, true); });
     },
-    
+
     // Called when a new options object is passed in, typically after a custom genome is loaded
     _setOptions: function(options) {
       var self = this,
@@ -157,40 +158,40 @@ module.exports = (function($){
       self._removeLines(self.$lines.length, {duration: 0});
 
       o = _.extend(self.options, options);
-      
+
       self._initInstanceVars();
-      
+
       tracksToParse = _.filter(o.availTracks, function(t) { return t.customData; });
-      
+
       function finishSetup() {
-        _.each(o.tracks, function(t) { 
+        _.each(o.tracks, function(t) {
           $.extend(t, self.availTracks[t.n]);
         });
-        
+
         self.$slider = self._initSlider();
         self.$trackPicker = self._initTrackPicker();
         self._updateGenomes();
-      
+
         $overlay.add($overlayMessage).hide();
-        $(window).trigger('resize', function() { 
+        $(window).trigger('resize', function() {
           self._nextDirectives = {};
           if (_.keys(nextDirectives).length) { self._initFromParams(nextDirectives); }
         });
       }
-      
+
       self._parseCustomGenomeTracks(tracksToParse, finishSetup, nextDirectivesPosition);
     },
-    
+
     _initInstanceVars: function() {
       var self = this,
         $elem = self.element,
         o = self.options,
         p = 0;
-        
+
       // Setup internal variables related to chromosome bands, lengths, and available tracks
       self.chrPos = {};
       o.chrLabels = [];
-      _.each(o.chrOrder, function(v, i){ 
+      _.each(o.chrOrder, function(v, i){
         o.chrLabels.push({p: p, n: v, w: o.chrLengths[v]}); self.chrPos[v] = p; p += o.chrLengths[v];
       });
       o.chrLabels.push({p: p, n: '', end: true}); // one more label for the end of the last chromosome
@@ -201,11 +202,11 @@ module.exports = (function($){
       self.defaultTracks = [];
       _.each(o.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
       _.each(o.compositeTracks, function(v) { self.compositeTracks[v.n] = v; });
-      _.each(o.tracks, function(t){ 
+      _.each(o.tracks, function(t){
         $.extend(t, self.availTracks[t.n]);
         self.defaultTracks.push({n: t.n, h: t.h});
       });
-      
+
       // Setup remaining internal variables
       self.$lines = $elem.children('.browser-line');
       self.pos = 1; // this is the bp position of the left side of the top line
@@ -220,20 +221,20 @@ module.exports = (function($){
       self._dna = {};
       self._searchId = 0;
     },
-    
+
     _initSlider: function() {
       var self = this,
         o = this.options;
       if (!o.overzoomBppps) { o.overzoomBppps = []; }
-      
+
       var $slider = $(o.zoomSlider),
         numBppps = o.bppps.length + o.overzoomBppps.length,
         sliderWidth = (numBppps - 1) * 10,
         sliderBppps = (self.sliderBppps = o.bppps.concat(o.overzoomBppps)),
         prevVals = [],
         $ticks;
-      
-      function start(e, ui) { delete self.centeredOn; };
+
+      function start(e, ui) { delete self.centeredOn; }
       function slide(e, ui) {
         var idx = floorHack(ui.value),
           frac = ui.value - idx,
@@ -245,17 +246,17 @@ module.exports = (function($){
         prevVals = prevVals.concat([ui.value]).slice(-2);
         if (frac === 0.0) { self._zoom(sliderBppps[idx]); }
         else { self._zoom((sliderBppps[idx + 1] - sliderBppps[idx]) * frac + sliderBppps[idx]); }
-      };
+      }
       function stop(e, ui) {
         if (e.originalEvent && e.originalEvent.type=="keyup") { return; }
         var direction = prevVals[0] < ui.value;
         o.snapZoomAfter && _.defer(function() { self._animateZoom(direction); });
-      };
-      
+      }
+
       $slider.parent().children('.ticks').remove();
       $ticks = $('<div class="ticks"/>').appendTo($slider.parent());
       $ticks.html(new Array(numBppps + 1).join('<div class="tick"/>'));
-      
+
       if ($slider.hasClass('ui-slider')) { $slider.slider('destroy'); }
       $slider.parent().width(sliderWidth);
       return $slider.width(sliderWidth).slider({
@@ -269,7 +270,7 @@ module.exports = (function($){
         stop: stop
       });
     },
-    
+
     // Utility function to a bind a button to toggling visibility of a slide-out menu, called a "picker"
     // Safe to call multiple times.
     _createPicker: function($btn, $picker, $done) {
@@ -282,15 +283,15 @@ module.exports = (function($){
           visible = $(this).is(':visible'),
           formLineHeights;
         if (!visible) { $(this).show(); } // can't make measurements while hidden
-        formLineHeights = _.map($notUl, function(el) { 
-          return Math.max($(el).outerHeight(), $(el).find('textarea').outerHeight()); 
+        formLineHeights = _.map($notUl, function(el) {
+          return Math.max($(el).outerHeight(), $(el).find('textarea').outerHeight());
         });
         $ul.css('max-height', $elem.outerHeight() - _.sum(formLineHeights));
         if (!visible) { $(this).hide(); }
       });
       $btn.unbind('click.genobrowser').bind('click.genobrowser', function() {
         if (!$picker.is(':visible')) {
-          $('body').bind('mousedown.picker', function(e) { 
+          $('body').bind('mousedown.picker', function(e) {
             if ($(e.target).closest($picker.add($btn)).length) { return; }
             closePicker();
             $('body').unbind('mousedown.picker');
@@ -304,7 +305,7 @@ module.exports = (function($){
       if ($done) { $done.unbind('click.genobrowser').bind('click.genobrowser', closePicker); }
       return $picker.unbind('close.genobrowser').bind('close.genobrowser', closePicker);
     },
-    
+
     _initFooter: function() {
       var self = this,
         $elem = self.element,
@@ -318,47 +319,47 @@ module.exports = (function($){
         speciesParenthetical = o.species.match(/\((.+)\)/),
         $binaryWarningDialog = $(o.dialogs[6]),
         $a;
-      
-      $ul.append('<li class="divider"/>')
+
+      $ul.append('<li class="divider"/>');
       $a = $('<a class="clickable"/>').attr('href', o.dialogs[4]).appendTo($('<li class="choice"/>').appendTo($ul));
       $('<span class="name"/>').text('More genomes\u2026').appendTo($a);
       $('<span class="long-desc"/>').text('Fetch or specify chrom sizes').appendTo($a);
-      $ul.append('<li class="divider"/>')
+      $ul.append('<li class="divider"/>');
       $a = $('<a class="clickable"/>').attr('href', o.dialogs[5]).appendTo($('<li class="choice"/>').appendTo($ul));
       $('<span class="name"/>').text('Load from file or URL\u2026').appendTo($a);
       $('<span class="long-desc"/>').text('in GenBank, FASTA, or EMBL format').appendTo($a);
-      
+
       $genome.find('.clickable').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       self._updateGenomes();
 
       self._createPicker($toggleBtn, $genomePicker);
-      
+
       // Setup the dialogs that appear upon clicking footerbar links
       _.each(o.dialogs, function(id) {
         var $dialog = $(id).closest('.ui-dialog');
-        function openDialog() { 
+        function openDialog() {
           $('.ui-dialog').hide();
           $dialog.addClass('visible').show();
           $dialog.find('a[href^="http://"],a[href^="https://"]').attr('target', '_blank');
           $dialog.css('top', Math.max(($elem.parent().innerHeight() - $dialog.outerHeight()) * 0.5, 30));
-        };
+        }
         $dialog.bind('open.genobrowser', openDialog);
         $foot.find('a[href='+id+']').click(function() { $dialog.trigger('open.genobrowser'); });
         $dialog.find('.ui-dialog-buttonpane button').button().not('.dont-close').click(function() {
           $dialog.fadeOut();
         });
       });
-      
+
       self._initCustomGenomeDialogs();
-      
+
       // Show the quickstart screen if the user has never been here before and the viewport is big enough to show it
-      if ($.cookie('db')===null && $(window).width() > 600 && $(window).height() > 420) { 
+      if ($.cookie('db')===null && $(window).width() > 600 && $(window).height() > 420) {
         $foot.find('a[href="'+o.dialogs[1]+'"]').click();
       }
       // Show the uninstalled binaries warning, if it was written into the page
       if ($binaryWarningDialog.length) { $binaryWarningDialog.trigger('open.genobrowser'); }
     },
-        
+
     _initTrackPicker: function() {
       var self = this,
         o = self.options,
@@ -374,7 +375,7 @@ module.exports = (function($){
         $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div),
         $search;
-      
+
       function addSection(cat) {
         var $li = $('<li class="category-section"/>').appendTo($ul),
           $header = $('<div class="category-header"/>').text(cat).appendTo($li);
@@ -382,7 +383,7 @@ module.exports = (function($){
         $header.click(_.bind(self._trackPickerClicked, self));
         return $('<ul/>').appendTo($li);
       }
-            
+
       if (o.groupTracksByCategories) {
         var groupNames;
         _.each(allTracks, function(t) {
@@ -394,32 +395,32 @@ module.exports = (function($){
           groups[cat][n] = t;
         });
         groupNames = _.keys(groups);
-        if (_.isArray(o.groupTracksByCategories)) { 
+        if (_.isArray(o.groupTracksByCategories)) {
           groupNames = _.sortBy(groupNames, function(cat) { return _.indexOf(o.groupTracksByCategories, cat); });
         }
         self._addTracks(ungrouped, null, 100);
-        _.each(groupNames, function(cat) { 
+        _.each(groupNames, function(cat) {
           self._addTracks(groups[cat], addSection(cat), 100);
         });
       } else { self._addTracks(allTracks); }
-      
+
       if (o.searchableTracks) {
         $search = $('<input type="search"/>').appendTo($searchBar);
         $search.bind('keyup click', _.debounce(function() { self._searchTracks($search.val()); }, 100));
-        $search.attr('placeholder', o.searchableTracks === true ? 'Filter available tracks...' 
+        $search.attr('placeholder', o.searchableTracks === true ? 'Filter available tracks...'
             : 'Find more tracks for this genome...');
         $('<li class="search-warn"/>').hide().appendTo($ul);
-        if (!$.browser.actuallySafari) { 
+        if (!$.browser.actuallySafari) {
           $search.addClass('search');
           $('<span class="search-icon"/>').appendTo($searchBar);
         }
       } else { $searchBar.hide(); }
-      
+
       if (o.tracks.length === 1) { $ul.find('input[name='+o.tracks[0].n+']').attr('disabled', true); }
       $reset.click(function(e) { self._resetToDefaultTracks(); });
       return self._createPicker($toggleBtn, $trackPicker, $b).hide();
     },
-    
+
     _initCustomTracks: function() {
       var self = this,
         $elem = self.element,
@@ -433,7 +434,7 @@ module.exports = (function($){
         $overlay = $(o.overlay[0]),
         $overlayMessage = $(o.overlay[1]),
         $urlInput, $urlGet, $div, $b, $reset;
-      
+
       function browserOpts() {
         var nextDirectives = _.extend({}, self._nextDirectives),
           pos = nextDirectives.position && self.normalizePos(nextDirectives.position, true);
@@ -448,23 +449,23 @@ module.exports = (function($){
           ajaxDir: o.ajaxDir
         };
       }
-      
+
       self._customTrackUrls = {
         requested: [],
         processing: [],
         loaded: []
       };
-      
+
       function customTrackError(e) {
         $picker.find('.spinner').hide();
         var msg = e.message.replace(/^Uncaught Error: /, '');
-        alert('Sorry, an error occurred while adding this custom track file:\n\n' + msg);
+        window.alert('Sorry, an error occurred while adding this custom track file:\n\n' + msg);
         // TODO: replace this with something more friendly.
-        replaceFileInput(); 
+        replaceFileInput();
       }
-      
+
       function closePicker() { $picker.slideUp(100); }
-      
+
       function handleFileSelect(e) {
         var reader = new FileReader(),
           $add = $(e.target).closest('.form-line'),
@@ -491,14 +492,14 @@ module.exports = (function($){
         $picker.find('.help-line').first().remove();
         $add = $picker.find('.form-line').first();
       }
-      
+
       function replaceFileInput() {
         _.defer(function() {
           $picker.find('[name=customFile]').replaceWith(fileInputHTML);
           $picker.find('[name=customFile]').change(handleFileSelect);
         });
       }
-      
+
       function handlePastedData(e) {
         var $add = $(e.target).closest('.form-line'),
           $spinner = $add.find('.spinner').show();
@@ -517,7 +518,7 @@ module.exports = (function($){
       $add.find('[name=customPasteAdd]').click(handlePastedData);
       $add.find('textarea').focus(pasteAreaFocus).blur(pasteAreaBlur);
       $add = $add.nextAll('.form-line').first();
-      
+
       function handleUrlSelect(e) {
         var $add = $(e.target).closest('.form-line'),
           $spinner = $add.find('.spinner'),
@@ -545,17 +546,17 @@ module.exports = (function($){
           error: function() {
             $overlay.hide();
             $overlayMessage.hide();
-            customTrackError({message: "No valid custom track data was found at this URL."}); 
+            customTrackError({message: "No valid custom track data was found at this URL."});
           }
         });
       }
       $add.find('label').html(urlInputHTML);
       $add.find('[name=customUrlGet]').click(handleUrlSelect);
       $add.find('[name=customUrl]').bind('keydown', function(e) { if (e.which==13) { handleUrlSelect(e); } });
-      
+
       // Redefine the CustomTracks error handler so the user can see parse errors for their custom track(s).
       CustomTracks.error = customTrackError;
-      
+
       $div = $('<div class="button-line"/>').appendTo($picker);
       $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div);
       $b = $('<input type="button" name="done" value="done"/>').appendTo($div);
@@ -563,7 +564,7 @@ module.exports = (function($){
 
       return self._createPicker($toggleBtn, $picker, $b);
     },
-    
+
     _initLinking: function() {
       var self = this,
         o = self.options,
@@ -573,7 +574,7 @@ module.exports = (function($){
       $linkBtn.button().click(function(e) { _.defer(function () { $url.select().focus(); }); return false; });
       self._createPicker($linkBtn, $linkPicker);
     },
-    
+
     _initJump: function() {
       var self = this,
         o = self.options,
@@ -588,10 +589,10 @@ module.exports = (function($){
       $jump.click(jumpToSubmit);
       $loc.keydown(function(e) {
         if (e.which == 13) { jumpToSubmit(); }
-        else if (e.which == 40) { 
+        else if (e.which == 40) {
           self.$choices.find('.focus').nextAll('.choice').eq(0).trigger('fakefocus');
           return false;
-        } else if (e.which == 38) { 
+        } else if (e.which == 38) {
           self.$choices.find('.focus').prevAll('.choice').eq(0).trigger('fakefocus');
           return false;
         } else {
@@ -600,7 +601,7 @@ module.exports = (function($){
       });
       $loc.keyup(function(e) { _.defer(function() { ($loc.val()==='') && self._searchFor(''); }); });
     },
-    
+
     _initHotkeys: function() {
       var self = this,
         o = this.options,
@@ -613,13 +614,13 @@ module.exports = (function($){
       // quadratic motion with an upper bound on the velocity after l milliseconds
       function x(t) { return (t > l ? 2 * l * t - l * l : t * t) / 1500; }
       function motion() {
-        var now = (new Date).getTime(),
+        var now = (new Date()).getTime(),
           deltaY = motionOpts.dir * x(now - motionOpts.start) - motionOpts.prev;
         self._keyedOffset -= deltaY;
-        self._pos(self.pos - deltaY * self.bppp); 
+        self._pos(self.pos - deltaY * self.bppp);
         motionOpts.prev += deltaY;
-      };
-      $(document).bind('keydown', 'up down left right w s a d '+shiftEverything, function() { 
+      }
+      $(document).bind('keydown', 'up down left right w s a d '+shiftEverything, function() {
         self.showReticle('hotKeys', true);
         $.tipTip.hide();
         $elem.one('mousemove', function() { self.showReticle('hotKeys', false); });
@@ -637,7 +638,7 @@ module.exports = (function($){
       });
       $(document).bind('keydown', 'left a right d', function(e) {
         var dir = e.which == 37 || e.which == 65 ? 1 : -1, // left=>37, a=>65
-          now = (new Date).getTime();
+          now = (new Date()).getTime();
         if (motionOpts.dir == dir) { return; }
         clearInterval(motionInterval);
         motionOpts = {dir: dir, start: now, prev: 0};
@@ -653,17 +654,17 @@ module.exports = (function($){
       });
       $(document).bind('keydown', 'esc', function(e) {
         var $pickers = $(o.trackPicker[1] + ',' + o.trackPicker[3]);
-        $pickers.each(function() { if ($(this).is(':visible')) $(this).find('input[name=done]').click(); });
+        $pickers.each(function() { $(this).is(':visible') && $(this).find('input[name=done]').click(); });
       });
     },
-    
+
     _initAjax: function() {
       var options = this.options;
       // proxy external URLs through our local AJAX proxy
       $.ajax = (function(_ajax){
         var protocol = location.protocol,
           hostname = location.hostname,
-          exRegex = RegExp(protocol + '//' + hostname),
+          exRegex = new RegExp(protocol + '//' + hostname),
           proxyURL = options.ajaxDir + 'proxy.php';
 
         function isExternal(url) {
@@ -675,7 +676,7 @@ module.exports = (function($){
             o = url;
             url = o.url;
           } else { o.url = url; }
-          
+
           // capture and forward progress events from XHR's to o.progress callback
           o.xhr = (function(_xhr){
             return function() {
@@ -717,17 +718,17 @@ module.exports = (function($){
         };
       })($.ajax);
     },
-    
+
     _initMobileFeatures: function() {
       var self = this,
         o = self.options,
         $elems = self.element.add(o.navBar).add(o.footerBar);
-      
+
       $(window).bind('orientationchange', function() { $(window).resize(); });
-      
+
       if (!$.support.touch) { return; }
       $elems.addClass('mobile');
-      
+
       var cachedPageXs = {}, prevPinchWidth = null, touchTarget, center, pinchWidth;
       function getPageX(e, identifier) {
         var pageX, changed = _.find(e.changedTouches, function(t) { return t.identifier == identifier; });
@@ -754,7 +755,7 @@ module.exports = (function($){
         }
         pinchWidth = Math.abs(getPageX(oe, oe.touches[0].identifier) - getPageX(oe, oe.touches[1].identifier));
         if (prevPinchWidth) {
-          var delta = (pinchWidth / prevPinchWidth - 1) * 50, 
+          var delta = (pinchWidth / prevPinchWidth - 1) * 50,
             // TODO: delta could probably be tweaked to proviude perfect positional zooming
             fakeEvent = {target: touchTarget, originalEvent: {srcElement: touchTarget, pageX: center}};
           // Simulate the equivalent mousewheel event
@@ -766,7 +767,7 @@ module.exports = (function($){
 
       $(o.lineMode).find('input[value=single]').attr('checked', true);
     },
-    
+
     _initIEFixes: function() {
       var self = this,
         o = self.options,
@@ -774,7 +775,7 @@ module.exports = (function($){
       $elems.addClass('msie');
       $(o.zoomSlider).parent().find('.tick').last().addClass('last');
       $(o.trackPicker[3]).find('textarea.paste').css('white-space', 'pre-wrap').attr('wrap', 'off');
-      
+
       if (parseFloat($.browser.version) >= 9.0) { return; }
       // Stuff for old MSIE's (< MSIE 9)
       // Show the warning dialog
@@ -790,18 +791,18 @@ module.exports = (function($){
         }
       });
     },
-    
+
     _initCustomTrackDialog: function() {
       var self = this,
         o = self.options,
         $dialog = $(o.dialogs[0]).closest('.ui-dialog');
-      
+
       $dialog.data('genobrowser', self.element);
       $dialog.find('.hidden').hide();
       $dialog.find('.show').show();
-      
+
       if ($dialog.hasClass('initialized')) { return; } // The following only needs to be initialized once
-      
+
       $dialog.bind('open.genobrowser', function() { self.$customTracks.trigger('close.genobrowser'); });
       $dialog.find('.range-slider').each(function() {
         var $min = $(this).prev('input'),
@@ -856,27 +857,27 @@ module.exports = (function($){
       });
       $dialog.addClass('initialized');
     },
-    
+
     _initChromSizesDialog: function() {
       var self = this,
         o = self.options,
         $chromSizesDialog = $(o.dialogs[4]).closest('.ui-dialog');
-        
+
       self._igbQuickloadData = self._igbQuickloadData || {};
-        
+
       function filterGenomeList(e) {
         var searchTerms = _.map($(this).val().split(/\s+/), function(t) { return t.toLowerCase(); }),
           $list = $(e.data.list);
-        searchTerms = _.reject(searchTerms, function(t) { t == ''; });
+        searchTerms = _.reject(searchTerms, function(t) { return t === ''; });
         $list.children('option').each(function() {
           var v = $(this).text().toLowerCase(),
             termsFound = _.reduce(searchTerms, function(memo, t){ return memo + (v.indexOf(t) !== -1 ? 1 : 0); }, 0);
-          if (searchTerms.length == 0 || termsFound == searchTerms.length) { $(this).removeClass('hidden'); }
+          if (searchTerms.length === 0 || termsFound == searchTerms.length) { $(this).removeClass('hidden'); }
           else { $(this).addClass('hidden'); }
         });
         $list.scrollTop(0).val($list.children('option:not(.hidden)').eq(0).val()).change();
       }
-      
+
       function loadedChromSizes(data, $panel) {
         $chromSizesDialog.find('.contigs-loading').stop().fadeOut();
         if (data.error) {
@@ -893,22 +894,22 @@ module.exports = (function($){
           }
         }
       }
-      
+
       $chromSizesDialog.bind('open.genobrowser', function() {
         var $genomeList = $chromSizesDialog.find('[name=ucscGenome]'),
           $igbDirs = $chromSizesDialog.find('[name=igbDirs]'),
           $igbList = $chromSizesDialog.find('[name=igbGenome]'),
-          $newIgbDir = $chromSizesDialog.find('[name=newIgbDir]')
+          $newIgbDir = $chromSizesDialog.find('[name=newIgbDir]'),
           $loadIgbBtn = $chromSizesDialog.find('[name=loadIgbDir]'),
           $cancelLoadIgbBtn = $chromSizesDialog.find('[name=cancelLoadIgbDir]');
         $chromSizesDialog.find('[name=filterUcscGenome]').select();
         $(o.genomePicker[1]).trigger('close.genobrowser');
         if ($chromSizesDialog.hasClass('initialized')) { return; }
-        
+
         // the following only runs once, to initialize this dialog's UI
         $chromSizesDialog.find('.accordion').accordion({heightStyle: 'content'});
         $chromSizesDialog.find('[name=save]').button('disable');
-        
+
         // loads the initial lists of available genomes from UCSC & IGB Quickload directories
         $.ajax(o.ajaxDir+'chromsizes.php', {
           dataType: 'json',
@@ -933,11 +934,11 @@ module.exports = (function($){
             $igbDirs.val(firstDir).change();
           }
         });
-        
+
         // implements filtering by keyword
         $chromSizesDialog.find('[name=filterUcscGenome]').bind('keyup change', {list: $genomeList}, filterGenomeList);
         $chromSizesDialog.find('[name=filterIgbGenome]').bind('keyup change', {list: $igbList}, filterGenomeList);
-        
+
         // load the chrom sizes data when selecting a UCSC genome
         $genomeList.bind('change', function() {
           var db = $(this).val(),
@@ -953,27 +954,27 @@ module.exports = (function($){
           });
         });
         $chromSizesDialog.find('[name=limit]').change(function() { $genomeList.change(); });
-        
+
         // load the contents.txt of an IGB Quickload directory when selecting its URL
         $igbDirs.bind('change', function() {
           var url = $(this).val();
           if ($chromSizesDialog.find('.igb-dirs').is(':hidden')) { $cancelLoadIgbBtn.click(); }
-          
+
           // Show the add URL input box
-          if (url == '') {
+          if (url === '') {
             $chromSizesDialog.find('.igb-dirs').slideUp(function() {
               $chromSizesDialog.find('.add-igb-dir').slideDown();
             });
             return;
           }
-          
+
           function populateList(url) {
             $igbList.empty().removeClass('loading');
             _.each(self._igbQuickloadData[url], function(v, k) {
               $('<option/>').text(v).val(url + '/' + k).appendTo($igbList);
             });
           }
-          
+
           if (self._igbQuickloadData[url]) { populateList(url); }
           else {
             $igbList.empty().append('<option>loading...</option>').addClass('loading');
@@ -987,7 +988,7 @@ module.exports = (function($){
             });
           }
         });
-        
+
         // UI for adding IGB Quickload directories
         $loadIgbBtn.click(function() {
           var url = $newIgbDir.val().replace(/\/$/, '');
@@ -1000,7 +1001,7 @@ module.exports = (function($){
             $chromSizesDialog.find('.igb-dirs').slideDown();
           });
         });
-        
+
         // TODO: load an IGB Quickload genome's data when selecting it from the list
         $igbList.bind('change', function() {
           var url = $(this).val(),
@@ -1015,27 +1016,27 @@ module.exports = (function($){
             success: function(data) { loadedChromSizes(data, $igbOptions); }
           });
         });
-        
+
         $chromSizesDialog.addClass('initialized');
       });
-      $chromSizesDialog.find('[name=chromsizes]').one('focus', function() { 
+      $chromSizesDialog.find('[name=chromsizes]').one('focus', function() {
         var $this = $(this).removeClass('placeholder');
         $chromSizesDialog.find('[name=save]').button('enable');
         _.defer(function() { $this.select(); });
       });
-      $chromSizesDialog.find('[name=save]').click(function(e, chose) { 
+      $chromSizesDialog.find('[name=save]').click(function(e, chose) {
         var metadata = { format: 'chromsizes' },
           remoteMetadata = $chromSizesDialog.data('genomeMetadata'),
           activeAccordion = $chromSizesDialog.find('.ui-accordion').accordion('option', 'active'),
           choseWhatSource = ['ucsc', 'igb', 'chromsizes'],
-          origMetadata, $origOption, genome;
+          origMetadata, $origOption, genome, chromSizes;
         chose = chose || choseWhatSource[activeAccordion];
         if (chose == 'ucsc' || chose == 'igb') {
           // This is an unaltered set of chromosome sizes pulled from UCSC
           chromSizes = remoteMetadata.chromsizes;
           metadata.name = remoteMetadata.db;
-          _.each(['tracks', 'moreTracks', 'categories', 'cytoBandIdeo'], function(k) { 
-            metadata[k] = remoteMetadata[k]; 
+          _.each(['tracks', 'moreTracks', 'categories', 'cytoBandIdeo'], function(k) {
+            metadata[k] = remoteMetadata[k];
           });
           origMetadata = remoteMetadata;
           if (chose == 'ucsc') {
@@ -1057,7 +1058,7 @@ module.exports = (function($){
         });
       });
     },
-    
+
     _initCustomGenomeDialogs: function() {
       var self = this,
         o = self.options,
@@ -1068,25 +1069,25 @@ module.exports = (function($){
         fileInputHTML = '<input type="file" name="genomeFile"/>',
         urlInputHTML = '<input type="url" name="genomeUrl" class="url"/>' +
                        '<input type="button" name="genomeUrlGet" value="load"/>';
-      
+
       self._initChromSizesDialog();
-      
+
       function customGenomeError(e) {
         $genomeDialog.find('.spinner').hide();
         var msg = e.message.replace(/^Uncaught Error: /, '');
-        alert('Sorry, an error occurred while adding this custom genome file:\n\n' + msg);
+        window.alert('Sorry, an error occurred while adding this custom genome file:\n\n' + msg);
         // TODO: replace this with something more friendly.
-        replaceFileInput(); 
+        replaceFileInput();
       }
-      
+
       function handleFileSelect(e) {
         var reader = new FileReader(),
           $add = $(e.target).closest('.form-line'),
           $spinner = $add.find('.spinner').show();
-          
+
         $overlay.show();
         $overlayMessage.show().text('Loading custom genome...');
-        
+
         if (e.target.files.length) {
           reader.onload = (function(f) {
             var metadata = { file: f.name },
@@ -1116,9 +1117,9 @@ module.exports = (function($){
       } else {
         $add.remove();
         $genomeDialog.find('.help-line').first().remove();
-        $add = $picker.find('.form-line').first();
+        $add = $genomeDialog.find('.form-line').first();
       }
-      
+
       function handlePastedData(e) {
         var $add = $(e.target).closest('.form-line'),
           $spinner = $add.find('.spinner').show();
@@ -1133,7 +1134,7 @@ module.exports = (function($){
       }
       $add.find('[name=customGenomePasteAdd]').click(handlePastedData);
       $add = $add.nextAll('.form-line').first();
-      
+
       function handleUrlSelect(e) {
         var $add = $(e.target).closest('.form-line'),
           $spinner = $add.find('.spinner'),
@@ -1161,7 +1162,7 @@ module.exports = (function($){
           error: function() {
             $overlay.hide();
             $overlayMessage.hide();
-            customGenomeError({message: "No valid custom track data was found at this URL."}); 
+            customGenomeError({message: "No valid custom track data was found at this URL."});
           }
         });
       }
@@ -1169,7 +1170,7 @@ module.exports = (function($){
       $add.find('[name=genomeUrlGet]').click(handleUrlSelect);
       $add.find('[name=genomeUrl]').bind('keydown', function(e) { if (e.which==13) { handleUrlSelect(e); } });
     },
-    
+
     _initFromParams: function(params, suppressRepeat) {
       var self = this,
         o = self.options,
@@ -1189,9 +1190,9 @@ module.exports = (function($){
         },
         sessionVars = {},
         urlParams = $.urlParams(),
-        customTracksArray, customGenomePieces, customGenomeSource, customGenomeName, chromSizes, trackSpec, 
+        customTracksArray, customGenomePieces, customGenomeSource, customGenomeName, chromSizes, trackSpec,
           remote, remoteParams;
-      
+
       function persistentCookie(k, v) { $.cookie(k, v, {expires: 60}); }
       function removeCookie(k) { $.cookie(k, null); }
       persistentCookie('db', o.genome);
@@ -1201,19 +1202,19 @@ module.exports = (function($){
       };
       _.each(o.savableParams, function(keys, dest) {
         _.each(keys, function(k) {
-          var v = self.storage[dest].getItem((dest != 'persistent' ? (urlParams.db || o.genome) + '.' : '') + k); 
+          var v = self.storage[dest].getItem((dest != 'persistent' ? (urlParams.db || o.genome) + '.' : '') + k);
           if (v !== null) { sessionVars[k] = v; }
         });
       });
       params = params || _.extend({}, sessionVars, urlParams);
-            
+
       if (suppressRepeat && self._lastParams && _.isEqual(self._lastParams, params)) { return; }
       self._lastParams = _.clone(params);
-      
+
       customTracksArray = _.compact([].concat(params.customTracks)),
       self._customTrackUrls.requested = _.union(self._customTrackUrls.requested, customTracksArray);
       var unprocessedUrls = _.difference(self._customTrackUrls.requested, self._customTrackUrls.processing);
-      
+
       // We need to load a custom genome
       if (params.db != o.genome) {
         customGenomePieces = (params.db || '').split(':');
@@ -1231,14 +1232,14 @@ module.exports = (function($){
           if (customGenomeSource == 'ucsc') {
             remoteParams = {
               db: customGenomePieces[1],
-              tracks: params.tracks ? params.tracks.replace(/:\d+/g, '') : '', 
+              tracks: params.tracks ? params.tracks.replace(/:\d+/g, '') : '',
               limit: customGenomePieces[2],
               meta: 1
             };
           } else { // customGenomeSource == 'igb'
             remoteParams = { url: customGenomePieces.slice(2).join(':'), limit: customGenomePieces[1] };
           }
-          
+
           $.ajax(o.ajaxDir + remote.url, {
             data: remoteParams,
             dataType: 'json',
@@ -1263,7 +1264,7 @@ module.exports = (function($){
           return;
         }
       }
-      
+
       // If there are custom track URLs somewhere in the parameters that have not been processed yet
       // they need to be loaded before we can make sense of the rest of the params
       if (unprocessedUrls.length) {
@@ -1275,27 +1276,27 @@ module.exports = (function($){
       } else {
         if (params.mode) { $(o.lineMode).find('[value="'+params.mode+'"]').click(); }
         if (params.tracks) {
-          trackSpec = _.map(params.tracks.split('|'), function(v) { 
+          trackSpec = _.map(params.tracks.split('|'), function(v) {
             var split = v.split(':'), trk = {n: split[0]};
             if (split.length > 1 && (/^\d+$/.test(split[1]))) { trk.h = parseInt(split[1], 10); }
-            return trk; 
+            return trk;
           });
           self._fixTracks({}, trackSpec);
         }
         if (params.position) { self.jumpTo(params.position); }
       }
     },
-    
+
     // =========================================================
     // = The following functions handle parsing of custom data =
     // =========================================================
-    
+
     _parseCustomGenomeTracks: function(tracksToParse, finishSetup, posAfterParsing) {
       var self = this,
         $elem = self.element,
         o = self.options,
         finishSetupAfterParsing;
-      
+
       function browserOpts() {
         return {
           bppps: o.bppps,
@@ -1307,7 +1308,7 @@ module.exports = (function($){
           ajaxDir: o.ajaxDir
         };
       }
-      
+
       if (tracksToParse.length > 0) {
         finishSetupAfterParsing = _.after(tracksToParse.length, finishSetup);
         _.each(tracksToParse, function(t) {
@@ -1315,8 +1316,8 @@ module.exports = (function($){
           var parentOpts = t.parent && self.compositeTracks[t.parent] && self.compositeTracks[t.parent].opts;
           CustomTracks.parseAsync(t.customData, browserOpts(), parentOpts, function(customTracks) {
             var customTrack = customTracks[0]; // t.customData should only contain data for one track
-            _.each(o.bppps, function(bppp) { 
-              self.availTracks[t.n].fh[o.bpppFormat(bppp)] = {dense: customTrack.heights.min}; 
+            _.each(o.bppps, function(bppp) {
+              self.availTracks[t.n].fh[o.bpppFormat(bppp)] = {dense: customTrack.heights.min};
             });
             self.availTracks[t.n].custom = t.custom = customTrack;
             finishSetupAfterParsing();
@@ -1324,16 +1325,16 @@ module.exports = (function($){
         });
       } else { finishSetup(); }
     },
-    
+
     // =====================================================================================
     // = The following functions coordinate the display of browser lines ($.ui.genoline's) =
     // =====================================================================================
-    
+
     // Fix the number of lines displayed vertically, shifting and unshifting lines to fill the vertical space
     // You can specify the line index to holdSteady (keep in roughly the same place), and animOpts for the animation
     _fixNumLines: function(holdSteady, animOpts) {
       var self = this,
-        $elem = self.element, 
+        $elem = self.element,
         o = self.options,
         availHeight = $elem.innerHeight(),
         lineHeight = self._lineHeight(),
@@ -1353,8 +1354,8 @@ module.exports = (function($){
           // Special case the resizing of the central line: it must stay the central line
           if (holdSteady == this.centralLine) { destIndex = Math.ceil(newNumLines / 2) - 1; }
           else {
-            destIndex = _.min(_.range(newNumLines), function(i) { 
-              return Math.abs(i * extraLineHeight + extraTopMargin - currTop); 
+            destIndex = _.min(_.range(newNumLines), function(i) {
+              return Math.abs(i * extraLineHeight + extraTopMargin - currTop);
             });
           }
           unShiftLines = destIndex - holdSteady;
@@ -1379,10 +1380,10 @@ module.exports = (function($){
       });
       self._updateReticle(null, animOpts);
     },
-    
+
     // A shortcut that pushes the lines in the display up or down
     shiftLines: function(num, exceptFor, animOpts) { this._fixNumLines({shift: num, exceptFor: exceptFor}, animOpts); },
-    
+
     // Add num lines to the browser; they begin offscreen and must be moved into view
     // positive num adds to the end; negative num adds to the beginning
     _addLines: function(num) {
@@ -1403,7 +1404,7 @@ module.exports = (function($){
         origin += bpStep;
       }
     },
-    
+
     // Remove num lines to the browser; they fade out and are deleted from the DOM
     // positive num removes from the end; negative num removes from the beginning
     _removeLines: function(num, animOpts) {
@@ -1412,7 +1413,7 @@ module.exports = (function($){
         duration = animOpts && !_.isUndefined(animOpts.duration) ? animOpts.duration : o.lineFixDuration,
         index = num > 0 ? -1 : 0,
         // We can't use normal .pop() and .shift() on a jQuery object, it only has splice.
-        popOrShift = num > 0 ? 
+        popOrShift = num > 0 ?
           function($a){ $a.splice($a.length-1,1); } : function($a){ $a.splice(0,1); };
       num = Math.abs(num);
       while (num-->0) {
@@ -1422,26 +1423,26 @@ module.exports = (function($){
         popOrShift(this.$lines);
       }
     },
-    
+
     // Returns the elements that contain each line of the display
     lines: function() { return this.$lines; },
-    
+
     // Returns the expected width, in pixels, of each line
     lineWidth: function() { return this._width - this.options.sideBarWidth; },
-    
+
     // Returns the expected height, in pixels, of each line
     _lineHeight: function() {
       var o = this.options;
       return o.betweenLines + _.reduce(o.tracks, function(t, u) { return {h:t.h + u.h}; }).h;
     },
-    
+
     // ===============================================================================================
     // = The following functions coordinate the tracks ($.ui.genotrack's) displayed within each line =
     // ===============================================================================================
-    
+
     // Returns the current array of tracks, with all associated options, that are supposed to be displayed
     tracks: function() { return this.options.tracks; },
-    
+
     // Ensures all lines have the right tracks, as specified by the checkboxes in the track pickers or the trackSpec
     _fixTracks: function(animOpts, trackSpec) {
       var self = this,
@@ -1451,16 +1452,16 @@ module.exports = (function($){
         prevTracks = [],
         prevPos = self.pos + self._reticDelta(),
         externalTrackSpec = !!trackSpec;
-      
+
       // Sync the trackSpec with the checkboxes in the track pickers
       // If trackSpec was not provided, this simply retrieves one from the state of the checkboxes
       trackSpec = self._trackSpec(trackSpec);
       newTracks = _.pluck(trackSpec, 'n');
-      
+
       // First remove any tracks that are not in the new set
       o.tracks = _.filter(o.tracks, function(t) {
         var i = _.indexOf(newTracks, t.n);
-        if (i !== -1) { 
+        if (i !== -1) {
           prevTracks.push(t.n);
           // Resize existing tracks if a new height is specified
           if (trackSpec[i].h) { self._resizeTrack(t.n, trackSpec[i].h, false, false); }
@@ -1470,17 +1471,17 @@ module.exports = (function($){
       // Now, add any tracks that are in the new set but aren't in the old set
       _.each(newTracks, function(name, i) {
         var spec = trackSpec[i];
-        if (!_.include(prevTracks, name)) { 
+        if (!_.include(prevTracks, name)) {
           o.tracks.splice(i, 0, $.extend({}, self.availTracks[name], spec.h ? {h: spec.h} : {}));
-        } 
+        }
       });
-      
+
       self.$lines.genoline('fixTracks');
       self._fixNumLines(0, animOpts);
       if (prevPos < o.genomeSize && prevPos > 0 && (!animOpts || !animOpts.complete)) { self.jumpTo(prevPos); }
       if (!externalTrackSpec) { this._saveParamsDebounced(); }
     },
-    
+
     // Resize a track to a particular height, fixing the line layout afterward unless fixNumLinesHoldingSteady is false,
     // Set animCallback to true to animate with no callback, a function to provide a callback, or false for no animation.
     _resizeTrack: function(name, height, fixNumLinesHoldingSteady, animCallback) {
@@ -1495,12 +1496,12 @@ module.exports = (function($){
       if (fixNumLinesHoldingSteady !== false) { this._fixNumLines(fixNumLinesHoldingSteady); }
       $lines.genoline('fixFirstLabel', true);
     },
-    
+
     // Syncs a list of tracks (with heights), the trackSpec, with the checkboxes in the track pickers
     _trackSpec: function(trackSpec) {
       var self = this,
         $checkboxes = self.$trackPicker.find(':checkbox').add(self.$customTracks.find(':checkbox'));
-      
+
       // Pull the trackSpec from the state of the checkboxes, or vice versa if trackSpec was provided
       if (!trackSpec || !_.isArray(trackSpec) || !trackSpec.length) {
         trackSpec = [];
@@ -1514,7 +1515,7 @@ module.exports = (function($){
         $checkboxes.attr('checked', false);
         _.each(trackSpec, function(t) { $checkboxes.filter('[name="'+t.n+'"]').attr('checked', true); });
       }
-      
+
       // For checkboxes on composite tracks, use the "indeterminate" state if a fraction of child tracks are selected
       $checkboxes.filter('.composite').each(function() {
         var $li = $(this).closest('.choice'),
@@ -1530,19 +1531,19 @@ module.exports = (function($){
           $(this).attr('checked', false).data('indeterminate', false).get(0).indeterminate = false;
         }
       });
-      
-      // if there is only one newTrack, disable the checkbox so there are always ≥1 tracks
+
+      // if there is only one newTrack, disable the checkbox so there are always >=1 tracks
       if (trackSpec.length === 1) { $checkboxes.filter(':checked').attr('disabled', true); }
       else { $checkboxes.attr('disabled', false); }
       return trackSpec;
     },
-    
+
     // Resets to the default set of tracks
     _resetToDefaultTracks: function() {
       this._fixTracks(false, this.defaultTracks);
       this._saveParamsDebounced();
     },
-    
+
     // Filters the tracks within the track list, and if o.searchableTracks is a URL, fetches more tracks that can be added
     _searchTracks: function(query) {
       var self = this,
@@ -1551,11 +1552,11 @@ module.exports = (function($){
         $list = $(o.trackPicker[1]).children('ul').eq(0),
         $warn = $list.children('.search-warn'),
         numResults, warnText;
-      
+
       query = query.toLowerCase();
       if (!o.searchableTracks) { return; }
       if (query === lastQuery) { return; }
-      
+
       function matches(elem, q) {
         var $elem = $(elem),
             $desc = $elem.find('.desc').eq(0),
@@ -1568,7 +1569,7 @@ module.exports = (function($){
         }
         return (("" + text).toLowerCase().indexOf(q) !== -1 );
       }
-      
+
       function toggleChoices(q) {
         $list.find('.choice').each(function() {
           var match = matches(this, q);
@@ -1589,13 +1590,14 @@ module.exports = (function($){
         warnText = numResults > 0 ? 'Showing only tracks matching the search query.' : 'No tracks match this search query.';
         $warn.toggle(query !== '').text(warnText);
       }
-      
+
       toggleChoices(query);
       if (o.custom && o.custom.canSearchTracks && query.length >= 3) {
         // FIXME: Implement searching for extra tracks on the server
+        void(0);
       }
     },
-    
+
     // Adds non-custom tracks to the track picker, also adds them to o.availTracks and self.availTracks as necessary
     _addTracks: function(tracks, to, loadedUpToPriority) {
       var self = this,
@@ -1603,7 +1605,7 @@ module.exports = (function($){
         d = o.trackDesc,
         allTracks = self._sortedTracks(o.availTracks.concat(o.compositeTracks)),
         $ul = to ? $(to) : $(o.trackPicker[1]).children('ul').eq(0);
-            
+
       _.each(tracks, function(t) {
         // TODO: This needs to distinguish between traditional tracks and custom annotation tracks brought in
         //       by custom genomes. The latter should have an options dialog and download links instead of "more info";
@@ -1617,28 +1619,28 @@ module.exports = (function($){
           href = o.trackDescURL + '?db=' + (db[0] === 'ucsc' ? db[1] : db[0]) + '&g=' + n + '#TRACK_HTML',
           $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '',
           $span = $('<span/>').text(d[n].sm),
-          $innerUl, childTracks;
-          
+          $innerUl, childTracks, childTracksUnderPriority;
+
         if (!composite && !self.availTracks[t.n]) {
           o.availTracks.push(t);
           self.availTracks[t.n] = $.extend({}, t);
         }
-        
+
         $('<h3/>').addClass('name').append($span).append($a).appendTo($d);
         if (d[n].lg) { $('<p/>').addClass('long-desc').text(d[n].lg).appendTo($d); }
-        
+
         if (composite) {
           $l.add($c).add($li).addClass('composite');
           $l.click(_.bind(self._trackPickerClicked, self));
           $('<div class="collapsible-btn collapsed"><div class="arrow"/></div>').insertBefore($d);
           $innerUl = $('<ul/>').hide().appendTo($li);
           childTracks = self._sortedTracks(_.filter(allTracks, function(t) { return t.parent == n; }));
-          childTracksUnderPriority = _.filter(childTracks, function(t) { 
+          childTracksUnderPriority = _.filter(childTracks, function(t) {
             return t.custom ? t.custom.opts.priority <= loadedUpToPriority : true;
           });
-          
+
           // Recursively add children tracks if they are already provided in o.availTracks/o.compositeTracks
-          if (childTracks.length > 0) { 
+          if (childTracks.length > 0) {
             self._addTracks(childTracks, $innerUl);
             _.each(childTracks, function(t) { $innerUl.find('input:checkbox[name='+t.n+']').addClass('default'); });
           }
@@ -1648,14 +1650,14 @@ module.exports = (function($){
         } else {
           if (_.find(o.tracks, function(trk) { return trk.n==n; })) { $c.attr('checked', true); }
         }
-        
+
         $l.bind('click', function(e) { if ($(e.target).is('a')) { e.stopPropagation(); }});
         $l.attr('title', n + (d[n].lg && d[n].lg.length > 58 ? ': ' + d[n].lg : ''));
         $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
         $c.bind('change', _.bind(self._fixTracks, self));
       });
     },
-    
+
     // A click handler for the track picker, which can (1) collapse/uncollapse sections and composite
     // tracks and (2) load and add more tracks via o.custom.searchTracksAsync as necessary.
     _trackPickerClicked: function(e) {
@@ -1668,8 +1670,9 @@ module.exports = (function($){
         $chk = $li.find('input:checkbox').eq(0),
         unloadedChildren = $li.hasClass('unloaded') && !$li.hasClass('loading'),
         collapsed = $btn.hasClass('collapsed'),
-        isHeader = $li.hasClass('category-section');
-      
+        isHeader = $li.hasClass('category-section'),
+        $defaults;
+
       function loadChildren(callback) {
         o.custom.searchTracksAsync({children_of: $chk.attr('name')}, function(newOpts) {
           Array.prototype.push.apply(o.availTracks, newOpts.availTracks);
@@ -1677,7 +1680,7 @@ module.exports = (function($){
           _.each(newOpts.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
           _.each(newOpts.compositeTracks, function(v) { self.compositeTracks[v.n] = v; });
           _.extend(o.trackDesc, newOpts.trackDesc);
-          
+
           self._parseCustomGenomeTracks(newOpts.availTracks, function() {
             self._addTracks(self._sortedTracks(newOpts.availTracks.concat(newOpts.compositeTracks)), $ul, 100);
             _.each(newOpts.tracks, function(t) { $ul.find('input:checkbox[name='+t.n+']').addClass('default'); });
@@ -1686,7 +1689,7 @@ module.exports = (function($){
           });
         });
       }
-      
+
       // Clicking composite track checkboxes may need to load and display subtracks...
       if ($(e.target).is($chk)) {
         if ($li.hasClass('composite')) {
@@ -1710,7 +1713,7 @@ module.exports = (function($){
         }
         return; // Checkbox clicks should not affect collapsed/uncollapsed elements.
       }
-      
+
       // Handle collapsing and uncollapsing of composite tracks, including loading of subtracks
       if (collapsed) {
         if ($ul.children().length > 0 && !unloadedChildren) {
@@ -1719,7 +1722,7 @@ module.exports = (function($){
         } else if (unloadedChildren && o.custom && o.custom.canSearchTracks) {
           $li.addClass('loading');
           $ul.empty();
-          loadChildren(function() { 
+          loadChildren(function() {
             $btn.hasClass('collapsed') && $ul.children().length && $btn.click();
             self._fixTracks();
           });
@@ -1729,7 +1732,7 @@ module.exports = (function($){
         $btn.addClass('collapsed');
       }
     },
-    
+
     // After a custom track file is parsed, this function is called to add them to the custom track picker and each
     // browser line; they are also inserted in self.availTracks just like "normal" tracks
     _addCustomTracks: function(fname, customTracks, url) {
@@ -1740,10 +1743,10 @@ module.exports = (function($){
         browserDirectives = _.extend({}, customTracks.browser, self._nextDirectives || {}),
         warnings = [],
         customTrackNames = _.map(customTracks, function(t, i) { return classFriendly('_'+fname+'_'+(t.opts.name || i)); }),
-        newTracks = _.filter(customTrackNames, function(n) { return !self.availTracks[n] }),
+        newTracks = _.filter(customTrackNames, function(n) { return !self.availTracks[n]; }),
         nextDirectivesIncludeOneNewTrack = self._nextDirectives && self._nextDirectives.tracks &&
           !!_.find(self._nextDirectives.tracks.split('|'), function(v) { return _.contains(newTracks, v.split(':')[0]); });
-      
+
       _.each(customTracks, function(t, i) {
         var n = customTrackNames[i],
           newTrack = !self.availTracks[n],
@@ -1782,7 +1785,7 @@ module.exports = (function($){
         _.each(o.bppps, function(bppp) { self.availTracks[n].fh[o.bpppFormat(bppp)] = {dense: t.heights.min}; });
         d[n] = {
           cat: fname,
-          lg: t.opts.description || t.opts.name || n, 
+          lg: t.opts.description || t.opts.name || n,
           sm: t.opts.name || n
         };
         $d.children('h3.name').text(d[n].sm);
@@ -1799,22 +1802,22 @@ module.exports = (function($){
         // Right now only position is supported.
         // TODO (maybe): other browser directives at http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#lines
         if (_.keys(browserDirectives).length) { self._initFromParams(browserDirectives); }
-      }}); 
+      }});
     },
-    
+
     // Opens a dialog to edit the options for a custom track.
     _editCustomTrack: function(n) {
       var self = this,
         o = self.options,
         $dialog = $(o.dialogs[0]).closest('.ui-dialog'),
         trk = self.availTracks[n];
-        
+
       self._initCustomTrackDialog();
       trk.custom.loadOpts($dialog);
       $dialog.data('track', trk);
       $dialog.trigger('open');
     },
-    
+
     // Removes a custom tracks.
     _removeCustomTrack: function(tname) {
       var self = this,
@@ -1828,7 +1831,7 @@ module.exports = (function($){
       }
       self._fixTracks();
     },
-    
+
     // Removes all custom tracks.
     _resetCustomTracks: function() {
       var self = this,
@@ -1838,12 +1841,12 @@ module.exports = (function($){
       self._customTrackUrls.loaded = [];
       self._fixTracks();
     },
-    
+
     // Determine for a given track and height what density is optimal for display
     densityOrder: function(track, height, bppps, force) {
       if (_.isUndefined(height) || _.isUndefined(bppps)) { return this._densityOrder[track] || null; }
       // TODO: this needs tweaking... maybe on the debounced version, exclude off-screen tiles?
-      var self = this, 
+      var self = this,
         o = self.options,
         $elem = self.element,
         t = this.availTracks[track],
@@ -1859,8 +1862,8 @@ module.exports = (function($){
       if (prevOrderFor && prevOrderFor == orderFor && !force) { return; }
       if ($unrenderedCustom.length) {
         // All custom track tiles should be rendered before reordering the densities.  Defer this calculation until then.
-        return $unrenderedCustom.trigger('render', _.after($unrenderedCustom.length, function() { 
-          self.densityOrder(track, height, bppps); 
+        return $unrenderedCustom.trigger('render', _.after($unrenderedCustom.length, function() {
+          self.densityOrder(track, height, bppps);
         }));
       }
       // Always show the base density when within 3px of the baseHeight (the initial height)
@@ -1875,20 +1878,20 @@ module.exports = (function($){
           if (fixedHeights[d]) { return heights.push([d, fixedHeights[d]]); }
           var $imgs = $('.browser-track-'+t.n+'>.bppp-'+classFriendly(bppps.top)+'>.tdata.dens-'+d);
           if ($imgs.find('.loading').length > 0) { orderFor = null; }
-          var h = Math.max.apply(Math, $imgs.map(function() { 
-            return this.naturalHeight || this.height; 
+          var h = Math.max.apply(Math, $imgs.map(function() {
+            return this.naturalHeight || this.height;
           }).get());
           heights.push([d, h]);
         });
         heights = _.map(heights, function(v, i) {
           var deltaY;
-          v[2] = v[1] == 0;
+          v[2] = v[1] === 0;
           v[1] = v[2] ? 1000000 : v[1];      // effectively, never show 0 height tiles
           deltaY = height - v[1];
                                              // this is where the 3x bias toward the taller density is inserted
           v[1] = (forceAt[v[0]] && height > forceAt[v[0]][0]) ? forceAt[v[0]][1] : (deltaY > 0 ? deltaY * 3 : -deltaY);
           v[1] -= i * 0.1;                   // marginally prioritize more detailed tracks in the event of ties
-          return v; 
+          return v;
         });
         heights.sort(function(a, b){ return a[1] - b[1]; });
         _.each(heights, function(v) { order[v[0]] = ++i; });
@@ -1897,41 +1900,41 @@ module.exports = (function($){
       }
       self._densityOrder[t.n] = order;
       self._densityOrderFor[t.n] = orderFor;
-      if (prevOrder && !_.isEqual(order, prevOrder)) { 
+      if (prevOrder && !_.isEqual(order, prevOrder)) {
         $elem.find('.browser-track-'+t.n).genotrack('updateDensity');
       }
     },
-    
+
     // Sorts tracks for a track picker based on their title and then the .srt attribute
     _sortedTracks: function(tracks) {
       var d = this.options.trackDesc;
       return _.sortBy(_.sortBy(tracks, function(t) { return d[t.n].sm || t.n; }), 'srt');
     },
-    
+
     // ================================================================================================
     // = These are navigational functions; they handle movement, zooming, position calculations, etc. =
     // ================================================================================================
 
     // Returns the expected width, in base pairs, of each line
     bpWidth: function() { return this.lineWidth() * this.bppp; },
-    
+
     // Returns the chromosome that contains the given absolute bp position
     chrAt: function(pos) {
       var o = this.options,
         chrIndex = _.sortedIndex(o.chrLabels, {p: pos}, function(v) { return v.p; });
       return chrIndex > 0 ? o.chrLabels[chrIndex - 1] : null;
     },
-    
+
     // Turns a string like "chrX:12512" into an bp position from the start of the genome
     // `forceful` is a boolean indicating whether a search should still be initiated even if the query hasn't changed
     normalizePos: function(pos, forceful) {
-      var o = this.options, 
-        ret = {}, 
+      var o = this.options,
+        ret = {},
         matches, end;
-        
+
       ret.pos = $.trim(_.isUndefined(pos) ? $(o.jump[0]).val() : pos);
       if (ret.pos === '') { this._searchFor(''); return null; }
-      
+
       matches = ret.pos.match(/^([a-z]+[^:]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
       // Does the position string have a colon in it? If so, we try to parse it as a bp position
       if (matches && matches[2]) {
@@ -1962,10 +1965,10 @@ module.exports = (function($){
         }
         ret.pos = pos;
       }
-      
+
       return ret;
     },
-    
+
     // Displays the search dropdown where the user can select from features that match the query
     // `forceful` is a boolean indicating whether a search should still be initiated even if the query hasn't changed
     _searchFor: function(search, forceful) {
@@ -1973,12 +1976,12 @@ module.exports = (function($){
         o = self.options,
         $elem = self.element,
         highPriorityTracks, alwaysSearchableTracks, searchableVisibleTracks, searchTargets, loadAllChoicesAfter;
-            
+
       function hilite(text, searchFor) {
         function replacer(m) { return '<span class="hilite">'+m+'</span>'; }
         return text.replace(new RegExp(regExpQuote(searchFor), "gi"), replacer);
       }
-      
+
       function createChoice(c, cat) {
         var $c = $('<div class="choice"/>'),
           $h3 = $('<h3 class="name"/>').html(hilite(c.name, search)).appendTo($c);
@@ -1990,19 +1993,19 @@ module.exports = (function($){
         $c.bind('click', {choice: c, cat: cat, self: self}, _.bind(self._searchChoiceClicked, self));
         return $c;
       }
-      
+
       function hideChoices() { self.$choices.find('.choice').trigger('fakeblur'); self.$choices.hide(); }
-      
+
       function loadAllChoices() {
         var choiceData = self._searchResults.data,
-          jumpNow = _.first(_.compact(_.pluck(choiceData, 'goto'))), 
+          jumpNow = _.first(_.compact(_.pluck(choiceData, 'goto'))),
           categories = _.extend.apply({}, _.compact(_.pluck(choiceData, 'categories'))),
-          catnames;
+          catnames, choicesPerCategory;
         categories = _.pick(categories, function(cat) { return cat.choices.length > 0; });
-        
+
         self.$choices.removeClass('loading');
         if (jumpNow) { self.jumpTo(jumpNow); return; }
-        
+
         catnames = _.keys(categories);
         if (!categories || catnames.length === 0) { self.$choices.addClass('no-results'); return; }
         catnames = _.sortBy(catnames, function(catname) {
@@ -2010,7 +2013,7 @@ module.exports = (function($){
           return trk.custom && trk.custom.opts.priority <= 1 ? 0 : 1;
         });
         choicesPerCategory = Math.max(Math.ceil(12 / catnames.length), 3);
-        
+
         _.each(catnames, function(catname) {
           var cat = categories[catname];
           $('<div class="category-header"/>').text(catname).appendTo(self.$choices);
@@ -2020,28 +2023,28 @@ module.exports = (function($){
         });
         self.$choices.find('.choice').eq(0).trigger('fakefocus');
       }
-      
+
       if (search === '') { self.prevSearch = ''; return hideChoices(); }
       if (search === self.prevSearch && !forceful) { return; }
       self.$choices.empty().addClass('loading').removeClass('no-results').slideDown();
-      $('body').bind('mousedown.search', function(e) { 
+      $('body').bind('mousedown.search', function(e) {
         if (!$(e.target).closest(self.$choices).length) { hideChoices(); }
         $('body').unbind('mousedown.search');
       });
-      if (self.currentSearches) { 
-        _.each(self.currentSearches, function(s) { _.isFunction(s.abort) && s.abort(); }); 
+      if (self.currentSearches) {
+        _.each(self.currentSearches, function(s) { _.isFunction(s.abort) && s.abort(); });
       }
       self._searchId += 1;
       self.currentSearches = [];
       self._searchResults = {id: self._searchId, data: []};
       self.prevSearch = search;
-      
+
       highPriorityTracks = _.filter(o.availTracks, function(t) { return t.custom && t.custom.opts.priority <= 1; });
       alwaysSearchableTracks = _.filter(highPriorityTracks, function(t) { return t.custom.isSearchable; });
       searchableVisibleTracks = _.filter(o.tracks, function(t) { return t.custom && t.custom.isSearchable; });
       searchTargets = alwaysSearchableTracks.concat(searchableVisibleTracks);
       loadAllChoicesAfter = _.after(searchTargets.length + (o.custom ? 0 : 1), loadAllChoices);
-      
+
       _.each(searchTargets, function(t) {
         t.custom.searchAsync(search, _.partial(function(searchId, data) {
           var reformattedData = {goto: data.goto, categories: {}};
@@ -2054,21 +2057,21 @@ module.exports = (function($){
           loadAllChoicesAfter();
         }, self._searchId));
       });
-      
+
       // For non-custom genomes, we also run a server-side search for features matching this query
       if (!o.custom) {
         self.currentSearches.push($.ajax(o.ajaxDir + 'search.php', {
           data: {position: search, db: o.genome},
           dataType: 'json',
           success: function(data) {
-            if (self._searchResults.id != searchId) { return; }  // too late
-            self._searchResults.data.push(data); 
+            if (self._searchResults.id != self._searchId) { return; }  // too late
+            self._searchResults.data.push(data);
             loadAllChoicesAfter();
           }
         }));
       }
     },
-    
+
     // Handles the selection of a search result from the search dropdown
     _searchChoiceClicked: function(e) {
       var self = this,
@@ -2077,7 +2080,7 @@ module.exports = (function($){
         cat = e.data.cat,
         m = c.desc.match(/^\((.+)\)/),
         picked = m ? m[1].toLowerCase() : c.name.toLowerCase();
-      
+
       $('body').unbind('mousedown.search');
       self.$trackPicker.find('input[name='+cat.track+']').attr('checked', true);
       self.tileFixingEnabled(false);
@@ -2086,33 +2089,33 @@ module.exports = (function($){
         // This callback maximizes the track that contained the feature clicked, and flashes the feature.
         // Flashing the clicked feature is tricky because everything is loading at different times.
         var $maximizeTrack = self.$lines.eq(self.centralLine).find('.browser-track-'+cat.track).eq(0);
-        
+
         $maximizeTrack.one('trackload', function(e, bppps) {
           var $imgs = self.$lines.find('.browser-track-'+cat.track+' .bppp-'+classFriendly(bppps.top)+' .tdata.dens-pack'),
             maxHeight = 5 + Math.max.apply(Math, $imgs.map(function() { return this.naturalHeight || this.height; }).get());
-          
+
           // After the track is resized, flash all the features that were added to our todo-list
           self._resizeTrack(cat.track, maxHeight, self.centralLine, function() {
             var $stillLoading = self.$lines.find('.browser-track-'+cat.track).has('.areas-loading');
             $elem.find('.browser-track').genotrack('updateDensity');
-            function flash() { self.areaHover([cat.track, bppps.top, "pack", "name", picked], "FLASHME"); };
+            function flash() { self.areaHover([cat.track, bppps.top, "pack", "name", picked], "FLASHME"); }
             // FIXME: this is pretty rickety
             if (!$stillLoading.length) { flash(); }
             else { $stillLoading.one('areaload', _.after($stillLoading.length, flash)); }
           });
-          
+
         });
-        
-        _.defer(function(){ 
+
+        _.defer(function(){
           self.tileFixingEnabled(true);
           $elem.find('.browser-track-'+cat.track).genotrack('fixClickAreas');
         });
       }});
-      
+
       self.jumpTo(c.pos);
       return false;
     },
-    
+
     // public (indirect) setter for this.pos; centers the reticle on reticPos
     jumpTo: function(reticPos) {
       var dest = this.normalizePos(reticPos, true);
@@ -2120,14 +2123,14 @@ module.exports = (function($){
         this.$choices.hide().empty();
         if (dest.bppp) {
           this.pos = dest.pos - this._reticDelta();
-          this.zoom(dest.bppp); 
+          this.zoom(dest.bppp);
         } else {
           this._pos(dest.pos - this._reticDelta());
         }
         $(this.options.jump[0]).blur();
       }
     },
-    
+
     // private setter for this.pos that updates the UI accordingly.
     // forceRepos usually means a zoom happened, which requires that the tiles are repositioned within the tracks.
     _pos: function(pos, exceptFor, forceRepos) {
@@ -2139,25 +2142,25 @@ module.exports = (function($){
       this.pos = pos;
       this.$lines.each(function(i) {
         if (this == exceptFor) { return; }
-        $(this).genoline('jumpTo', pos + i * bpWidth, forceRepos); 
+        $(this).genoline('jumpTo', pos + i * bpWidth, forceRepos);
       });
       if (forceRepos) { this._fixZoomedTrackDebounced(); }
       this._fixClickAreasDebounced();
       this._saveParamsDebounced();
     },
-    
+
     // Returns the position (in basepairs) closest to the mouse cursor
     _posAtMouse: function(e) {
       var $line = $(e.srcElement || e.originalTarget).closest('.browser-line');
       if (!$line.length) { return null; }
       return (e.pageX - this.options.sideBarWidth) * this.bppp + $line.genoline('getPos');
     },
-    
+
     // public getter/setter for this.bppp that updates the UI.  If duration is specified, animates the change in zoom.
     zoom: function(zoom, centeredOn, duration) {
       var self = this,
         o = self.options;
-      
+
       function sliderValue(zoom) {
         var ret = 0;
         for (var i = 0; i < self.sliderBppps.length; i++) {
@@ -2170,7 +2173,7 @@ module.exports = (function($){
         }
         return ret;
       }
-      
+
       if (!_.isUndefined(zoom)) {
         if (!_.isUndefined(centeredOn) && centeredOn !== null) { this.centeredOn = centeredOn; }
         else { delete this.centeredOn; }
@@ -2180,19 +2183,19 @@ module.exports = (function($){
           this.$slider.slider('value', sliderValue(zoom));
         }
       }
-      return this.bppp; 
+      return this.bppp;
     },
-    
+
     // private setter for this.bppp; does not update the slider--used internally by it.
     _zoom: function(zoom, centeredOn) {
       centeredOn = centeredOn || this.centeredOn || (this.pos + this._reticDelta());
       var pos = centeredOn - (centeredOn - this.pos) / (this.bppp / zoom);
       this.bppp = zoom;
-      var now = (new Date).getTime();
+      var now = (new Date()).getTime();
       this._pos(pos, null, true);
       this._updateReticle(centeredOn);
     },
-    
+
     // If "to" is boolean, true will raise the slider one step and false will lower it one step.
     _animateZoom: function(to, duration) {
       var self = this,
@@ -2206,7 +2209,7 @@ module.exports = (function($){
         duration: duration || 150
       });
     },
-    
+
     // Bounce off edges if we are toward the margins of the genome
     bounceCheck: function() {
       var self = this,
@@ -2217,13 +2220,13 @@ module.exports = (function($){
         numLines = self.lines().length,
         margins = [(-numLines + o.bounceMargin) * bpWidth, o.genomeSize - o.bounceMargin * bpWidth],
         outsideGenomeRange = pos < margins[0] || pos > margins[1];
-      
+
       if (outsideGenomeRange && !self._bouncing) {
         $elem.find('.drag-cont').stop(true); // Stop any current inertial scrolling
         self.bounceTo(_.min(margins, function(marg) { return Math.abs(marg - pos); }));
       }
     },
-    
+
     // Animates a "bounce" from the current browser position to targetPos
     bounceTo: function(targetPos, callback) {
       var self = this,
@@ -2232,16 +2235,16 @@ module.exports = (function($){
         pos = self.pos,
         naturalFreq = 0.03,
         vInit = $elem.data('velocity') || 0,
-        deltaXInit = (targetPos - pos) / zoom;
-        bounceStart = (new Date).getTime();
-        
+        deltaXInit = (targetPos - pos) / zoom,
+        bounceStart = (new Date()).getTime();
+
       $elem.css('text-indent', 1);
       self._bouncing = true;
       $elem.animate({textIndent: 0}, {
         queue: false,
         duration: 500, // TODO: some better way of approximating this based on dampened spring motion.
         step: function() {
-          var newTime = (new Date).getTime(),
+          var newTime = (new Date()).getTime(),
             deltaT = newTime - bounceStart,
             // see http://en.wikipedia.org/wiki/Damping#Critical_damping_.28.CE.B6_.3D_1.29
             newDeltaX = (deltaXInit + (vInit + naturalFreq * deltaXInit) * deltaT) * Math.exp(-naturalFreq * deltaT);
@@ -2250,36 +2253,36 @@ module.exports = (function($){
         complete: function() { self._bouncing = false; _.isFunction(callback) && callback(); }
       });
     },
-    
+
     // ===================================================================================================
     // = The following functions handle or assist events sent from sub-widgets, like the lines or tracks =
     // ===================================================================================================
-    
+
     // Returns the distance left or right, in pixels, that the lines have been shifted by the last keypress
     keyedOffset: function() { return this._keyedOffset; },
-    
+
     // Fixing tiles can be temporarily disabled and re-enabled with this function
     tileFixingEnabled: function(set) {
       this._tileFixingEnabled = (!_.isUndefined(set) ? !!set : this._tileFixingEnabled);
       if (set) { this.$lines.genoline('fixTrackTiles', true); }
-      return this._tileFixingEnabled; 
+      return this._tileFixingEnabled;
     },
-    
+
     // Handle a drag event on one of the lines, propagating its motion to the other lines
     recvDrag: function($src, linePos) {
       var lineIndex = this.$lines.length == 1 ? 0 : this.$lines.index($src),
         pos = linePos - lineIndex * this.bpWidth();
-      var now = (new Date).getTime();
+      var now = (new Date()).getTime();
       this._pos(pos, $src);
     },
-    
+
     // Handle a track resize event on one of the lines, propagating its changes to the other lines and fixing the layout
     recvTrackResize: function($src, name, height, callback) {
       var holdSteady = $src && this.$lines.index($src);
       this._resizeTrack(name, height, holdSteady, _.isFunction(callback) ? callback : true);
       this._saveParamsDebounced();
     },
-    
+
     // Handle a track reorder action on one of the lines, propagating its changes to the other lines
     // newOrder is an array mapping oldIndex => newIndex
     recvSort: function($src, newOrder) {
@@ -2290,49 +2293,49 @@ module.exports = (function($){
       this.$lines.not($src).genoline('fixTracks').genoline('fixTrackTiles');
       this._saveParamsDebounced();
     },
-    
+
     // Handle a mousewheel event on one of the lines, propagating its changes to all lines.
-    // TODO: should prefer handling "wheel" events instead of nonstandard "mousewheel"
     _recvZoom: function(e, manualDelta) {
       var self = this,
         o = this.options,
-        d = [manualDelta, e.originalEvent.wheelDeltaY, e.originalEvent.wheelDelta, 
-          e.originalEvent.axis == 2 && -e.originalEvent.detail],
+        d = [manualDelta, e.originalEvent.deltaY, e.originalEvent.wheelDeltaY, 
+          e.originalEvent.wheelDelta, e.originalEvent.axis == 2 && -e.originalEvent.detail],
         userAgent = navigator && navigator.userAgent,
-        adjust = [[(/chrome/i), 0.06], [(/safari/i), 0.03], [(/opera|msie/i), 0.01]];
-        
-      // You can scroll the track pickers, select boxes, and textareas
+        // the following adjustments are applied to the legacy, nonstandard "mousewheel" events since every browser
+        // does it a little differently; see https://developer.mozilla.org/en-US/docs/Web/Events/mousewheel
+        mousewheelEventAdjust = [[(/chrome/i), 0.06], [(/safari/i), 0.03], [(/opera|msie/i), 0.01]],
+        value, delta, deltaMode;
+
+      // You can scroll the track pickers, select boxes, and textareas as usual
       if ($(e.target).closest('.picker,select,textarea').length) { return; }
-      
+
       self.$lines.genoline('stopThrow');                                // Stop any current inertial throwing animation
       if (_.isUndefined(self._wheelDelta)) { self._wheelDelta = 0; }
       $.tipTip.hide();                                                  // Hide any tipTips showing
       d = _.reject(d, _.isUndefined).shift();
       self.centeredOn = self._posAtMouse(e.originalEvent);
-      
-      // mousewheeling is more performant (esp in Safari) if it all the events fire on a single element
-      // which is why we throw a "shield" element in front of all the browser lines during zooms to capture the events
-      // FIXME: Is this still needed? Safari has possibly fixed this?
-      // self.lines().genoline('toggleZoomShield', true);                
-      
+
       if (d && self.centeredOn !== null) {
-        var value = self.$slider.slider('value'),
-          delta = (o.snapZoom ? (self._wheelDelta += d) : d) / 20;
-        if (userAgent && _.isUndefined(manualDelta)) { 
-          _.find(adjust, function(v) { return v[0].test(userAgent) && (delta *= v[1]); }); 
+        value = self.$slider.slider('value');
+        delta = (o.snapZoom ? (self._wheelDelta += d) : d) / 20;
+        if (e.type === 'wheel') { // W3C standard "wheel" event
+          deltaMode = e.originalEvent.deltaMode;
+          delta *= -(deltaMode === 0 ? 0.09 : (deltaMode === 1 ? 0.006: 0.001));
+        } else if (userAgent && _.isUndefined(manualDelta)) {
+          _.find(mousewheelEventAdjust, function(v) { return v[0].test(userAgent) && (delta *= v[1]); });
         } else if (e.originalEvent.wheelDeltaY) { delta *= 0.05; }
         if (o.snapZoom) {
-          if (Math.abs(delta) > 1.2) { 
+          if (Math.abs(delta) > 1.2) {
             self._animateZoom(delta > 0, 1000);
             self._wheelDelta = 0;
           }
         } else { self.$slider.slider('value', value + delta); }
         self._finishZoomDebounced(delta > 0);
       }
-      
+
       return false; // disable scrolling of the document
     },
-    
+
     // This is fired shortly after tracks believe that all images have loaded.
     // We recalculate the density order of tracks, and fix the orange clip indicators.
     _recvTrackLoad: function(e) {
@@ -2340,7 +2343,7 @@ module.exports = (function($){
         $elem = self.element,
         $trk = $(e.target),
         t = $trk.genotrack('option', 'track');
-      
+
       // This handler is manually debounced by 100ms, separately per track.
       self._trackLoadTimers = self._trackLoadTimers || {};
       if (!_.isUndefined(self._trackLoadTimers[t.n])) { clearTimeout(self._trackLoadTimers[t.n]); }
@@ -2350,11 +2353,11 @@ module.exports = (function($){
         $elem.find('.browser-track-'+t.n).genotrack('fixClipped');
       }, self, $trk, t), 100);
     },
-    
+
     // ===============================================
     // = These functions manipulate the tank reticle =
     // ===============================================
-    
+
     // Returns the offset of the reticle, in basepairs, from the position of the browser
     // which is designated as the basepair at the left edge of the topmost line
     _reticDelta: function(line) {
@@ -2381,7 +2384,7 @@ module.exports = (function($){
       if (_.isUndefined(centeredOn)) {
         if (!_.any(this._showReticle)) { return hide($elem.find('.retic:not(.hidden)')); }
         $line.find('.retic.hidden').animate({opacity: o.reticOpacity}, {
-          duration: 200, 
+          duration: 200,
           complete: function() { $(this).removeClass('hidden'); }
         });
       } else {
@@ -2391,27 +2394,27 @@ module.exports = (function($){
       $line.genoline('setReticle', nextZooms, centeredOn);
       hide(this.$lines.not($line.get(0)).find('.retic:not(.hidden)'), 0);
     },
-    
+
     // Display the reticle for one of several possible reasons (set them as true or false)
     // The reticle will be shown if any of the reasons apply
     showReticle: function(why, val) {
       this._showReticle[why] = val;
       this._updateReticle();
     },
-    
+
     // ===================================================================================================
     // = The following functions are debounced; they update the display after a repeated event concludes =
     // ===================================================================================================
-    
+
     // After a short delay, a zoom action can be "snapped" to the nearest optimal level
     // NOTE: This is _.debounce'd in init()
     _finishZoomDebounced: function(direction) {
       this.bounceCheck();
       if (this.options.snapZoomAfter && !this.options.snapZoom) { this._animateZoom(direction); }
-      if (this.options.snapZoom) { self._wheelDelta = 0; }
+      if (this.options.snapZoom) { this._wheelDelta = 0; }
       this.lines().genoline('toggleZoomShield', false);
     },
-    
+
     // Everytime we zoom in on a line, we have to recalculate the density order of tracks,
     // and redraw the tick marks on the ruler track.
     // NOTE: This is _.debounce'd in _init()
@@ -2425,7 +2428,7 @@ module.exports = (function($){
         if (t.n === 'ruler') { $elem.find('.browser-track-'+t.n).genotrack('redrawRulerCanvasTicksAndBands'); }
       });
     },
-    
+
     // Remembers the general layout & position of the browser for the next time it is opened
     // NOTE: This is _.debounce'd in _init()
     _saveParamsDebounced: function() {
@@ -2444,24 +2447,24 @@ module.exports = (function($){
       state.tracks = _.map(o.tracks, function(t) { return t.n + ':' + t.h; }).join('|');
       state.customTracks = self._customTrackUrls.loaded;
       if (lineMode != self._defaultLineMode) { state.mode = lineMode; }
-      
+
       // $.param({...}, true) --> don't add [] to array params
       url = '?' + decodeSafeOctets($.param(_.extend({db: o.genome}, state), true));
       // If the HTML5 history API is implemented, save the state to the URL bar after the first change
       if (window.history && window.history.replaceState && self.state) {
-        var now = (new Date).getTime(),
+        var now = (new Date()).getTime(),
           historyFn = now - (self._histLastReplaced || 0) > 20000 ? 'pushState' : 'replaceState';
         window.history[historyFn]({}, window.document.title, url);
-        self._histLastReplaced = (new Date).getTime();
+        self._histLastReplaced = (new Date()).getTime();
       }
       $url.val(window.location.href.replace(/\?.*$/, '') + url);
-      
+
       // Also make a URL to the equivalent view in UCSC
       if (!o.custom || (/^ucsc:/).test(o.genome)) {
         start = Math.max(Math.round(pos - chr.p), 1);
         end = Math.min(Math.round(pos - chr.p + self.bpWidth() * self.$lines.length), o.chrLengths[chr.n]);
         ucscParams = {db: o.genome.replace(/^ucsc:|:\d+$/g, ''), position: chr.n + ':' + start + '-' + end};
-        _.each(o.tracks, function(t) { 
+        _.each(o.tracks, function(t) {
           var densityOrderAsArray = _.map(self.densityOrder(t.n), function(v,k) { return [k,v]; }),
             topDensity = _.min(densityOrderAsArray, function(p) { return p[1]; });
           if (topDensity) { ucscParams[t.n] = topDensity[0]; }
@@ -2471,40 +2474,40 @@ module.exports = (function($){
       } else {
         $ucscLink.closest('.form-line').hide();
       }
-      
+
       // Save state in localStorage, sessionStorage, and $.cookie as appropriate
       self.state = state;
       self.storage && _.each(o.savableParams, function(keys, dest) {
         _.each(keys, function(k) {
           var fullKey = (dest != 'persistent' ? o.genome + '.' : '') + k;
-          if (!_.isUndefined(state[k])) { 
-            self.storage[dest].setItem(fullKey, state[k]); 
+          if (!_.isUndefined(state[k])) {
+            self.storage[dest].setItem(fullKey, state[k]);
           } else {
             self.storage[dest].removeItem(fullKey);
           }
         });
       });
     },
-    
+
     // ===========================================================================================
     // = The following functions coordinate the click areas that appear when hovering over tiles =
     // ===========================================================================================
-    
+
     // Everytime we move the browser, we have to fetch new click area data.
     // NOTE: This is _.debounce'd in _init()
     _fixClickAreasDebounced: function() {
-      var self = this, 
+      var self = this,
         o = this.options,
         $elem = self.element;
       _.each(o.tracks, function(t) {
         $elem.find('.browser-track-'+t.n).genotrack('fixClickAreas');
       });
     },
-    
+
     // Areas are stored in a global index, so that mousing over an area in one tile can retrieve
     // areas with a similar name/hrefHash that must also be highlighted.  This function receives
     // information about a current hover event and creates the appropriate highlighted anchors
-    // within the correct tiles. 
+    // within the correct tiles.
     areaHover: function(keys, target) {
       var $elem = this.element;
       if (_.isUndefined(keys)) { return this._areaHover; }
@@ -2545,21 +2548,21 @@ module.exports = (function($){
       } else { throw 'something went wrong while running through the areaIndex'; }
       return (this._areaHover = keys[0] + '.' + keys[3] + '.' + keys[4]);
     },
-    
+
     // Return the area index; other widgets can access it directly
     areaIndex: function() { return this._areaIndex; },
-    
+
     // =====================================================
     // = Miscellaneous functions that didn't fit elsewhere =
     // =====================================================
-    
+
     // Fetches DNA from the AJAX service for a particular bp range and sends it off to the callback function
     getDNA: function(left, right, callback, extraData) {
       var self = this,
         o = self.options,
         chunkSize = o.maxNtRequest;
       if (!this._dnaCallbacks) { this._dnaCallbacks = []; }
-      
+
       function loadedFromAjax(data, statusCode, jqXHR) {
         self._dna[jqXHR._s] = data.seq;
         checkCallbacks();
@@ -2613,7 +2616,7 @@ module.exports = (function($){
           else { return true; }
         });
       }
-      
+
       var dna;
       if (o.custom && o.custom.canGetSequence) {
         o.custom.getSequence(left, right, function(dna) { callback(dna, extraData); });
@@ -2627,7 +2630,7 @@ module.exports = (function($){
         ajaxLoadDNA();
       }
     },
-    
+
     // Updates the text for the genome species and description in the window title and footer
     _updateGenomes: function() {
       var self = this,
@@ -2636,13 +2639,13 @@ module.exports = (function($){
         $title = $genome.find('.title'),
         speciesParenthetical = o.species.match(/\((.+)\)/),
         $li = $genome.find('li.divider').eq(0).show();
-      
+
       self._defaultTitle = self._defaultTitle || window.document.title;
       window.document.title = o.species + ' - ' + self._defaultTitle;
       $title.text(o.species.replace(/\s+\(.*$/, '')).attr('title', o.species);
       if (speciesParenthetical) { $('<em class="parenth" />').text(', ' + speciesParenthetical[1]).appendTo($title); }
       $genome.find('.description').text(o.assemblyDate + ' (' + o.genome.replace(/\|.*$/, '') + ')');
-      
+
       // Fill the genome picker with available configured genomes
       $genome.find('.choice.genome-choice').remove();
       _.each(o.genomes, function(v, k) {
@@ -2653,9 +2656,9 @@ module.exports = (function($){
         $('<span class="long-desc"/>').text(v.assemblyDate + ' (' + k + ')').appendTo($a);
         $a.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       });
-      if ($genome.find('.choice.genome-choice').length == 0) { $li.hide(); }
+      if ($genome.find('.choice.genome-choice').length === 0) { $li.hide(); }
     }
-    
+
   });
 
-});
+};

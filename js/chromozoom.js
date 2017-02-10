@@ -17,9 +17,9 @@ require('./ui/jquery-ui.min.js')(jQuery);
 require('./ui/jquery-ui.touch-punch.js')(jQuery);
 require('./ui/jquery.retina-canvas.js')(window, jQuery);
 
-window._ = require('./underscore.min.js');
+var _ = window._ = require('./underscore.min.js');
 
 require('./custom/CustomTracks.js')(window);
 require('./custom/CustomGenomes.js')(window);
 
-require('./ui/jquery-ui.genobrowser.js')(jQuery);
+require('./ui/jquery-ui.genobrowser.js')(jQuery, _);
