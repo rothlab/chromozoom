@@ -46,6 +46,8 @@ module.exports = function(global, jQuery) {
       var ratio = this.calculateRatio();
       if (typeof(height) == 'undefined') { return this.height / ratio; }
       else {
+        // anytime you change canvas dimensions, the drawing context resets
+        $(this).data('currentScale', 1);
         this.height = height * ratio;
         return height;
       }
@@ -56,6 +58,8 @@ module.exports = function(global, jQuery) {
       var ratio = this.calculateRatio();
       if (typeof(width) == 'undefined') { return this.width / ratio; }
       else {
+        // anytime you change canvas dimensions, the drawing context resets
+        $(this).data('currentScale', 1);
         this.width = width * ratio;
         return width;
       }
