@@ -1,7 +1,6 @@
 // ===================================================================
 // = Each line of the $.ui.genobrowser is managed by a $.ui.genoline =
 // ===================================================================
-/*jshint node: true */
 
 module.exports = function($, _) {
 
@@ -221,7 +220,10 @@ $.widget('ui.genoline', {
 
   stopThrow: function() {
     var tween = this.throw && this.throw.tween;
-    if (tween && tween.isActive()) { this.fixTrackTiles(); tween.kill(); }
+    if (tween && tween.isActive()) { 
+      this.fixTrackTiles();
+      tween.kill();
+    }
   },
 
   fixTrackTiles: function(forceRepos) {

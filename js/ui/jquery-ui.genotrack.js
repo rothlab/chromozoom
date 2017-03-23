@@ -221,7 +221,10 @@ $.widget('ui.genotrack', {
     if (o.track.custom && o.track.custom.stretchHeight) {
       alsoEraseStretchedTiles = function() {
         $elem.find('.tile-custom canvas').each(function() {
-          if (this.height < height) { $(this).attr('height', height).trigger('render'); }
+          if (this.unscaledHeight() < height) { 
+            this.unscaledHeight(height);
+            $(this).trigger('render');
+          }
         });
       };
     }

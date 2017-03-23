@@ -160,6 +160,8 @@ module.exports = function($, _) {
       o = _.extend(self.options, options);
 
       self._initInstanceVars();
+      // Disable tile fixing until after custom genome tracks are parsed and the nextDirectives are followed
+      self.tileFixingEnabled(false);
 
       tracksToParse = _.filter(o.availTracks, function(t) { return t.customData; });
 
@@ -176,6 +178,7 @@ module.exports = function($, _) {
         $(window).trigger('resize', function() {
           self._nextDirectives = {};
           if (_.keys(nextDirectives).length) { self._initFromParams(nextDirectives); }
+          self.tileFixingEnabled(true);
         });
       }
 
@@ -1220,6 +1223,7 @@ module.exports = function($, _) {
         customGenomePieces = (params.db || '').split(':');
         customGenomeSource = customGenomePieces[0];
         remote = remoteGenomeSettings[customGenomeSource];
+        
         if (customGenomeSource == 'url') {   // It's a URL to a full genome file
           $genomeUrlInput.val(customGenomePieces.slice(1).join(':'));
           $genomeUrlGet.click();
@@ -2222,7 +2226,7 @@ module.exports = function($, _) {
         outsideGenomeRange = pos < margins[0] || pos > margins[1];
 
       if (outsideGenomeRange && !self._bouncing) {
-        $elem.find('.drag-cont').stop(true); // Stop any current inertial scrolling
+        self.$lines.genoline('stopThrow');   // Stop any current inertial scrolling
         self.bounceTo(_.min(margins, function(marg) { return Math.abs(marg - pos); }));
       }
     },
