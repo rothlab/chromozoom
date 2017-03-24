@@ -2524,7 +2524,7 @@ module.exports = function($, _) {
       // areaIndex[track][bppp][density]["hrefHash"|"name"][hrefHash|name][tileId][localAreaId] = true
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
-        if (!areaIndices[k]) { areaIndices = false; break; }
+        if (!areaIndices[k]) { console.log(k); areaIndices = false; break; }
         areaIndices = areaIndices[k];
       }
       if (areaIndices) {
@@ -2547,7 +2547,8 @@ module.exports = function($, _) {
         });
         if (keys[3]=='hrefHash') {
           // Also highlight any existing .area's (e.g. labels on custom tracks)
-          $elem.find('.browser-track-'+keys[0]+'>.bppp-'+classFriendly(keys[1])+'>.dens-'+keys[2]+'.href-hash-'+keys[4]).addClass('hover');
+          $elem.find('.browser-track-' + keys[0] + '>.bppp-' + classFriendly(keys[1]) +
+                     '>.dens-' + keys[2] + '.href-hash-' + keys[4]).addClass('hover');
         }
       } else { throw 'something went wrong while running through the areaIndex'; }
       return (this._areaHover = keys[0] + '.' + keys[3] + '.' + keys[4]);

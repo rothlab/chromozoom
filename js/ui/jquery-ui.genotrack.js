@@ -417,6 +417,7 @@ $.widget('ui.genotrack', {
     if ($tileBefore.length) { $d.insertAfter($tileBefore); }
     else { $d.prependTo(self.element); }
     $d.attr('id', self._tileId(tileId, bppp)).data({zIndex: _.indexOf(self.sliderBppps, bppp), tileId: tileId});
+    $d.data('nextTileId', self._tileId(tileId + bpPerTile, bppp));
     if ($.support.touch) { self._tileTouchEvents($d); }
     else { $d.mousemove({self: self}, self._tileMouseMove).mouseout({self: self}, self._tileMouseOut); }
    
@@ -433,14 +434,13 @@ $.widget('ui.genotrack', {
     _.each(densities, function(density) {
       var tileSrc = self._tileSrc(tileId, bppp, density),
         fixedHeight = o.track.fh[tileSrc.bpppFormat] && o.track.fh[tileSrc.bpppFormat][density],
-        $i;
+        $i = $.mk('img').addClass('tdata loading dens-'+density).attr('id', 'img-' + $d.attr('id') + '-' + density);
       if (fixedHeight) {
-        $i = $.mk('img').addClass('tdata loading dens-'+density).css('width', '100%').css('height', fixedHeight);
-        $d.append($i);
+        $i.css('width', '100%').css('height', fixedHeight);
       } else {
-        $i = $.mk('img').addClass('tdata loading dens-'+density).bind('load', self._setImgDims);
-        $d.append($i);
+        $i.bind('load', self._setImgDims);
       }
+      $d.append($i);
       self.tileLoadCounter++;
       $i.bind('load error', {self: self, tile: $d, isBest: density==bestDensity, cached: cached}, self._trackLoadFire);
       $i.toggleClass('dens-best', density == bestDensity);
@@ -492,31 +492,55 @@ $.widget('ui.genotrack', {
   },
 
   // For custom tracks, it is more performant to perform hover target calculation
-  // in JS directly on the list of areas rather than add/remove many DOM elements
-  // to achieve the same
+  // in JS directly on the list of areas rather than constantly add/remove many DOM 
+  // elements with their own event handling.
   _tileMouseMove: function(e) {
     var $targ = $(e.target),
+      $tile = $(this),
       $tdata = $targ.closest('.tdata'),
+      nextTileId = $tile.data('nextTileId'),
       self = e.data.self,
       o = self.options,
       prev = o.browser.genobrowser('areaHover'),
-      areas, ratio, bppp;
+      density = $tdata.data('density'),
+      $nextTdata, areas, ratio, bppp;
+    
+    function cancelAreaHover() { !$targ.is('.area') && o.browser.genobrowser('areaHover', false); }
+    
     if ($('body').hasClass('dragging')) { return; }
-    if (!$tdata.length || !$tdata.hasClass('dens-best') || !(areas = $tdata.data('areas'))) {
-      if (!$targ.is('.area')) { o.browser.genobrowser('areaHover', false); }
-      return;
-    }
+    if (!$tdata.length || !$tdata.hasClass('dens-best')) { cancelAreaHover(); return; }
+    
+    // Now we tally up the areas we need to check before proceeding.
+    areas = $tdata.data('areas') || [];
     bppp = $tdata.data('bppp');
     ratio = bppp / o.browser.genobrowser('zoom');
-    var offset = $(this).offset(),
+    // We need $nextTdata, the corresponding .tdata for the right-adjacent tile, because we also need to check
+    // that tile for areas where the size of their text label hangs them over into this tile.
+    $nextTdata = $('#' + nextTileId + '>.tdata.dens-' + density).eq(0);
+    areas = areas.concat(_.compact(_.map($nextTdata.data('areas') || [], function(v, i) {
+      // If the label width doesn't hang over the left side, we don't care about it
+      if (_.isUndefined(v[10]) || v[0] * ratio - v[10] > 0) { return false; };
+      var arr = v.slice();
+      arr.i = i; // need to save the original i, because it's used by the areaIndex--see below
+      // FIXME: Should refactor area data from arrays --> POJO's. Adding properties to arrays is pretty gross.
+      arr.hrefHash = v.hrefHash;
+      arr[0] += o.tileWidth;
+      arr[2] += o.tileWidth;
+      return arr;
+    })));
+    if (!areas.length) { cancelAreaHover(); return; }
+    
+    var offset = $tile.offset(),
       x = e.pageX - offset.left,
       y = e.pageY - offset.top;
     for (var i = 0; i < areas.length; i++) {
-      var v = areas[i], areaId;
-      if (x > v[0] * ratio && x < v[2] * ratio && y > v[1] && y < v[3]) {
+      var v = areas[i], 
+        left = _.isUndefined(v[10]) ? v[0] : (v[0] * ratio - v[10]),  // include possible text label width
+        areaId;
+      if (x > left && x < v[2] * ratio && y > v[1] && y < v[3]) {
         if (o.track.n + '.hrefHash.' + v.hrefHash !== prev) {
-          areaId = $(this).attr('id') + '.' + i;
-          o.browser.genobrowser('areaHover', [o.track.n, bppp, $tdata.data('density'), 'hrefHash', v.hrefHash], areaId);
+          areaId = _.isUndefined(v.i) ? ($tile.attr('id') + '.' + i) : (nextTileId + '.' + v.i);
+          o.browser.genobrowser('areaHover', [o.track.n, bppp, density, 'hrefHash', v.hrefHash], areaId);
         }
         return;
       }
@@ -608,16 +632,21 @@ $.widget('ui.genotrack', {
       },
       hash = shortHash(area[5]),
       scaleToPct = 100 / o.tileWidth,
-      $a = $.mk('a').addClass('area dens-'+density+' href-hash-'+hash).attr('title', area[4]);
+      $a = $.mk('a').addClass('area dens-'+density+' href-hash-'+hash).attr('title', area[4]),
+      ratio = o.browser.genobrowser('zoom') / bppp,
+      // area[10], if set, is the width of the text label attached to the left side of the area.
+      leftPx = (area[0] - (_.isUndefined(area[10]) ? 0 : area[10] * ratio)),
+      leftPct = leftPx * scaleToPct + '%';
+    
     $a.attr('href', (custom ? '' : this.baseURL) + area[5]).attr('target', '_blank');
     $a.css({top: area[1], height: area[3] - area[1] - 2});
+    
     if (flags.label) {
       $a.css({right: (100 - area[0] * scaleToPct) + '%', color: 'rgb(' + (area[7] || defaultColor) + ')'}).addClass('label');
       if (area[8]) { $a.html(area[8]); } else { $a.text(area[4]); }
       $a.mouseover({self: this, bppp: bppp, density: density, hrefHash: hash, areaId: $tile.attr('id') + '.' + flags.i}, this._areaMouseOver);
     } else {
-      // FIXME: We'd need to respect area[10] if set, see FIXME in _drawAreaLabels below
-      $a.addClass('rect').css({left: (area[0] * scaleToPct) + '%', width: ((area[2] - area[0]) * scaleToPct) + '%'});
+      $a.addClass('rect').css({left: leftPct, width: ((area[2] - leftPx) * scaleToPct) + '%'});
       if (flags.flashme) {
         $a.addClass('flashing').effect("pulsate", {times: 2}, 1000, function() {
           $(this).fadeOut(300, function() { $(this).removeClass('flashing'); });
@@ -665,7 +694,8 @@ $.widget('ui.genotrack', {
       var x = area[0] * canvasXScale - xPad + leftOverhang,
         y = floorHack((area[1] + area[3]) * 0.5),
         lineHeight = 12,
-        textWidth, lines, lineTextColor;
+        textWidths = [],
+        textWidth, maxTextWidth, lines, lineTextColor;
      
       if (area[8]) {
         lines = area[8].split("\n");
@@ -679,36 +709,27 @@ $.widget('ui.genotrack', {
             lineTextColor = m[1];
             l = l.replace(altColorRegexp, '');
           }
-          if (fillBg) {
-            ctx.fillStyle = fillBg;
-            textWidth = ctx.measureText(l).width + 1;
-            ctx.fillRect(x - textWidth, lineY - lineHeight * 0.5, textWidth, lineHeight);
-          }
-          if (lineTextColor || area[7] || fillBg) {
-            ctx.fillStyle = 'rgb(' + (lineTextColor ? lineTextColor : (area[7] ? area[7] : defaultColor)) + ')';
-          }
+          ctx.fillStyle = fillBg;
+          textWidth = ctx.measureText(l).width + 1;
+          textWidths.push(textWidth);
+          ctx.fillRect(x - textWidth, lineY - lineHeight * 0.5, textWidth, lineHeight);
+          ctx.fillStyle = 'rgb(' + (lineTextColor ? lineTextColor : (area[7] ? area[7] : defaultColor)) + ')';
           ctx.fillText(l, x, lineY);
-          if (lineTextColor) { ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')'; }
         });
       } else {
-        if (fillBg) {
-          ctx.fillStyle = fillBg;
-          textWidth = ctx.measureText(area[4]).width + 1;
-          ctx.fillRect(x - textWidth, y - lineHeight * 0.5, textWidth, lineHeight);
-        }
-        if (area[7] || fillBg) { ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')'; }
+        ctx.fillStyle = fillBg;
+        textWidth = ctx.measureText(area[4]).width + 1;
+        textWidths = [textWidth];
+        ctx.fillRect(x - textWidth, y - lineHeight * 0.5, textWidth, lineHeight);
+        ctx.fillStyle = 'rgb(' + (area[7] ? area[7] : defaultColor) + ')';
         ctx.fillText(area[4], x, y);
       }
-      if (area[7] || fillBg) { ctx.fillStyle = 'rgb(' + defaultColor + ')'; }
-      // FIXME: add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
-      //        This allows the user to mouseover the text instead of just the feature itself (which can be very small)
-      //        Can measure text width with ctx.measureText(text).
-      //        _tileMouseMove then needs to check the *right-adjacent* tile's area data for any areas with area[10] < 0.
-      //        This adjacent tile can be found via manipulating the tile ID.
-      //          - $tile.data('tileId') has the leftmost bp position;
-      //          - adding bppp * o.tileWidth to this gives the position of the next tile;
-      //          - substituting $tile.attr('id')'s last number with this number gets the HTML ID of the next tile.
-      //        Finally, makeAnchor() above needs to respect area[10] when actually positioning the <a>
+      ctx.fillStyle = 'rgb(' + defaultColor + ')';
+      
+      maxTextWidth = Math.max.apply(Math, textWidths);
+      // Add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
+      // This allows the user to mouseover the text instead of just the feature itself (which can be very small)
+      area[10] = Math.ceil(maxTextWidth);
     });
    
     $c.toggleClass('dens-best', density == bestDensity);
