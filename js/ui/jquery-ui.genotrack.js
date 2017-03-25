@@ -1106,7 +1106,9 @@ $.widget('ui.genotrack', {
         version: "1.2",
         baseProfile: "tiny",
         height: '14px',
-        width: ($d.closest('.tile').width() || extraData._w) + 'px'
+        width: ($d.closest('.tile').width() || extraData._w) + 'px',
+        // Tells the GreenSock Draggable in genoline to ignore click events so NT's can be highlighted
+        "data-clickable": 'true'
       });
       $d.append($svg);
       $.mk("http://www.w3.org/2000/svg", "text").attr({

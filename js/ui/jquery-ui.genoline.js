@@ -204,9 +204,9 @@ $.widget('ui.genoline', {
       contEl = self.$cont.get(0),
       o = self.options,
       xMargins = self.xMargins(),
-      duration, decel, throwDistance;
+      duration, decel, throwDistance, xFinal;
 
-    // Don't allow throws below a certain initial speed
+    // Don't allow throws below a certain initial speed; instead stop and check for a bounce
     if (!vInit || Math.abs(vInit) < 0.1) { self.fixIndices(); return false; }
 
     vInit = Math.max(-5.0, Math.min(vInit, 5.0));      // Clip the initial speed to a reasonable range
@@ -215,15 +215,22 @@ $.widget('ui.genoline', {
     decel = vInit > 0 ? 0.001 : -0.001;                // in px / ms^2
     duration = vInit / decel;                          // in ms
     throwDistance = (vInit * vInit) / (2 * decel);     // in px
+    xFinal = xInit + throwDistance;
     
+    // Short throws from beyond the margins into the genome (that can't reach it) are better handled by bounces
+    if (xFinal < xMargins[0] && vInit > 0) { return false; }
+    if (xFinal > xMargins[1] && vInit < 0) { return false; }
+    
+    // All good to throw, 
     throw_.tween = TweenLite.to(self.$cont, duration / 1000.0, {
-      x: xInit + throwDistance,
+      x: xFinal,
       ease: Power1.easeOut,
       onUpdate: function() {
         var x = contEl._gsTransform.x,
           vNew;
         self._setPosFromX(x);
         self.fixFirstLabel();
+        // Did we travel beyond the margins of the genome? If yes, start a bounce now (which cancels this tween)
         if ((x < xMargins[0] && vInit < 0) || (x > xMargins[1] && vInit > 0)) {
           vNew = (vInit > 0 ? 1 : -1) * Math.sqrt(vInit * vInit + 2 * decel * (x - xInit)); // in px/ms
           self.startBounce(vNew, x);
