@@ -53,7 +53,7 @@ $.widget('ui.genoline', {
     // GreenSock uses modern JS animation techniques and leverages hardware acceleration wherever possible
     // We can't use GreenSock's ThrowPropsPlugin because it is non-free, but we can replicate the bit of
     // functionality we need for "throwing" by measuring velocity and tweening a throw ourselves
-    // TODO: bounceCheck for bouncing off edges; do we really care about vertical dragging (lineShift)?
+    // TODO: Do we really care about vertical dragging (lineShift)?
     self.throw = throw_ = {};
     self.draggable = new Draggable(self.$cont.get(0), {
       type: "x",
@@ -80,7 +80,7 @@ $.widget('ui.genoline', {
       onDragEnd: function(e) {
         $('body').removeClass('dragging');
         o.browser.genobrowser('showReticle', 'dragging', false);
-        self.startThrow(throw_.velocity, this.x);
+        self.startThrow(throw_.velocity, this.x) || self.startBounce(throw_.velocity, this.x);
       }
     });
   },
@@ -183,15 +183,31 @@ $.widget('ui.genoline', {
     this.fixFirstLabel();
     this.fixIndices();
   },
+  
+  // What x positions for the draggable element are the margins allowable to keep the genome in view?
+  xMargins: function() {
+    var o = this.options,
+      $lines = o.browser.genobrowser('lines'),
+      numLines = $lines.length,
+      lineIndex = numLines == 1 ? 0 : $lines.index(this.element),
+      bpWidth = o.browser.genobrowser('bpWidth'),
+      zoom = o.browser.genobrowser('zoom');
+      
+    return [(o.origin - o.genomeSize - (lineIndex - o.bounceMargin) * bpWidth) / zoom, 
+            (o.origin + (numLines - lineIndex - o.bounceMargin) * bpWidth) / zoom];
+  },
 
+  // Start a throwing animation. Must specify an initial velocity, vInit, in px/ms.
   startThrow: function(vInit, xInit) {
     var self = this,
       throw_ = self.throw,
       contEl = self.$cont.get(0),
+      o = self.options,
+      xMargins = self.xMargins(),
       duration, decel, throwDistance;
 
     // Don't allow throws below a certain initial speed
-    if (!vInit || Math.abs(vInit) < 0.1) { self.fixIndices(); return; }
+    if (!vInit || Math.abs(vInit) < 0.1) { self.fixIndices(); return false; }
 
     vInit = Math.max(-5.0, Math.min(vInit, 5.0));      // Clip the initial speed to a reasonable range
     if (_.isUndefined(xInit)) { xInit = contEl._gsTransform.x; }
@@ -199,14 +215,19 @@ $.widget('ui.genoline', {
     decel = vInit > 0 ? 0.001 : -0.001;                // in px / ms^2
     duration = vInit / decel;                          // in ms
     throwDistance = (vInit * vInit) / (2 * decel);     // in px
-
+    
     throw_.tween = TweenLite.to(self.$cont, duration / 1000.0, {
       x: xInit + throwDistance,
       ease: Power1.easeOut,
       onUpdate: function() {
-        var x = contEl._gsTransform.x;
+        var x = contEl._gsTransform.x,
+          vNew;
         self._setPosFromX(x);
         self.fixFirstLabel();
+        if ((x < xMargins[0] && vInit < 0) || (x > xMargins[1] && vInit > 0)) {
+          vNew = (vInit > 0 ? 1 : -1) * Math.sqrt(vInit * vInit + 2 * decel * (x - xInit)); // in px/ms
+          self.startBounce(vNew, x);
+        }
         if (Math.abs(x - throw_.lastRefresh) > 1000) { throw_.lastRefresh = x; self.fixTrackTiles(); }
       },
       onComplete: function() {
@@ -216,8 +237,10 @@ $.widget('ui.genoline', {
         self.fixTrackTiles();
       }
     });
+    return true;
   },
 
+  // Cancel the current throwing animation.
   stopThrow: function() {
     var tween = this.throw && this.throw.tween;
     if (tween && tween.isActive()) { 
@@ -225,6 +248,74 @@ $.widget('ui.genoline', {
       tween.kill();
     }
   },
+  
+  // Start a bouncing animation from beyond the margins of genome to the nearest margin.
+  // Can specify an initial velocity, vInit, in px/ms.
+  startBounce: function(vInit, xInit) {
+    var self = this,
+      throw_ = self.throw,
+      contEl = self.$cont.get(0),
+      xMargins = self.xMargins(),
+      bounceDuration = 500,            // perhaps nicer to not make this a constant?
+      offRight, xFinal, twoTween, marginDist, bounceBackEase,
+      bounceOutDecel, bounceOutDuration, bounceOutDistance;
+    
+    vInit = Math.max(-5.0, Math.min(vInit || 0, 5.0));  // Clip the initial speed to a reasonable range
+    if (_.isUndefined(xInit)) { xInit = contEl._gsTransform.x; }
+    if (xInit > xMargins[0] && xInit < xMargins[1]) { return; }
+
+    self.stopThrow();
+    throw_.lastRefresh = xInit;
+    offRight = xInit < xMargins[0];
+    xFinal = offRight ? xMargins[0] : xMargins[1];
+    // Bounces where the initial velocity is away from the margin are animated with two tweens:
+    // a bounce out, and a bounce back.
+    twoTween = (offRight && vInit < 0) || (!offRight && vInit > 0);
+    bounceBackEase = twoTween ? Power2.easeInOut: Power2.easeOut;
+    marginDist = offRight ? xMargins[0] - xInit : xInit - xMargins[1];
+    
+    function bounceBack() {
+      throw_.tween = TweenLite.to(self.$cont, bounceDuration / 1000.0, {
+        x: xFinal,
+        ease: bounceBackEase,
+        onUpdate: function() {
+          var x = contEl._gsTransform.x;
+          self._setPosFromX(x);
+          self.fixFirstLabel();
+          if (Math.abs(x - throw_.lastRefresh) > 1000) { throw_.lastRefresh = x; self.fixTrackTiles(); }
+        },
+        onComplete: function() {
+          var x = contEl._gsTransform.x;
+          self._setPosFromX(x);
+          self.fixIndices();
+          self.fixTrackTiles();
+        }
+      });
+    }
+    
+    // If we're doing two tweens, we have to bounce outward before bouncing back.
+    if (twoTween) {
+      bounceOutDecel = (vInit > 0 ? 0.07 : -0.07) * (1 + marginDist * 0.01);   // in px / ms^2
+      bounceOutDuration = vInit / bounceOutDecel;                              // in ms
+      bounceOutDistance = (vInit * vInit) / (2 * bounceOutDecel);              // in px
+      throw_.tween = TweenLite.to(self.$cont, bounceOutDuration / 1000.0, {
+        x: xInit + bounceOutDistance,
+        ease: Power1.easeOut,
+        onUpdate: function() {
+          var x = contEl._gsTransform.x;
+          self._setPosFromX(x);
+          self.fixFirstLabel();
+          if (Math.abs(x - throw_.lastRefresh) > 1000) { throw_.lastRefresh = x; self.fixTrackTiles(); }
+        },
+        onComplete: bounceBack
+      });
+    } else {
+      bounceBack();
+    }
+  },
+  
+  // alias stopBounce to stopThrow, since they both do the same thing: stop the current tween
+  stopBounce: function() { this.stopThrow.apply(this, argument); },
 
   fixTrackTiles: function(forceRepos) {
     this.$cont.children('.browser-track').genotrack('fixTiles', forceRepos);

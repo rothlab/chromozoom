@@ -1939,7 +1939,7 @@ module.exports = function($, _) {
       ret.pos = $.trim(_.isUndefined(pos) ? $(o.jump[0]).val() : pos);
       if (ret.pos === '') { this._searchFor(''); return null; }
 
-      matches = ret.pos.match(/^([a-z]+[^:]*)(:(\d+)(([-@])(\d+(\.\d+)?))?)?/i);
+      matches = ret.pos.match(/^([a-z]+[^:]*)(:(-?\d+)(([-@])(\d+(\.\d+)?))?)?/i);
       // Does the position string have a colon in it? If so, we try to parse it as a bp position
       if (matches && matches[2]) {
         var chr = _.find(o.chrLabels, function(v) { return v.n === matches[1]; });
@@ -2214,8 +2214,9 @@ module.exports = function($, _) {
       });
     },
 
-    // Bounce off edges if we are toward the margins of the genome
-    bounceCheck: function() {
+    // Bounce off edges if we are toward the margins of the genome.
+    // Can optionally specify an initial velocity (if the genome is currently moving) in px/ms
+    bounceCheck: function(vInit) {
       var self = this,
         o = self.options,
         $elem = self.element,
@@ -2225,37 +2226,12 @@ module.exports = function($, _) {
         margins = [(-numLines + o.bounceMargin) * bpWidth, o.genomeSize - o.bounceMargin * bpWidth],
         outsideGenomeRange = pos < margins[0] || pos > margins[1];
 
-      if (outsideGenomeRange && !self._bouncing) {
-        self.$lines.genoline('stopThrow');   // Stop any current inertial scrolling
-        self.bounceTo(_.min(margins, function(marg) { return Math.abs(marg - pos); }));
+      if (outsideGenomeRange) {
+        // Stop any current inertial scrolling
+        self.$lines.genoline('stopThrow');
+        // Any line can perform the bounce animation, it doesn't really matter which one...
+        self.$lines.eq(0).genoline('startBounce', vInit || 0);
       }
-    },
-
-    // Animates a "bounce" from the current browser position to targetPos
-    bounceTo: function(targetPos, callback) {
-      var self = this,
-        $elem = self.element,
-        zoom = self.zoom(),
-        pos = self.pos,
-        naturalFreq = 0.03,
-        vInit = $elem.data('velocity') || 0,
-        deltaXInit = (targetPos - pos) / zoom,
-        bounceStart = (new Date()).getTime();
-
-      $elem.css('text-indent', 1);
-      self._bouncing = true;
-      $elem.animate({textIndent: 0}, {
-        queue: false,
-        duration: 500, // TODO: some better way of approximating this based on dampened spring motion.
-        step: function() {
-          var newTime = (new Date()).getTime(),
-            deltaT = newTime - bounceStart,
-            // see http://en.wikipedia.org/wiki/Damping#Critical_damping_.28.CE.B6_.3D_1.29
-            newDeltaX = (deltaXInit + (vInit + naturalFreq * deltaXInit) * deltaT) * Math.exp(-naturalFreq * deltaT);
-          self._pos(pos + (deltaXInit - newDeltaX) * zoom);
-        },
-        complete: function() { self._bouncing = false; _.isFunction(callback) && callback(); }
-      });
     },
 
     // ===================================================================================================
@@ -2440,7 +2416,8 @@ module.exports = function($, _) {
         pos = self.pos,
         o = self.options,
         rd = self._reticDelta(),
-        chr = self.chrAt(pos + rd) || o.chrLabels[0],
+        chrMaybe = self.chrAt(pos + rd),
+        chr = chrMaybe ? (chrMaybe.end ? o.chrLabels.slice(-2,-1)[0] : chrMaybe) : o.chrLabels[0],
         zoomFormatted = self.bppp.toPrecision(Math.max(floorHack(self.bppp).toString().length, 6)),
         state = {position: chr.n + ':' + Math.round(pos + rd - chr.p) + '@' + zoomFormatted},
         lineMode = $(o.lineMode).find(':checked').val(),

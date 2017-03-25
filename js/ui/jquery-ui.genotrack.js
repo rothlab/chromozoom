@@ -492,8 +492,8 @@ $.widget('ui.genotrack', {
   },
 
   // For custom tracks, it is more performant to perform hover target calculation
-  // in JS directly on the list of areas rather than constantly add/remove many DOM 
-  // elements with their own event handling.
+  // in JS directly on the list of areas rather than constantly add/remove many invisible
+  // DOM elements with their own event handling.
   _tileMouseMove: function(e) {
     var $targ = $(e.target),
       $tile = $(this),
