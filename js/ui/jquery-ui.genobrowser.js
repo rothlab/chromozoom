@@ -409,7 +409,7 @@ module.exports = function($, _) {
 
       if (o.searchableTracks) {
         $search = $('<input type="search"/>').appendTo($searchBar);
-        searchDebounced = _.debounce(function() { self._searchTracks($search.val()); }, 100);
+        searchDebounced = _.debounce(function() { self._searchTracks($search.val()); }, 200);
         $search.bind('keyup click', function(e) {
           var typeMore = $search.val().length > 0 && $search.val().length < 3,
             typeMoreToLoadMoreTracks = o.custom && o.custom.canSearchTracks && typeMore;
