@@ -263,7 +263,7 @@ $.widget('ui.genoline', {
       throw_ = self.throw,
       contEl = self.$cont.get(0),
       xMargins = self.xMargins(),
-      bounceDuration = 500,            // perhaps nicer to not make this a constant?
+      bounceDuration = 400,            // perhaps nicer to not make this a constant?
       offRight, xFinal, twoTween, marginDist, bounceBackEase,
       bounceOutDecel, bounceOutDuration, bounceOutDistance;
     
@@ -278,7 +278,7 @@ $.widget('ui.genoline', {
     // Bounces where the initial velocity is away from the margin are animated with two tweens:
     // a bounce out, and a bounce back.
     twoTween = (offRight && vInit < 0) || (!offRight && vInit > 0);
-    bounceBackEase = twoTween ? Power2.easeInOut: Power2.easeOut;
+    bounceBackEase = twoTween ? Power1.easeInOut: Power2.easeOut;
     marginDist = offRight ? xMargins[0] - xInit : xInit - xMargins[1];
     
     function bounceBack() {

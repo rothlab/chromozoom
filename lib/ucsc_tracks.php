@@ -14,6 +14,7 @@ require_once dirname(__FILE__) . "/chromsizes.php";
 function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE, $search=FALSE, $also_include=FALSE,
                         $count_only=FALSE) {
   $tracks = array();
+  $keywords = array();
   $track_data_dir = dirname(dirname($track_db_path));
   $track_db_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $track_db_path, $db)); 
   try { 
@@ -24,8 +25,13 @@ function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE,
   $what = $count_only ? 'COUNT(*)' : '*';
   $where = '1=1';
   if ($priority !== FALSE) { $where .= ' AND priority <= :priority'; }
-  if ($parent_track !== FALSE) { $where .= ' AND parentTrack = :parent1 AND name != :parent2'; }
-  if ($search !== FALSE) { $where .= ' AND (shortLabel LIKE :search1 OR longLabel LIKE :search2 OR name LIKE :search3)'; }
+  if ($parent_track !== FALSE) { $where .= ' AND parentTrack = :parent AND name != :parent'; }
+  if ($search !== FALSE) {
+    $keywords = preg_split("/[\s,]+/", $search);
+    foreach ($keywords as $i => $keyword) {
+      $where .= " AND (shortLabel LIKE :search$i OR longLabel LIKE :search$i OR name LIKE :search$i)";
+    }
+  }
   if (is_array($also_include) && count($also_include)) { 
     $where .= ' OR name IN (' . implode(',', preg_filter('/^/', ':inc', range(1, count($also_include)))) . ')';
   }
@@ -33,13 +39,12 @@ function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE,
   $stmt = $track_db->prepare("SELECT $what FROM tracks WHERE $where ORDER BY priority, srt, name");
   if ($priority !== FALSE) { $stmt->bindValue(':priority', $priority, SQLITE3_INTEGER); }
   if ($parent_track !== FALSE) { 
-    $stmt->bindValue(':parent1', $parent_track, SQLITE3_TEXT);
-    $stmt->bindValue(':parent2', $parent_track, SQLITE3_TEXT); 
+    $stmt->bindValue(':parent', $parent_track, SQLITE3_TEXT);
   }
-  if ($search !== FALSE) { 
-    $stmt->bindValue(':search1', "%$search%", SQLITE3_TEXT);
-    $stmt->bindValue(':search2', "%$search%", SQLITE3_TEXT);
-    $stmt->bindValue(':search3', "%$search%", SQLITE3_TEXT);
+  if (count($keywords) > 0) { 
+    foreach($keywords as $i => $keyword) {
+      $stmt->bindValue(':search' . $i, "%$keyword%", SQLITE3_TEXT);
+    }
   }
   if (is_array($also_include)) {
     foreach($also_include as $i => $track) { $stmt->bindValue(":inc" . ($i + 1), $track, SQLITE3_TEXT); }

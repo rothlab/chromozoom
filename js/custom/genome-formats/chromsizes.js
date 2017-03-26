@@ -127,19 +127,25 @@ var ChromSizesFormat = {
   
   searchTracks: function(params, callback) {
     var self = this,
-      o = self.opts;
+      o = self.opts,
+      successCallback;
     if (!_.isString(o.searchableTracks)) { callback([]); }
     
-    $.ajax(o.searchableTracks, {
-      data: params,
-      success: function(data) {
+    successCallback = (function(params) {
+      var sp = _.clone(params);
+      return function(data) {
         if (data.error) { callback(data); }
         else {
-          var opts = {compositeTracks: [], availTracks: [], tracks: [], trackDesc: {}};
+          var opts = {compositeTracks: [], availTracks: [], tracks: [], trackDesc: {}, _searchParams: sp};
           _.each(data.tracks, function(t) { self.format()._convertTrackToOpts.call(self, t, opts, false); });
           callback(opts);
         }
-      }
+      };
+    })(params);
+    
+    $.ajax(o.searchableTracks, {
+      data: params,
+      success: successCallback
     });
   }
   

@@ -172,7 +172,7 @@ module.exports = function($, _) {
 
         self.$slider = self._initSlider();
         self.$trackPicker = self._initTrackPicker();
-        self._updateGenomes();
+        self._updateGenomePicker();
 
         $overlay.add($overlayMessage).hide();
         $(window).trigger('resize', function() {
@@ -333,7 +333,7 @@ module.exports = function($, _) {
       $('<span class="long-desc"/>').text('in GenBank, FASTA, or EMBL format').appendTo($a);
 
       $genome.find('.clickable').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
-      self._updateGenomes();
+      self._updateGenomePicker();
 
       self._createPicker($toggleBtn, $genomePicker);
 
@@ -377,7 +377,7 @@ module.exports = function($, _) {
         $div = $('<div class="button-line"/>').appendTo($trackPicker),
         $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
         $b = $('<input type="button" name="done" value="done"/>').appendTo($div),
-        $search;
+        $search, searchDebounced;
 
       function addSection(cat) {
         var $li = $('<li class="category-section"/>').appendTo($ul),
@@ -386,7 +386,7 @@ module.exports = function($, _) {
         $header.click(_.bind(self._trackPickerClicked, self));
         return $('<ul/>').appendTo($li);
       }
-
+      
       if (o.groupTracksByCategories) {
         var groupNames;
         _.each(allTracks, function(t) {
@@ -409,7 +409,13 @@ module.exports = function($, _) {
 
       if (o.searchableTracks) {
         $search = $('<input type="search"/>').appendTo($searchBar);
-        $search.bind('keyup click', _.debounce(function() { self._searchTracks($search.val()); }, 100));
+        searchDebounced = _.debounce(function() { self._searchTracks($search.val()); }, 100);
+        $search.bind('keyup click', function(e) {
+          var typeMore = $search.val().length > 0 && $search.val().length < 3,
+            typeMoreToLoadMoreTracks = o.custom && o.custom.canSearchTracks && typeMore;
+          $searchBar.toggleClass('type-more', typeMoreToLoadMoreTracks);
+          searchDebounced();
+        });
         $search.attr('placeholder', o.searchableTracks === true ? 'Filter available tracks...'
             : 'Find more tracks for this genome...');
         $('<li class="search-warn"/>').hide().appendTo($ul);
@@ -1553,8 +1559,11 @@ module.exports = function($, _) {
       var self = this,
         o = self.options,
         lastQuery = self._lastTrackSearch,
+        $searchBar = $(o.trackPicker[1]).find('.search-bar').eq(0),
+        $search = $searchBar.find('input[type=search]'),
         $list = $(o.trackPicker[1]).children('ul').eq(0),
         $warn = $list.children('.search-warn'),
+        canLoadMoreTracks = o.custom && o.custom.canSearchTracks && query.length >= 3,
         numResults, warnText;
 
       query = query.toLowerCase();
@@ -1571,10 +1580,11 @@ module.exports = function($, _) {
         if ($composite && $composite.length) {
           text += " " + $composite.find('h3.name>span').text() + " " + $composite.find('.long-desc').text();
         }
-        return (("" + text).toLowerCase().indexOf(q) !== -1 );
+        text = text.toLowerCase();
+        return _.every(q.split(/[\s,]+/), function(word) { return text.indexOf(word) !== -1; });
       }
 
-      function toggleChoices(q) {
+      function toggleChoices(q, willLoadMoreTracks) {
         $list.find('.choice').each(function() {
           var match = matches(this, q);
           $(this).toggle(match).toggleClass('matches', match);
@@ -1589,16 +1599,55 @@ module.exports = function($, _) {
             $li.find('.collapsible-btn').eq(0).toggleClass('collapsed', !matchWithin);
             $innerUl.toggle(matchWithin);
           }
+          // Forcibly collapse unloaded or partially loaded composite tracks if they no longer match the query
+          if ($li.hasClass('unloaded') && (!matchWithin || query === '')) {
+            $li.find('.collapsible-btn').eq(0).addClass('collapsed');
+            $innerUl.hide();
+          }
         });
         numResults = $list.find('.choice.matches').length;
         warnText = numResults > 0 ? 'Showing only tracks matching the search query.' : 'No tracks match this search query.';
-        $warn.toggle(query !== '').text(warnText);
+        if (willLoadMoreTracks) { warnText = 'Searching for more tracks...'; }
+        $warn.toggle(query !== '').toggleClass('still-loading', willLoadMoreTracks).text(warnText);
       }
 
-      toggleChoices(query);
-      if (o.custom && o.custom.canSearchTracks && query.length >= 3) {
-        // FIXME: Implement searching for extra tracks on the server
-        void(0);
+      toggleChoices(query, canLoadMoreTracks);
+      self._lastTrackSearch = query;
+      
+      // If supported by the genome, search for more tracks on the server that match, and add them to the picker.
+      if (canLoadMoreTracks) {
+        o.custom.searchTracksAsync({search: query}, function(newOpts) {
+          // Too late! We've already searched for something else.
+          if (newOpts._searchParams.search !== self._lastTrackSearch) { return; }
+          
+          // Only need to handle new tracks--if it's in self.availTracks it's already in the trackpicker UI.
+          newOpts.availTracks = _.filter(newOpts.availTracks, function(t) { return !self.availTracks[t.n]; });
+          Array.prototype.push.apply(o.availTracks, newOpts.availTracks);
+          newOpts.compositeTracks = _.filter(newOpts.compositeTracks, function(t) { return !self.compositeTracks[t.n]; });
+          if (newOpts.compositeTracks.length) { throw "Not supposed to receive new composite tracks when searching!"; }
+          _.each(newOpts.availTracks, function(v) { self.availTracks[v.n] = $.extend({}, v, {oh: v.h}); });
+          _.extend(o.trackDesc, newOpts.trackDesc);
+          
+          if (!newOpts.availTracks.length) { 
+            toggleChoices(query, false);
+            return;
+          }
+          self._parseCustomGenomeTracks(newOpts.availTracks, function() {
+            var allTracks = o.availTracks.concat(o.compositeTracks);
+            
+            // Update the child tracks for any composite tracks that were affected by adding these new tracks
+            _.each(_.uniq(_.pluck(newOpts.availTracks, "parent")), function(n) {
+              var childTracks = self._sortedTracks(_.filter(allTracks, function(t) { return t.parent == n; })),
+                $li = $list.find(':checkbox[name="'+n+'"]').closest('li.choice'),
+                $innerUl = $li.children('ul').eq(0);
+              if ($li.hasClass('unloaded')) { $innerUl.empty(); }
+              self._addTracks(childTracks, $innerUl);
+            });
+            
+            // Finally, update the hidden/shown tracks in the picker once more to match the query.
+            toggleChoices(query, false);
+          });
+        });
       }
     },
 
@@ -1645,7 +1694,7 @@ module.exports = function($, _) {
 
           // Recursively add children tracks if they are already provided in o.availTracks/o.compositeTracks
           if (childTracks.length > 0) {
-            self._addTracks(childTracks, $innerUl);
+            self._addTracks(childTracks, $innerUl, loadedUpToPriority);
             _.each(childTracks, function(t) { $innerUl.find('input:checkbox[name='+t.n+']').addClass('default'); });
           }
           if (loadedUpToPriority ? !childTracksUnderPriority.length : !childTracks.length) {
@@ -2614,7 +2663,7 @@ module.exports = function($, _) {
     },
 
     // Updates the text for the genome species and description in the window title and footer
-    _updateGenomes: function() {
+    _updateGenomePicker: function() {
       var self = this,
         o = self.options,
         $genome = $(o.genomePicker[0]),

@@ -481,23 +481,23 @@ chr3 2000000</textarea>
         </div>
       </div>
       
-      <!--[if lte IE 8]>
+      <!--[if lte IE 11]>
       <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" tabindex="-1" role="dialog" aria-labelledby="ui-dialog-title-intro-dialog" id="old-msie-dialog-cont">
         <div id="old-msie-dialog" class="ui-dialog-content ui-widget-content">
           <div id="old-msie-icon"></div>
           <h2 id="old-msie">Old browser alert!</h2>
           <p>
             We've detected you're using an older version of Internet Explorer.
-            ChromoZoom runs well only on Internet Explorer <strong>9 or later</strong>.
+            ChromoZoom runs well only on Internet Explorer <strong>11</strong>.
           </p>
           <p>
-            On Windows Vista or 7, you can <a href="http://windows.microsoft.com/en-us/internet-explorer/products/ie/home">
-            download it from Microsoft</a> or run Windows Update to upgrade your browser.
+            On Windows 7, you can <a href="https://www.microsoft.com/en-us/download/Internet-Explorer-11-for-Windows-7-details.aspx">
+            download an installer from Microsoft</a> or run Windows Update to upgrade your browser.
           </p>
           <p>
-            If you are using an older version of Windows (like XP), we suggest that you check out
+            If you are using an older version of Windows, we suggest that you try
             <a href="http://getfirefox.com">Mozilla Firefox</a> or <a href="http://www.google.com/chrome">Google Chrome</a>,
-            both of which are free and much faster than Internet Explorer!
+            both of which are free and supported by ChromoZoom!
           </p>
         </div>
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">

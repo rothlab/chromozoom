@@ -33,7 +33,7 @@ function CustomGenome(givenFormat, metadata) {
     sequence: "" // the full concatenated sequence for all contigs in this genome, if available
   };
   
-  // can we call .getSequence on this CustomGenome?
+  // can we call .getSequence on this CustomGenome? (i.e. will all sequence data be available to the browser up front)
   this.canGetSequence = false;
   
   // can we call .searchTracks on this CustomGenome?
