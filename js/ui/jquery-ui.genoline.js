@@ -57,6 +57,8 @@ $.widget('ui.genoline', {
     self.throw = throw_ = {};
     self.draggable = new Draggable(self.$cont.get(0), {
       type: "x",
+      // Allow dragging from anything except the NT sequence (to allow highlighting)
+      clickableTest: function(el) { return !!$(el).closest('.nts').length; },
       onPress: function(e) {
         // Both of these are needed to refresh the UI in case this interrupted a throw
         self.fixTrackTiles();
@@ -95,6 +97,7 @@ $.widget('ui.genoline', {
       forcePlaceholderSize: true,
       appendTo: '#' + o.browser.attr('id'),
       handle: '.subtrack-cont',
+      cancel: '.scrollbar',
       helper: 'clone',
       start: function() {
         $('body').addClass('dragging');

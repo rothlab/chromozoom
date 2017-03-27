@@ -25,7 +25,7 @@ function CustomTrack(opts, browserOpts) {
     browserOpts: browserOpts,
     typeArgs: typeWithArgs.slice(1),
     stretchHeight: false,
-    heights: {},
+    heights: {min: 15},
     sizes: ['dense'],
     mapSizes: [],
     areas: {},

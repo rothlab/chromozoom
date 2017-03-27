@@ -106,7 +106,7 @@
             </label>
           </div>
           <a href="#" id="linking">
-            <img src="css/link.png" alt="link" /><span class="wide"> links</span>
+            <img src="css/link.svg" alt="link" class="zondicon"/><span class="wide"> links</span>
           </a>
           <div id="link-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow picker">
             <div class="form-line">

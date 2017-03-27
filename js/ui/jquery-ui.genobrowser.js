@@ -801,7 +801,7 @@ module.exports = function($, _) {
       });
     },
 
-    _initCustomTrackDialog: function() {
+    _initCustomTrackDialog: function(genomeSuppliedTrack) {
       var self = this,
         o = self.options,
         $dialog = $(o.dialogs[0]).closest('.ui-dialog');
@@ -809,6 +809,7 @@ module.exports = function($, _) {
       $dialog.data('genobrowser', self.element);
       $dialog.find('.hidden').hide();
       $dialog.find('.show').show();
+      if (genomeSuppliedTrack) { $dialog.find('.delete').hide(); }
 
       if ($dialog.hasClass('initialized')) { return; } // The following only needs to be initialized once
 
@@ -1492,6 +1493,13 @@ module.exports = function($, _) {
       if (!externalTrackSpec) { this._saveParamsDebounced(); }
     },
 
+    // Hides the track as specified by its name
+    hideTrack: function(name) {
+      var self = this,
+        $checkboxes = self.$trackPicker.find(':checkbox').add(self.$customTracks.find(':checkbox'));
+      $checkboxes.filter('[name="'+name+'"]').attr('checked', false).change();
+    },
+
     // Resize a track to a particular height, fixing the line layout afterward unless fixNumLinesHoldingSteady is false,
     // Set animCallback to true to animate with no callback, a function to provide a callback, or false for no animation.
     _resizeTrack: function(name, height, fixNumLinesHoldingSteady, animCallback) {
@@ -1813,7 +1821,7 @@ module.exports = function($, _) {
           $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
           $l.attr('title', n);
           $c.bind('change', _.bind(self._fixTracks, self));
-          $o.button().click(_.bind(self._editCustomTrack, self, n));
+          $o.button().click(_.bind(self.editCustomTrack, self, n));
           $('<h3 class="name"/><p class="long-desc"/>').appendTo($d);
           // If track settings are to be applied, ensure any new custom tracks are added to them
           // This prevents new tracks from being added and then immediately hidden (confusing)
@@ -1859,13 +1867,16 @@ module.exports = function($, _) {
     },
 
     // Opens a dialog to edit the options for a custom track.
-    _editCustomTrack: function(n) {
+    editCustomTrack: function(n) {
       var self = this,
         o = self.options,
         $dialog = $(o.dialogs[0]).closest('.ui-dialog'),
+        $customChks = $(self.options.trackPicker[3]).children('ul').find(':checkbox'),
+        customTrackNames = $customChks.map(function() { return $(this).attr('name'); }),
+        genomeSuppliedTrack = !_.contains(customTrackNames, n),
         trk = self.availTracks[n];
 
-      self._initCustomTrackDialog();
+      self._initCustomTrackDialog(genomeSuppliedTrack);
       trk.custom.loadOpts($dialog);
       $dialog.data('track', trk);
       $dialog.trigger('open');
@@ -1929,7 +1940,7 @@ module.exports = function($, _) {
         _.each(t.s, function(d) {
           if (_.isArray(d)) { d = d[0]; }
           if (fixedHeights[d]) { return heights.push([d, fixedHeights[d]]); }
-          var $imgs = $('.browser-track-'+t.n+'>.bppp-'+classFriendly(bppps.top)+'>.tdata.dens-'+d);
+          var $imgs = $('.browser-track-'+t.n+'>.bppp-'+classFriendly(bppps.top)+'>div>.tdata.dens-'+d);
           if ($imgs.find('.loading').length > 0) { orderFor = null; }
           var h = Math.max.apply(Math, $imgs.map(function() {
             return this.naturalHeight || this.height;
@@ -2556,7 +2567,7 @@ module.exports = function($, _) {
       if (areaIndices) {
         _.each(areaIndices, function(localAreaIds, tileId) {
           var $t = $('#'+tileId),
-            $tdata = $t.children('.tdata.dens-'+keys[2]),
+            $tdata = $t.children().children('.tdata.dens-'+keys[2]),
             $track, areas;
           if (!$t.length || !(areas = $tdata.data('areas'))) { return; }
           $track = $t.parent();

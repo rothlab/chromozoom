@@ -56,6 +56,14 @@ body {
   box-shadow: inset 0px 2px 3px 0px rgba(0, 0, 0, 0.3);
 }
 
+.ui-state-pressed, .ui-widget-content .ui-state-pressed, .ui-widget-header .ui-state-pressed {
+  border: 1px solid #8c8c8c;
+  background: #bdbdbd url(syngrey/images/ui-bg_inset-hard_60_bdbdbd_1x100.png) 50% 50% repeat-x;
+  font-weight: bold;
+  color: #000000;
+  box-shadow: ;
+}
+
 .noselect {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -451,6 +459,12 @@ body {
 .control-seg.last { min-width: 225px; }
 .narrow .control-seg.last { min-width: 120px; }
 
+#controls .zondicon {
+  width: 20px;
+  height: 20px;
+  margin-top: -1px;
+}
+
 #browser {
   position: absolute;
   top: 45px;
@@ -540,6 +554,42 @@ body {
 }
 .browser-line .side .subtrack.unsized { padding-top: 1px; }
 
+.browser-line .side .buttons {
+  overflow: hidden;
+  position: absolute;
+  width: 100%;
+  top: 0;
+  bottom: 0;
+}
+
+.browser-line .side .buttons .ui-button { 
+  display: none;
+  border: none;
+  position: absolute;
+}
+.browser-line .side .buttons.hover .ui-button { display: block; }
+/* hide buttons while resizing tracks */
+.row-resizing .browser-line .side .buttons .ui-button { display: none; }
+/* hide buttons while dragging track up/down */
+.side.ui-sortable-helper .subtrack-cont .buttons .ui-button { display: none; }
+/* always show depressed buttons in the sidebar */
+.browser-line .side .buttons .ui-button.ui-state-pressed { display: block; }
+
+.browser-line .side .buttons .remove { top: 0px; left: 1px; }
+.browser-line .side .buttons .settings { top: 0px; left: 15px; }
+.browser-line .side .buttons.tiny .lock-pack { display: none; }
+.browser-line .side .buttons .lock-pack { bottom: 2px; right: -1px; }
+.browser-line .side .buttons .lock { margin-left: -1px; }
+
+.browser-line .side .buttons .icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.5;
+  vertical-align: bottom;
+}
+.browser-line .side .buttons .ui-state-hover .icon { opacity: 1; }
+.browser-line .side .buttons .ui-button-text { line-height: 13px; height: 13px; padding: 0 1px; }
+
 .browser-line .subtrack-cont .scales {
   position: absolute;
   left: 100px;
@@ -548,6 +598,7 @@ body {
   width: 60px;
   color: #444;
   overflow-y: hidden;
+  pointer-events: none;  /* Disables any mouse interactions */
 }
 .side.ui-sortable-helper .subtrack-cont .scales { display: none; }  /* hide scales while dragging track up/down */
 .browser-line .subtrack-cont .scale { 
@@ -577,6 +628,30 @@ body {
 }
 .browser-line .scale .tick.top .mark { border-bottom: none; border-top: 1px solid #444; }
 .browser-line .scale .tick.mid .mark { height: 2px; }
+
+.browser-line .side .scrollbar {
+  position: absolute;
+  cursor: default;
+  left: 100px;
+  top: 0;
+  bottom: 0;
+  width: 13px;
+  background: rgba(0, 0, 0, 0.1);
+  display: none;
+}
+.browser-line .side.clipped .scrollbar, .browser-line .side.scrolled .scrollbar { display: block; }
+
+.browser-line .scrollbar .scrollbar-thumb {
+  position: absolute;
+  left: 0px;
+  width: 8px;
+  background: rgb(255, 156, 0);
+  border: 2px solid white;
+  border-radius: 8px;
+  -webkit-border-radius: 8px;
+  -moz-border-radius: 8px;
+  min-height: 10px;
+}
 
 .browser-line .side-cont .side.ui-sortable-helper {
   border-top: #aaa solid 1px;
@@ -766,9 +841,23 @@ body {
   border-bottom: none;
 }
 
-.browser-track .tile .tdata {
+.browser-track .tile-full .tile-scroll-cont {
   position: absolute;
   top: 0;
+  left: -25%;
+  padding-left: 25%;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.browser-track .tile .tdata {
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  left: 20%;
+  width: 80%;
   z-index: 1;
   opacity: 0;
   -webkit-transition: opacity 0.5s ease-in-out;
@@ -781,7 +870,6 @@ body {
   z-index: 2;
 }
 .browser-track .tile-custom .tdata.unrendered.dens-best {
-  width: 100%;
   opacity: 0.5;
   background-color: transparent;
   background-image: url(barberpole-trans.gif);
@@ -805,8 +893,8 @@ body {
 .browser-track .tile .labels {
   position: absolute;
   top: 0;
-  left: -20%;
-  width: 120%;
+  left: 0;
+  width: 100%;
   pointer-events: none;  /* Disables any mouse interactions */
   opacity: 0;
   -webkit-transition: opacity 0.5s ease-in-out;
@@ -822,6 +910,7 @@ body {
 }
 
 .browser-track .tile .area {
+  pointer-events: auto;
   border-top: 1px solid transparent;
   border-bottom: 1px solid transparent;
   display: none;
@@ -900,6 +989,9 @@ body.dragging * {
   cursor: -webkit-grabbing !important; 
   cursor: -moz-grabbing !important;
   cursor: url(css/closedhand.cur) !important;
+}
+body.track-scrolling * {
+  cursor: default;
 }
 
 body.row-resizing * {

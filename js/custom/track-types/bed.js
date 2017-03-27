@@ -140,6 +140,7 @@ var BedFormat = {
     lineNum = _.isFunction(lineNum) ? lineNum : function() { return; };
     var lines = [],
       maxExistingLine = _.max(_.map(intervals, function(v) { return lineNum(v.data) || 0; })) + 1,
+      // The intervals that have already been assigned to a line should be higher priority when calculating the layout.
       sortedIntervals = _.sortBy(intervals, function(v) { var ln = lineNum(v.data); return _.isUndefined(ln) ? 1 : -ln; });
     
     while (maxExistingLine-->0) { lines.push(new LineMask(width, 5)); }
