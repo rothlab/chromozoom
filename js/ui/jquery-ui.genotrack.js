@@ -157,6 +157,7 @@ $.widget('ui.genotrack', {
       scroll: false,
       cursor: 'default',
       start: function() {
+        o.browser.genobrowser('areaHover', false);
         $('body').addClass('track-scrolling');
       },
       drag: function(e, ui) { self._scroll(ui); },
@@ -316,6 +317,8 @@ $.widget('ui.genotrack', {
       o = self.options,
       pos = ui.position.top;
     self._scrollTop = Math.round(pos / (o.track.h - 1) * self._maxTileHeight);
+    self.fixClipped(true);
+    $elem.toggleClass('clipped-top', self._scrollTop !== 0);
     $elem.find('.tdata:not(.dens-dense),.labels').css('top', -self._scrollTop);
   },
  
@@ -358,7 +361,7 @@ $.widget('ui.genotrack', {
     // Set the class that shows the best bppp (and hide the rest)
     $elem.find('.tile').removeClass('bppp-top').filter('.bppp-'+classFriendly(topBppp)).addClass('bppp-top');
     // Set the best density and trigger events on these tiles
-    $elem.find('.tile-full').children().children('.tdata,.area.label,.labels').each(function() {
+    $elem.find('.tile-full').children('.tsc').children('.tdata,.area.label,.labels').each(function() {
       var $this = $(this),
         isBest = $this.hasClass('dens-'+bestDensity);
       $this.toggleClass('dens-best', isBest);
@@ -494,7 +497,7 @@ $.widget('ui.genotrack', {
    
     // The remaining code here is for "chromozoom v1" <img> based tiles, which are deprecated
     $d.addClass('tile-full bppp-'+classFriendly(bppp));
-    $sc = $.mk('div').attr('class', 'tile-scroll-cont').appendTo($d);
+    $sc = $.mk('div').attr('class', 'tsc tile-scroll-cont').appendTo($d);
     _.each(densities, function(density) {
       var tileSrc = self._tileSrc(tileId, bppp, density),
         fixedHeight = o.track.fh[tileSrc.bpppFormat] && o.track.fh[tileSrc.bpppFormat][density],
@@ -516,34 +519,35 @@ $.widget('ui.genotrack', {
   },
  
   // Shows orange clipping indicators if any of the best density tiles have data cut off at the bottom
-  fixClipped: function() {
-    var $elem = this.element,
-      o = this.options,
+  fixClipped: function(dontFixScrollbar) {
+    var self = this,
+      $elem = self.element,
+      o = self.options,
       sideClipped = false,
       heights = [0];
     if (o.track.custom && o.track.custom.stretchHeight) { return; }
     $elem.find('.tile-full').each(function() {
       var $t = $(this),
-        best = $t.children().children('.tdata.dens-best:not(.loading):not(.stretch-height)').get(0),
+        best = $t.children('.tsc').children('.tdata.dens-best:not(.loading):not(.stretch-height)').get(0),
         h = best && (best.naturalHeight || best.height) || 0,
-        clipped = h > o.track.h;
+        clippedBottom = h > self._scrollTop + o.track.h;
       $t.data('idealHeight', h);
-      $t.toggleClass('clipped', clipped);
+      $t.toggleClass('clipped-bottom', clippedBottom);
     });
-    this._fixSideClipped();
+    self._fixSideClipped(dontFixScrollbar);
   },
  
   // Shows the orange clipping indicator on the side panel if any tiles in view have the clipping indicator
-  _fixSideClipped: function() {
+  _fixSideClipped: function(dontFixScrollbar) {
     var bppps = this.bppps(),
       o = this.options,
       pos = o.line.genoline('getPos'),
       zoom = o.browser.genobrowser('zoom'),
       bpWidth = o.browser.genobrowser('bpWidth'),
       tileBpWidth = bppps.top * o.tileWidth,
-      clipped = false,
+      clipped = this._scrollTop !== 0,
       heights = [o.track.h + this._scrollTop];
-    this.element.children('.clipped.bppp-'+classFriendly(bppps.top)).each(function() {
+    this.element.children('.clipped-bottom.bppp-'+classFriendly(bppps.top)).each(function() {
       var tileId = $(this).data('tileId');
       if (tileId > pos - tileBpWidth && tileId < pos + bpWidth) { 
         clipped = true;
@@ -552,7 +556,8 @@ $.widget('ui.genotrack', {
     });
     this._maxTileHeight = Math.max.apply(Math, heights);
     this.$side.toggleClass('clipped', clipped);
-    this._fixSideScroll();
+    this.$side.toggleClass('clipped-bottom', clipped);
+    if (!dontFixScrollbar) { this._fixSideScroll(); }
   },
   
   _fixSideScroll: function() {
@@ -615,7 +620,7 @@ $.widget('ui.genotrack', {
     
     var offset = $tile.offset(),
       x = e.pageX - offset.left,
-      y = e.pageY - offset.top;
+      y = e.pageY - offset.top + self._scrollTop;
     for (var i = 0; i < areas.length; i++) {
       var v = areas[i], 
         left = _.isUndefined(v[10]) ? v[0] : (v[0] * ratio - v[10]),  // include possible text label width
@@ -714,7 +719,7 @@ $.widget('ui.genotrack', {
         allowOverlayX: true
       },
       hash = shortHash(area[5]),
-      $scrollCont = $tile.children(),
+      $scrollCont = $tile.children('.tsc'),
       scaleToPct = 80 / o.tileWidth,
       leftPadPct = 20,
       $a = $.mk('a').addClass('area dens-'+density+' href-hash-'+hash).attr('title', area[4]),
@@ -1302,12 +1307,14 @@ $.widget('ui.genotrack', {
       end = tileId + bpPerTile,
       $ts;
     $t.addClass('tile-custom tile-full tile-loaded bppp-'+classFriendly(bppp));
-    $sc = $.mk('div').attr('class', 'tile-scroll-cont').appendTo($t);
+    $sc = $.mk('div').attr('class', 'tsc tile-scroll-cont').appendTo($t);
+    $.mk('div').attr('class', 'clip-indicator top').appendTo($t);
+    $.mk('div').attr('class', 'clip-indicator bottom').appendTo($t);
     _.each(o.track.s, function(density) {
       var canvasHTML = '<canvas class="tdata unrendered dens-' +density + '" id="canvas-' + self._tileId(tileId, bppp) + '-' +
           density + '"></canvas>',
         $c = $(canvasHTML).appendTo($sc);
-      if (density!=='dense') { $c.css('top', -self._scrollTop); }
+      if (density !== 'dense') { $c.css('top', -self._scrollTop); }
       $c.canvasAttr({width: o.tileWidth, height: o.track.h});
       $c.bind('render', {start: tileId, end: end, density: density, self: self, custom: o.track.custom}, self._customTileRender);
       $c.bind('erase', function() { o.track.custom.erase($c.get(0)); $c.addClass('unrendered'); });

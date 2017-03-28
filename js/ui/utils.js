@@ -53,5 +53,10 @@ module.exports = function($) {
     };
   })();
   
+  utils.commafy = function(num, separator) {
+    separator = separator || ",";
+    return num.toString().replace(/(\d)(?=(\d{3})+$)/g, '$1' + separator);
+  };
+  
   return utils;
 };

@@ -643,10 +643,10 @@ body {
 
 .browser-line .scrollbar .scrollbar-thumb {
   position: absolute;
-  left: 0px;
+  left: 1px;
   width: 8px;
-  background: rgb(255, 156, 0);
-  border: 2px solid white;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid white;
   border-radius: 8px;
   -webkit-border-radius: 8px;
   -moz-border-radius: 8px;
@@ -666,7 +666,7 @@ body {
   border-bottom: #eee solid 1px;
 }
 
-.browser-line .side-cont .side.clipped {
+.browser-line .side-cont .side.clipped-bottom {
   background-image: url(clipped.png);
   background-repeat: repeat-x;
   background-position: -9px bottom;
@@ -939,15 +939,23 @@ body {
   white-space: nowrap;
 }
 
-.browser-track .tile.clipped { border-bottom: 2px dotted rgb(255, 156, 0); }
-.browser-track .tile .clip-indicator { 
+.browser-track .tile .clip-indicator {
   position: absolute;
-  bottom: 0;
   left: 0;
   width: 100%;
-  height: 8px;
+  height: 0;
   display: none;
-  z-index: 10;
+  pointer-events: none;
+}
+.browser-track.clipped-top .tile .clip-indicator.top {
+  display: block;
+  top: 0;
+  border-top: rgb(255, 156, 0) dotted 2px;
+}
+.browser-track .tile.clipped-bottom .clip-indicator.bottom {
+  display: block;
+  bottom: 0;
+  border-bottom: rgb(255, 156, 0) dotted 2px;
 }
 
 .browser-track .tile.too-many::before, .browser-track .tile.too-many::after {

@@ -430,20 +430,24 @@ $.widget('ui.genoline', {
       $lines = o.browser.genobrowser('lines'),
       multipleLines = $lines.length > 1,
       reticPos = this.centeredOn === null ? this.pos + 0.5 * (bpWidth - o.sideBarWidth * zoom) : this.centeredOn,
+      sep = ',',
       chrStart, chrEnd, chrRetic;
 
     if (elem == $lines.get(0)) {
       chrStart = o.browser.genobrowser('chrAt', pos) || o.chrLabels[0];
-      this.$indices.children('.start').text((multipleLines ? chrStart.n + ':' : '') + Math.floor(pos - chrStart.p));
+      this.$indices.children('.start').text((multipleLines ? chrStart.n + ':' : '') + 
+                                            utils.commafy(Math.floor(pos - chrStart.p), sep));
     } else { this.$indices.children('.start').empty(); }
 
     if (elem == $lines.last().get(0)) {
       chrEnd = o.browser.genobrowser('chrAt', pos + bpWidth) || o.chrLabels[0];
-      this.$indices.children('.end').text((multipleLines ? chrEnd.n + ':' : '') + Math.ceil(pos + bpWidth - chrEnd.p));
+      this.$indices.children('.end').text((multipleLines ? chrEnd.n + ':' : '') + 
+                                          utils.commafy(Math.ceil(pos + bpWidth - chrEnd.p), sep));
     } else { this.$indices.children('.end').empty(); }
 
     chrRetic = o.browser.genobrowser('chrAt', reticPos) || o.chrLabels[0];
-    this.$retic.children('.n').text((multipleLines ? chrRetic.n + ':' : '') + Math.floor(reticPos - chrRetic.p));
+    this.$retic.children('.n').text((multipleLines ? chrRetic.n + ':' : '') + 
+                                    utils.commafy(Math.floor(reticPos - chrRetic.p), sep));
   },
 
   setReticle: function(nextZooms, centeredOn) {
