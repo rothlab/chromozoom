@@ -1906,14 +1906,31 @@ module.exports = function($, _) {
       self._fixTracks();
     },
 
-    // Determine for a given track and height what density is optimal for display
+    // Sets a "lock" flag on a track that locks its display to a particular density. See the "eye lock" sidebar buttons
+    lockDensity: function(track, density) {
+      var self = this,
+        o = self.options,
+        $tracks = self.element.find('.browser-track-'+track),
+        trk = _.find(o.tracks, function(t) { return t.n === track; });
+      if (_.isUndefined(track)) { throw "Must specify track when calling lockDensity!"; }
+      trk.lock = density;
+      $tracks.genotrack('updateLockPackBtn', density === "pack");
+      self.densityOrder(track, trk.h, $tracks.genotrack('bppps'), true);
+    },
+
+    // Determine for a given track and height what density is optimal for display.
+    // For most scenarios a cached calculation is *RETURNED* (when ONLY the first argument is filled).
+    // Whenever new tile data arrives or the user zooms, the cached order is UPDATED (when more arguments are provided).
+    //   - In this scenario, the relevant genotracks are notified via their updateDensity() method.
+    //   - There is no expected return value if `height`, `bppps`, or `force` are provided (the actions are asynchronous)
     densityOrder: function(track, height, bppps, force) {
+      // If either `height` or `bppps` are not specified, provide the cached order for the given `track`
       if (_.isUndefined(height) || _.isUndefined(bppps)) { return this._densityOrder[track] || null; }
-      // TODO: this needs tweaking... maybe on the debounced version, exclude off-screen tiles?
+      
       var self = this,
         o = self.options,
         $elem = self.element,
-        t = this.availTracks[track],
+        t = _.find(o.tracks, function(t) { return t.n === track; }),
         base = _.find(t.s, function(v) { return !_.isArray(v); }),
         fixedHeights = t.fh[bppps.topFormatted] || (_.keys(t.fh).length && t.fh[_.last(_.keys(t.fh))]) || {},
         baseHeight = fixedHeights[base] || 15,
@@ -1923,14 +1940,17 @@ module.exports = function($, _) {
         $unrenderedCustom = $('.browser-track-'+t.n+' canvas.tdata.unrendered:not(.dens-dense)'),
         forceAt = {}, //{pack: [200, -2], full: [200, -3]},  // This is causing too much thrashing with heavy custom tracks
         order = {}, heights = [], i = 0, optimum;
+      
+      // If this is a repeat request to update the densityOrder at the same height+bppps, there is no need to proceed.
       if (prevOrderFor && prevOrderFor == orderFor && !force) { return; }
+      // All custom track tiles should be rendered before updating densityOrder; if they're not, defer this calculation
       if ($unrenderedCustom.length) {
-        // All custom track tiles should be rendered before reordering the densities.  Defer this calculation until then.
         return $unrenderedCustom.trigger('render', _.after($unrenderedCustom.length, function() {
           self.densityOrder(track, height, bppps);
         }));
       }
-      // Always show the base density when within 3px of the baseHeight (the initial height)
+      
+      // Always show the base density (typically, "dense") when within 3px of the baseHeight (the initial height)
       if (height <= baseHeight + 3) {
         order[base] = 0;
         _.each(t.s, function(d) { if (_.isArray(d)) { order[d[0]] = ++i; } });
@@ -1943,8 +1963,10 @@ module.exports = function($, _) {
           var $imgs = $('.browser-track-'+t.n+'>.bppp-'+classFriendly(bppps.top)+'>div>.tdata.dens-'+d);
           if ($imgs.find('.loading').length > 0) { orderFor = null; }
           var h = Math.max.apply(Math, $imgs.map(function() {
-            return this.naturalHeight || this.height;
+            return this.tagName == 'CANVAS' ? this.unscaledHeight() : (this.naturalHeight || this.height);
           }).get());
+          // If the user "locks" display at a density, unless it's unrendered, we force that density's height to be optimal
+          if (d != base && h != 0 && t.lock === d) { h = height; }
           heights.push([d, h]);
         });
         heights = _.map(heights, function(v, i) {

@@ -135,16 +135,19 @@ $.widget('ui.genotrack', {
     self.$lockPackBtn = $('<a class="lock-pack"><img src="css/eye.svg" class="icon"/>' +
                           '<img src="css/lock-unlocked.svg" class="icon lock"/></a>');
     self.$lockPackBtn.appendTo(self.$sideBtns).button().click(function() {
-      var newState = self._lockPackDensity = !$(this).data('pressed');
-      $(this).data('pressed', newState);
-      $(this).toggleClass('ui-state-pressed inset-shadow', $(this).data('pressed'));
-      $(this).find('.icon.lock').attr('src', 'css/lock-' + (newState ? 'locked' : 'unlocked') + '.svg');
-      self.updateDensity();
+      o.browser.genobrowser('lockDensity', o.track.n, !$(this).data('pressed') ? "pack" : false);
     });
+    if (o.track.lock === "pack") { self.updateLockPackBtn(true); }
     if (o.track.custom && o.track.custom.stretchHeight) { self.$lockPackBtn.hide(); }
     
     self.$sideCont.hover(function() { self.$sideBtns.addClass('hover'); }, 
                          function() { self.$sideBtns.removeClass('hover'); });
+  },
+  
+  updateLockPackBtn: function(pressed) {
+    this.$lockPackBtn.data('pressed', pressed);
+    this.$lockPackBtn.toggleClass('ui-state-pressed inset-shadow', pressed);
+    this.$lockPackBtn.find('.icon.lock').attr('src', 'css/lock-' + (pressed ? 'locked' : 'unlocked') + '.svg');
   },
   
   _initSideScroll: function() {
@@ -252,7 +255,7 @@ $.widget('ui.genotrack', {
         if (!_.isArray(scale.specialTicks) || j >= scale.specialTicks.length) {
           // yLineMark ticks are positioned above or below the line so as not to occlude the line
           if (position > 50) { $tick.css('bottom', (100 - position) + '%'); }
-          else { $tick.css('top', position + '%'); }
+          else { $tick.css('top', position + '%').addClass('top'); }
         } else {
           $tick.css('top', position + '%').addClass('mid');
         }
@@ -347,7 +350,6 @@ $.widget('ui.genotrack', {
   _bestDensity: function(bppp) {
     var densities = this.availDensities[bppp],
       densityOrder = this.options.browser.genobrowser('densityOrder', this.options.track.n);
-    if (this._lockPackDensity) { return 'pack'; }
     return _.min(densities, function(d) { return densityOrder[d]; });
   },
  
@@ -530,7 +532,7 @@ $.widget('ui.genotrack', {
     $elem.find('.tile-full').each(function() {
       var $t = $(this),
         best = $t.children('.tsc').children('.tdata.dens-best:not(.loading):not(.stretch-height)').get(0),
-        h = best && (best.naturalHeight || best.height) || 0,
+        h = best && (best.tagName == 'CANVAS' ? best.unscaledHeight() : (best.naturalHeight || best.height)) || 0,
         clippedBottom = h > self._scrollTop + o.track.h;
       $t.data('idealHeight', h);
       $t.toggleClass('clipped-bottom', clippedBottom);
@@ -1261,6 +1263,7 @@ $.widget('ui.genotrack', {
       d = e.data,
       self = d.self,
       track = self.options.track,
+      $tile = $canvas.closest('.tile'),
       $browser = self.options.browser;
      
     function pushCallback() { _.isFunction(callback) && $canvas.data('renderingCallbacks').push(callback); }
@@ -1282,8 +1285,8 @@ $.widget('ui.genotrack', {
       // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
       // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoom
       if ($canvas.hasClass('too-many')) {
-        if (d.density != 'pack') { $canvas.parent().addClass('too-many'); }
-        if (d.density == 'dense') { $canvas.parent().addClass('too-many-for-dense'); }
+        if (d.density != 'pack') { $tile.addClass('too-many'); }
+        if (d.density == 'dense') { $tile.addClass('too-many-for-dense'); }
       }
      
       _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
@@ -1315,11 +1318,11 @@ $.widget('ui.genotrack', {
       var canvasHTML = '<canvas class="tdata unrendered dens-' +density + '" id="canvas-' + self._tileId(tileId, bppp) + '-' +
           density + '"></canvas>',
         $c = $(canvasHTML).appendTo($sc);
-      if (density !== 'dense') { $c.css('top', -self._scrollTop); }
+      if (density != 'dense') { $c.css('top', -self._scrollTop); }
       $c.canvasAttr({width: o.tileWidth, height: o.track.h});
       $c.bind('render', {start: tileId, end: end, density: density, self: self, custom: o.track.custom}, self._customTileRender);
       $c.bind('erase', function() { o.track.custom.erase($c.get(0)); $c.addClass('unrendered'); });
-      if (density==bestDensity) { $c.addClass('dens-best').trigger('render'); }
+      if (density == bestDensity) { $c.addClass('dens-best').trigger('render'); }
       $c.one('bestDensity', function() { if ($c.hasClass('unrendered')) { $c.trigger('render'); } });
     });
   },
