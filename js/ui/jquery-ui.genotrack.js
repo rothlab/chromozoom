@@ -234,7 +234,7 @@ $.widget('ui.genotrack', {
       // create and position the scale
       $scale = $scales.children('.scale').eq(i);
       if (!$scale.length) { $scale = $(scaleHtml).appendTo($scales); }
-      $scale.css('top', scale.top || 0);
+      $scale.css('top', (scale.top || 0) - self._scrollTop).data('top', scale.top || 0);
       if (scale.height) { $scale.css('height', scale.height); }
       else { $scale.css('bottom', scale.bottom || 0); }
       $scale.toggleClass('tiny', $scale.height() < 24);
@@ -320,10 +320,13 @@ $.widget('ui.genotrack', {
       $elem = self.element,
       o = self.options,
       pos = ui.position.top;
-    self._scrollTop = Math.round(pos / (o.track.h - 1) * self._maxTileHeight);
+    self._scrollTop = Math.round(pos / self._scrollBarHeight * self._maxTileHeight);
     self.fixClipped(true);
     $elem.toggleClass('clipped-top', self._scrollTop !== 0);
     $elem.find('.tdata:not(.dens-dense),.labels').css('top', -self._scrollTop);
+    self.$side.find('.scale').each(function() {
+      $(this).css('top', $(this).data('top') - self._scrollTop);
+    });
   },
  
   // what densities can this track display for the given bppp (tile zoom level)?
@@ -565,11 +568,21 @@ $.widget('ui.genotrack', {
   
   _fixSideScroll: function() {
     var o = this.options,
-      scrollThumbHeight;
+      availSpace = o.track.h - 1,
+      // See _fixSideYAxisTicks() for how o.scales is defined
+      scaleHeights = _.flatten(_.map(o.scales, function(sc) {
+        return _.map(sc, function(s) { 
+          return _.isUndefined(s.bottom) ? s.top + s.height : availSpace - s.bottom; 
+        });
+      })),
+      maxScaleHeight = Math.max.apply(Math, [0].concat(scaleHeights)),
+      scrollBarHeight, scrollThumbHeight;
+    this.$scrollbar.css('top', maxScaleHeight);
+    this._scrollBarHeight = scrollBarHeight = availSpace - maxScaleHeight;
     this.$side.toggleClass('scrolled', this._scrollTop !== 0);
-    scrollThumbHeight = Math.ceil((o.track.h - 1) * (o.track.h - 1) / this._maxTileHeight);
+    scrollThumbHeight = Math.ceil(scrollBarHeight * scrollBarHeight / this._maxTileHeight);
     this.$scrollbarThumb.outerHeight(scrollThumbHeight);
-    this.$scrollbarThumb.css('top', this._scrollTop / this._maxTileHeight * (o.track.h - 1));
+    this.$scrollbarThumb.css('top', this._scrollTop / this._maxTileHeight * scrollBarHeight);
   },
  
   _tileTouchEvents: function($tile) {
