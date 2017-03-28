@@ -305,6 +305,7 @@ $.widget('ui.genotrack', {
     this.fixClipped();
     this.$side.find('.scale').each(function() { $(this).toggleClass('tiny', $(this).height() < 24); });
     this.$sideBtns.toggleClass('tiny', height < 30);
+    if (height < 30 && this.$lockPackBtn.data('pressed')) { this.$lockPackBtn.click(); }
     if (_.isFunction(callback)) {
       this.element.animate({height: height}, o.lineFixDuration, callback).css('overflow', 'visible');
     } else { this.element.height(height); }
