@@ -127,7 +127,7 @@ $.widget('ui.genotrack', {
     self.$removeBtn.appendTo(self.$sideBtns).button();
     self.$removeBtn.click(function() { o.browser.genobrowser('hideTrack', o.track.n); });
     
-    self.$settingsBtn = $('<a class="settings"><img src="css/gear-ios.svg" class="icon"/></a>');
+    self.$settingsBtn = $('<a class="settings"><img src="css/gear.svg" class="icon"/></a>');
     self.$settingsBtn.appendTo(self.$sideBtns).button();
     self.$settingsBtn.click(function() { o.browser.genobrowser('editCustomTrack', o.track.n); });
     
