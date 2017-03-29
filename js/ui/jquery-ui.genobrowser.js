@@ -192,7 +192,7 @@ module.exports = function($, _) {
         p = 0;
 
       // Setup internal variables related to chromosome bands, lengths, and available tracks
-      self.chrPos = {};
+      self.chrPos = {};  // 0-based positions of each chromosome (or contig) in genomic coordinates
       o.chrLabels = [];
       _.each(o.chrOrder, function(v, i){
         o.chrLabels.push({p: p, n: v, w: o.chrLengths[v]}); self.chrPos[v] = p; p += o.chrLengths[v];

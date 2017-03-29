@@ -20,6 +20,7 @@ var BedGzFormat = _.extend({}, bigbed, {
       remote;
     
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
+      // Note: tabix, like samtools, expects regions in 1-based, right-closed coordinates.
       range = self.chrRange(start, end);
       $.ajax(ajaxUrl, {
         data: {range: range, url: self.opts.bigDataUrl, density: 'pack'},
@@ -87,8 +88,7 @@ var BedGzFormat = _.extend({}, bigbed, {
     var self = this,
       width = precalc.width,
       data = self.data,
-      bppp = (end - start) / width,
-      range = this.chrRange(start, end);
+      bppp = (end - start) / width;
     
     function lineNum(d, setTo) {
       var key = bppp + '_' + density;

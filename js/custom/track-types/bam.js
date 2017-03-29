@@ -106,6 +106,7 @@ var BamFormat = {
       remote;
     
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
+      // Note: samtools expects regions in 1-based, right-closed coordinates.
       range = self.chrRange(start, end);
       // Convert automatically between Ensembl style 1, 2, 3, X <--> UCSC style chr1, chr2, chr3, chrX as configured/autodetected
       // Note that chrM is NOT equivalent to MT https://www.biostars.org/p/120042/#120058
@@ -498,7 +499,7 @@ var BamFormat = {
       prefix = prefix || "";
       
       _.each({
-        "position": seg.rname + ':' + seg.pos,
+        "position": seg.rname + ':' + seg.pos, // Note: POS is 1-based.
         "cigar": cigarAbbrev,
         "read strand": seg.flags.readStrandReverse ? '(-)' : '(+)',
         "mapped": yesNo(!seg.flags.isReadUnmapped),

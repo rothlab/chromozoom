@@ -80,7 +80,7 @@ var FeatureTableFormat = {
     
     feature.fullLocation = fullLocation = fullLocation.join('');
     locationPositions = _.map(_.filter(fullLocation.split(/\D+/), _.identity), parseInt10);
-    feature.chromStart =  _.min(locationPositions);
+    feature.chromStart =  _.min(locationPositions);  // NOTE: feature table positions are 1-based
     feature.chromEnd = _.max(locationPositions) + 1; // Feature table ranges are *inclusive* of the end base
                                                      // chromEnd columns in BED format are *not*.
     feature.start = chrPos + feature.chromStart;
@@ -236,7 +236,7 @@ var FeatureTableFormat = {
     var qualifiersToAbbreviate = {translation: 1},
       content = {
         type: feature.type,
-        position: feature.chrom + ':' + feature.chromStart, 
+        position: feature.chrom + ':' + feature.chromStart, // Feature table chromStart's are already 1-based.
         size: feature.chromEnd - feature.chromStart
       };
     if (feature.qualifiers.note && feature.qualifiers.note[0]) {  }

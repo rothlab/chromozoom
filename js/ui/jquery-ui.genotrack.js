@@ -1301,6 +1301,7 @@ $.widget('ui.genotrack', {
     if (d.density != 'dense') { self.tileLoadCounter++; }
     pushCallback();
    
+    // Note: d.start and d.end are 1-based genomic coordinates
     d.custom.render(canvas, d.start, d.end, d.density, function() {
       $canvas.css('height', d.custom.stretchHeight ? '100%' : canvas.unscaledHeight());
       $canvas.toggleClass('stretch-height', d.custom.stretchHeight);

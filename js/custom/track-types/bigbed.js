@@ -48,7 +48,8 @@ var BigBedFormat = {
       remote;
     
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
-      range = self.chrRange(start, end);
+      // Note: bigBed tools expect regions in 0-based, right-OPEN coordinates.
+      range = self.chrRange(start, end, true);
       $.ajax(ajaxUrl, {
         data: {range: range, url: self.opts.bigDataUrl, density: 'pack'},
         success: function(data) {
@@ -109,7 +110,8 @@ var BigBedFormat = {
       width = precalc.width,
       data = self.data,
       bppp = (end - start) / width,
-      range = this.chrRange(start, end);
+      // Note: bigBed tools expect regions in 0-based, right-OPEN coordinates.
+      range = this.chrRange(start, end, true);
     
     function lineNum(d, setTo) {
       var key = bppp + '_' + density;

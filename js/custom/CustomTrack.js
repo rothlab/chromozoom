@@ -166,11 +166,14 @@ CustomTrack.prototype.isOn = function(val) {
 
 CustomTrack.prototype.chrList = function() {
   if (!this._chrList) {
-    this._chrList = _.sortBy(_.map(this.browserOpts.chrPos, function(pos, chr) { return [pos, chr]; }), function(v) { return v[0]; });
+    var unsortedChrList = _.map(this.browserOpts.chrPos, function(pos, chr) { return [pos, chr]; });
+    this._chrList = _.sortBy(unsortedChrList, function(v) { return v[0]; });
   }
   return this._chrList;
 }
 
+// Converts 1-based genomic coordinate position into a contig name + 1-based position.
+// IMPORTANT: providing ANYTHING besides 1-based genomic coordinates will produce incorrect results!
 CustomTrack.prototype.chrAt = function(pos) {
   var chrList = this.chrList(),
     chrIndex = _.sortedIndex(chrList, [pos], function(v) { return v[0]; }),
@@ -178,18 +181,27 @@ CustomTrack.prototype.chrAt = function(pos) {
   return {i: chrIndex - 1, c: chr, p: pos - this.browserOpts.chrPos[chr]};
 };
 
-CustomTrack.prototype.chrRange = function(start, end) {
+// Converts a RIGHT-OPEN interval specified in 1-based genomic coordinates into an array of chr:start-end ranges.
+// These are the default interval coordinates for CustomTracks, given to .render(canvas, start, end, ...) calls.
+// IMPORTANT: By default, the output is in ONE-based coordinates with right CLOSED intervals.
+//    - These coordinates are what samtools and related programs expect.
+// To get ZERO-based and right-OPEN intervals instead, set the last argument to true.
+//    - These coordinates are what bigBed and bigWig tools expect.
+CustomTrack.prototype.chrRange = function(start, end, outputZeroBasedRightOpen) {
+  if (start >= end - 1) { throw "Invalid interval provided to chrRange (expecting 1-based, right-OPEN)"; }
   var chrLengths = this.browserOpts.chrLengths,
     startChr = this.chrAt(start),
-    endChr = this.chrAt(end),
+    endChr = this.chrAt(end - 1), // because we expect RIGHT-OPEN intervals.
+    adjStart = outputZeroBasedRightOpen ? 1 : 0,
     range;
-  if (startChr.c && startChr.i === endChr.i) { return [startChr.c + ':' + startChr.p + '-' + endChr.p]; }
-  else {
+  if (startChr.c && startChr.i === endChr.i) { 
+    return [startChr.c + ':' + (startChr.p - adjStart) + '-' + endChr.p]; 
+  } else {
     range = _.map(this.chrList().slice(startChr.i + 1, endChr.i), function(v) {
-      return v[1] + ':1-' + chrLengths[v[1]];
+      return v[1] + ':' + (1 - adjStart) + '-' + chrLengths[v[1]];
     });
-    startChr.c && range.unshift(startChr.c + ':' + startChr.p + '-' + chrLengths[startChr.c]);
-    endChr.c && range.push(endChr.c + ':1-' + endChr.p);
+    startChr.c && range.unshift(startChr.c + ':' + (startChr.p - adjStart) + '-' + chrLengths[startChr.c]);
+    endChr.c && range.push(endChr.c + ':' + (1 - adjStart) + '-' + endChr.p);
     return range;
   }
 }

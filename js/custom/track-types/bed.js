@@ -218,7 +218,7 @@ var BedFormat = {
     if (!_.isUndefined(feature.description)) { tipTipData.description = feature.description; }
     if (!_.isUndefined(feature.score) && feature.score > 0) { tipTipData.score = feature.score; }
     _.extend(tipTipData, {
-      position: feature.chrom + ':' + feature.chromStart, 
+      position: feature.chrom + ':' + (parseInt10(feature.chromStart) + 1), // anything user-facing uses 1-based coordinates
       size: feature.chromEnd - feature.chromStart
     });
     if (this.opts.bedPlusFields) { _.extend(tipTipData, _.omit(feature.extra, function(v) { return v === ''; })); }

@@ -65,7 +65,9 @@ var BigWigFormat = {
   prerender: function(start, end, density, precalc, callback) {
     var self = this,
       width = precalc.width,
-      chrRange = self.chrRange(start, end);
+      // Note: bigWig tools expect regions in 0-based, right-OPEN coordinates
+      // (even though wiggle files use 1-based coordinates)
+      chrRange = self.chrRange(start, end, true);
   
     function success(data) {
       var drawSpec = self.type('wiggle_0').initDrawSpec.call(self, precalc),

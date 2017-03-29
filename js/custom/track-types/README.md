@@ -32,6 +32,9 @@ A few quick notes on defining a custom track format.
     The callback, possibly defined inline within `.render()`, is responsible for drawing everything within `drawSpec` to the `<canvas>`.
     `drawSpec` is ideally the simplest data structure needed to quickly draw an image (e.g., rows of pixel positions.)
 
++ `.render()` MUST accept **1-based**, right-open **genomic** coordinates for its start and end parameters. As a result, the formats
+    also store intervals in this coordinate system.
+
 + `.render()` MAY decide that there's too much data to fetch or draw in a reasonable amount of time. In this case, it SHOULD
     set the `too-many` class on the `<canvas>` element and set its height to 0 via `canvasElem.unscaledHeight(0)`. Zero-height tile 
     data are considered a special case by ChromoZoom that indicates there was an error while drawing the data, and these densities

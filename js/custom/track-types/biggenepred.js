@@ -14,7 +14,7 @@ var BigGenePredFormat = _.extend({}, bigbed, {
     if (!_.isUndefined(feature.extra.geneName2)) { tipTipData.description = feature.extra.geneName2; }
     _.extend(tipTipData, {
       id: feature.name,
-      position: feature.chrom + ':' + feature.chromStart, 
+      position: feature.chrom + ':' + (parseInt10(feature.chromStart) + 1), // anything user-facing uses 1-based coordinates
       size: feature.chromEnd - feature.chromStart
     });
     if (!_.isUndefined(feature.score) && feature.score > 0) { tipTipData.score = feature.score; }
