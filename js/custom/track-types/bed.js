@@ -378,7 +378,8 @@ var BedFormat = {
         canvas.className = canvas.className + ' too-many';
         return;
       }
-      canvas.unscaledHeight(drawSpec.layout.length * lineHeight);
+      // A tile that successfully rendered should always be at least 1px high (because of genobrowser's densityOrder algorithm)
+      canvas.unscaledHeight(Math.max(drawSpec.layout.length * lineHeight, 1));
       ctx = canvas.getContext('2d');
       ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
       _.each(drawSpec.layout, function(l, i) {

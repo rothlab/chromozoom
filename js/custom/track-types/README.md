@@ -1,6 +1,6 @@
 A few quick notes on defining a custom track format.
 
-+ The type name must be lowercase, e.g. `beddetail` despite `track type=bedDetail`
++ The type name must be lowercase, e.g. `beddetail` despite `track type=bedDetail`.
 
 + `.parse()`, `.prerender()`, and `.render()` MUST be defined.
 
@@ -29,8 +29,14 @@ A few quick notes on defining a custom track format.
 + To separate data retrieval and preprocessing (which can be handed off to a Web Worker to not block the UI thread)
     from drawing to the `<canvas>` and DOM operations (which unavoidably block the UI thread), `.render()` typically is built around
     a call to `.prerender()` that performs the data retrieval and preprocessing and hands off a `drawSpec` object to a callback.
-    The callback, usually defined inline within `.render()`, is responsible for drawing everything within `drawSpec` to the `<canvas>`.
+    The callback, possibly defined inline within `.render()`, is responsible for drawing everything within `drawSpec` to the `<canvas>`.
     `drawSpec` is ideally the simplest data structure needed to quickly draw an image (e.g., rows of pixel positions.)
+
++ `.render()` MAY decide that there's too much data to fetch or draw in a reasonable amount of time. In this case, it SHOULD
+    set the `too-many` class on the `<canvas>` element and set its height to 0 via `canvasElem.unscaledHeight(0)`. Zero-height tile 
+    data are considered a special case by ChromoZoom that indicates there was an error while drawing the data, and these densities
+    are deprioritized in `genobrowser`'s `densityOrder` algorithm. However, if the tile was in fact drawn without errors, the height 
+    of the `<canvas>` element MUST be non-zero, even if no data needed to be rendered.
 
 + `.prerender()` can expect to access `.data` and all the `CustomTrack.prototype` methods, but not any of the DOM methods,
     since it MAY be running in a Web Worker.

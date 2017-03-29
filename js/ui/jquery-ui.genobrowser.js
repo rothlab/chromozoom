@@ -1941,14 +1941,14 @@ module.exports = function($, _) {
         forceAt = {}, //{pack: [200, -2], full: [200, -3]},  // This is causing too much thrashing with heavy custom tracks
         order = {}, heights = [], i = 0, optimum;
       
-      // If this is a repeat request to update the densityOrder at the same height+bppps, there is no need to proceed.
-      if (prevOrderFor && prevOrderFor == orderFor && !force) { return; }
-      // All custom track tiles should be rendered before updating densityOrder; if they're not, defer this calculation
+      // All custom track tiles should be rendered before considering a new densityOrder; if not, defer the calculation
       if ($unrenderedCustom.length) {
         return $unrenderedCustom.trigger('render', _.after($unrenderedCustom.length, function() {
-          self.densityOrder(track, height, bppps);
+          self.densityOrder(track, height, bppps, force);
         }));
       }
+      // If this is a repeat request to update the densityOrder at the same height+bppps, there is no need to proceed.
+      if (prevOrderFor && prevOrderFor == orderFor && !force) { return; }
       
       // Always show the base density (typically, "dense") when within 3px of the baseHeight (the initial height)
       if (height <= baseHeight + 3) {
@@ -1960,23 +1960,25 @@ module.exports = function($, _) {
         _.each(t.s, function(d) {
           if (_.isArray(d)) { d = d[0]; }
           if (fixedHeights[d]) { return heights.push([d, fixedHeights[d]]); }
-          var $imgs = $('.browser-track-'+t.n+'>.bppp-'+classFriendly(bppps.top)+'>div>.tdata.dens-'+d);
-          if ($imgs.find('.loading').length > 0) { orderFor = null; }
-          var h = Math.max.apply(Math, $imgs.map(function() {
+          var $tdata = $('.browser-track-'+t.n+'>.bppp-'+classFriendly(bppps.top)+'>div>.tdata.dens-'+d);
+          if ($tdata.find('.loading').length > 0) { orderFor = null; }
+          var h = Math.max.apply(Math, $tdata.map(function() {
             return this.tagName == 'CANVAS' ? this.unscaledHeight() : (this.naturalHeight || this.height);
           }).get());
-          // If the user "locks" display at a density, unless it's unrendered, we force that density's height to be optimal
-          if (d != base && h != 0 && t.lock === d) { h = height; }
+          // If the user "locks" display at a density, unless it's , we force that density's height to be optimal
+          if (d != base && h > 0 && t.lock === d) { h = height; }
           heights.push([d, h]);
         });
-        heights = _.map(heights, function(v, i) {
+        heights = _.map(heights, function(v, j) {
           var deltaY;
           v[2] = v[1] === 0;
-          v[1] = v[2] ? 1000000 : v[1];      // effectively, never show 0 height tiles
+          v[1] = v[2] ? 1000000 : v[1];      // effectively, never show 0 height tiles.
+                                             // 0 height tiles are a special condition indicating the tile couldn't
+                                             // be drawn. See js/custom/track-types/README.md.
           deltaY = height - v[1];
-                                             // this is where the 3x bias toward the taller density is inserted
+          // The following line is where the 3x bias toward the taller density is incorporated
           v[1] = (forceAt[v[0]] && height > forceAt[v[0]][0]) ? forceAt[v[0]][1] : (deltaY > 0 ? deltaY * 3 : -deltaY);
-          v[1] -= i * 0.1;                   // marginally prioritize more detailed tracks in the event of ties
+          v[1] -= j * 0.1;                   // marginally prioritize more detailed tracks, in the event of ties
           return v;
         });
         heights.sort(function(a, b){ return a[1] - b[1]; });
@@ -2177,8 +2179,8 @@ module.exports = function($, _) {
         var $maximizeTrack = self.$lines.eq(self.centralLine).find('.browser-track-'+cat.track).eq(0);
 
         $maximizeTrack.one('trackload', function(e, bppps) {
-          var $imgs = self.$lines.find('.browser-track-'+cat.track+' .bppp-'+classFriendly(bppps.top)+' .tdata.dens-pack'),
-            maxHeight = 5 + Math.max.apply(Math, $imgs.map(function() { return this.naturalHeight || this.height; }).get());
+          var $tdata = self.$lines.find('.browser-track-'+cat.track+' .bppp-'+classFriendly(bppps.top)+' .tdata.dens-pack'),
+            maxHeight = 5 + Math.max.apply(Math, $tdata.map(function() { return this.naturalHeight || this.height; }).get());
 
           // After the track is resized, flash all the features that were added to our todo-list
           self._resizeTrack(cat.track, maxHeight, self.centralLine, function() {

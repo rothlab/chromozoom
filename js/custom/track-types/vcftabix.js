@@ -220,7 +220,8 @@ var VcfTabixFormat = {
           ctx.fillRect(pInt.x, 1, pInt.w, 13);
         });
       } else {
-        canvas.unscaledHeight(drawSpec.layout.length * lineHeight);
+        // A tile that successfully rendered should always be at least 1px high (because of genobrowser's densityOrder algorithm)
+        canvas.unscaledHeight(Math.max(drawSpec.layout.length * lineHeight, 1));
         ctx = canvas.getContext('2d');
         
         _.each(drawSpec.layout, function(l, i) {
