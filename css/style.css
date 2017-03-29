@@ -983,20 +983,22 @@ body {
 
 .browser-track *, .side-cont .side { 
   cursor: move;
-  cursor: url(openhand.cur) 8 8;
+  cursor: url(openhand.cur) 8 8, move;
   cursor: -webkit-grab;
   cursor: -moz-grab;
-  cursor: url(css/openhand.cur);
+  cursor: grab;
+  cursor: url(css/openhand.cur), move;
   -moz-user-select: none;
   -webkit-user-select: none;
   user-select: none;
 }
 
 body.dragging * {
-  cursor: url(closedhand.cur) 8 8 !important;
+  cursor: url(closedhand.cur) 8 8, move !important;
   cursor: -webkit-grabbing !important; 
   cursor: -moz-grabbing !important;
-  cursor: url(css/closedhand.cur) !important;
+  cursor: grabbing !important;
+  cursor: url(css/closedhand.cur), move !important;
 }
 body.track-scrolling * {
   cursor: default;
