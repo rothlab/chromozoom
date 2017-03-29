@@ -640,6 +640,8 @@ body {
   display: none;
 }
 .browser-line .side.clipped .scrollbar, .browser-line .side.scrolled .scrollbar { display: block; }
+/* hide scrollbar while dragging track up/down */
+.side.ui-sortable-helper .subtrack-cont .scrollbar { display: none; }
 .browser-line .scrollbar .scrollbar-corner {
   display: none;
   position: absolute;
