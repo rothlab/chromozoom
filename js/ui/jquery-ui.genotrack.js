@@ -11,6 +11,9 @@ var utils = require('./utils.js')($),
   shortHash = utils.shortHash,
   floorHack = utils.floorHack;
 
+// Polyfill Math.log10 for Internet Explorer
+if (_.isUndefined(Math.log10)) { Math.log10 = function (x) { return Math.log(x) / Math.LN10; }; }
+
 $.widget('ui.genotrack', {
  
   // Default options that can be overridden
