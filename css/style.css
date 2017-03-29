@@ -640,6 +640,14 @@ body {
   display: none;
 }
 .browser-line .side.clipped .scrollbar, .browser-line .side.scrolled .scrollbar { display: block; }
+.browser-line .scrollbar .scrollbar-corner {
+  display: none;
+  position: absolute;
+  left: 0px;
+  top: -6px;
+  border-bottom: 6px solid rgba(0, 0, 0, 0.1); 
+  border-right: 13px solid transparent;
+}
 
 .browser-line .scrollbar .scrollbar-thumb {
   position: absolute;

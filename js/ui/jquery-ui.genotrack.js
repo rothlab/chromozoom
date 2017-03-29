@@ -169,6 +169,8 @@ $.widget('ui.genotrack', {
         $('body').removeClass('track-scrolling');
       }
     });
+    
+    self.$scrollbarCorner = $('<div class="scrollbar-corner"/>').appendTo(self.$scrollbar);
   },
  
   // getter for the side element (holding track labels)
@@ -319,6 +321,7 @@ $.widget('ui.genotrack', {
     var self = this,
       $elem = self.element,
       o = self.options,
+      scrollBarCornerHeight = 6,
       pos = ui.position.top;
     self._scrollTop = Math.round(pos / self._scrollBarHeight * self._maxTileHeight);
     self.fixClipped(true);
@@ -327,6 +330,8 @@ $.widget('ui.genotrack', {
     self.$side.find('.scale').each(function() {
       $(this).css('top', $(this).data('top') - self._scrollTop);
     });
+    self.$scrollbarCorner.toggle(self._scrollBarHeight < o.track.h - scrollBarCornerHeight - 1 && 
+                                 self._scrollTop > scrollBarCornerHeight)
   },
  
   // what densities can this track display for the given bppp (tile zoom level)?
