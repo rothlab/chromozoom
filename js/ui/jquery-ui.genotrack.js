@@ -1043,7 +1043,7 @@ $.widget('ui.genotrack', {
       $t.toggleClass(o.chrBands ? 'tile-overlay-ntdata' : 'tile-big-ntdata', showNtText);
       if (o.chrBands && showNtText) { $t.data('zIndex', 101); } // if we have bands, draw it on top of the bands.
       o.browser.genobrowser('getDNA', tileId, tileId + bpPerTile, self._ntSequenceLoad, {
-        _c: $.mk('canvas').attr(canvasAttrs).css('height', canvasHeight).appendTo($t),
+        _c: $.mk('canvas').canvasAttr(canvasAttrs).css('height', canvasHeight).appendTo($t),
         _d: showNtText && $.mk('div').addClass('nts').appendTo($t),
         _w: Math.ceil(o.tileWidth * bppp / zoom),
         _self: self
