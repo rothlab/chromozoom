@@ -984,10 +984,10 @@ body {
 .browser-track *, .side-cont .side { 
   cursor: move;
   cursor: url(openhand.cur) 8 8, move;
+  cursor: url(css/openhand.cur), move;
   cursor: -webkit-grab;
   cursor: -moz-grab;
   cursor: grab;
-  cursor: url(css/openhand.cur), move;
   -moz-user-select: none;
   -webkit-user-select: none;
   user-select: none;
@@ -995,10 +995,10 @@ body {
 
 body.dragging * {
   cursor: url(closedhand.cur) 8 8, move !important;
+  cursor: url(css/closedhand.cur), move !important;
   cursor: -webkit-grabbing !important; 
   cursor: -moz-grabbing !important;
   cursor: grabbing !important;
-  cursor: url(css/closedhand.cur), move !important;
 }
 body.track-scrolling * {
   cursor: default;
