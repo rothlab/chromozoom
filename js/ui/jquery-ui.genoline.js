@@ -97,7 +97,7 @@ $.widget('ui.genoline', {
       forcePlaceholderSize: true,
       appendTo: '#' + o.browser.attr('id'),
       handle: '.subtrack-cont',
-      cancel: '.scrollbar',
+      cancel: '.scrollbar,.ui-button',
       helper: 'clone',
       start: function() {
         $('body').addClass('dragging');

@@ -322,14 +322,19 @@ $.widget('ui.genotrack', {
       $elem = self.element,
       o = self.options,
       scrollBarCornerHeight = 6,
-      pos = ui.position.top;
-    self._scrollTop = Math.round(pos / self._scrollBarHeight * self._maxTileHeight);
+      pos = ui.position.top,
+      availSpace = o.track.h - 1;
+    // Should be preset by _fixScrollSide() below, but, just in case.
+    self._scrollThumbHeight = self._scrollThumbHeight || self.$scrollbarThumb.outerHeight();
+    self._scrollTop = Math.round(pos / (self._scrollBarHeight - self._scrollThumbHeight) * 
+                                 (self._maxTileHeight - availSpace));
     self.fixClipped(true);
     $elem.toggleClass('clipped-top', self._scrollTop !== 0);
     $elem.find('.tdata:not(.dens-dense),.labels').css('top', -self._scrollTop);
     self.$side.find('.scale').each(function() {
       $(this).css('top', $(this).data('top') - self._scrollTop);
     });
+    // Show a corner for the top edge of the scrollbar if it's not glued to the top of the track
     self.$scrollbarCorner.toggle(self._scrollBarHeight < o.track.h - scrollBarCornerHeight - 1 && 
                                  self._scrollTop > scrollBarCornerHeight)
   },
@@ -557,7 +562,7 @@ $.widget('ui.genotrack', {
       bpWidth = o.browser.genobrowser('bpWidth'),
       tileBpWidth = bppps.top * o.tileWidth,
       clipped = this._scrollTop !== 0,
-      heights = [o.track.h + this._scrollTop];
+      heights = [o.track.h - 1 + this._scrollTop];
     this.element.children('.clipped-bottom.bppp-'+classFriendly(bppps.top)).each(function() {
       var tileId = $(this).data('tileId');
       if (tileId > pos - tileBpWidth && tileId < pos + bpWidth) { 
@@ -581,13 +586,17 @@ $.widget('ui.genotrack', {
         });
       })),
       maxScaleHeight = Math.max.apply(Math, [0].concat(scaleHeights)),
-      scrollBarHeight, scrollThumbHeight;
+      scrollBarHeight, scrollThumbHeight, scrollThumbFudge, thumbTop;
     this.$scrollbar.css('top', maxScaleHeight);
     this._scrollBarHeight = scrollBarHeight = availSpace - maxScaleHeight;
     this.$side.toggleClass('scrolled', this._scrollTop !== 0);
     scrollThumbHeight = Math.ceil(scrollBarHeight * scrollBarHeight / this._maxTileHeight);
     this.$scrollbarThumb.outerHeight(scrollThumbHeight);
-    this.$scrollbarThumb.css('top', this._scrollTop / this._maxTileHeight * scrollBarHeight);
+    // The thumb has a min-height set so that it stays big enough to grab. So we have to re-measure it
+    this._scrollThumbHeight = scrollThumbHeight = this.$scrollbarThumb.outerHeight();
+    thumbTop = Math.round(this._scrollTop / (this._maxTileHeight - availSpace) * 
+                          (scrollBarHeight - scrollThumbHeight));
+    this.$scrollbarThumb.css('top', thumbTop);
   },
  
   _tileTouchEvents: function($tile) {
