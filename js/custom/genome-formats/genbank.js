@@ -128,7 +128,8 @@ var GenBankFormat = {
         ["source", "Sources", "Regions annotated by source organism or specimen"], 
         ["genes", "Gene annotations", "CDS and gene features"], 
         ["other", "Other annotations", "tRNAs and other features"]
-      ];
+      ],
+      categoryHeight = {source: 40, genes: 75, other: 75};
     
     // For the categories of features, create appropriate entries in o.availTracks, o.tracks, and o.trackDesc
     // Leave the actual data as arrays of lines that are attached as .customData to o.availTracks
@@ -146,7 +147,7 @@ var GenBankFormat = {
         fh: {},
         n: category,
         s: ['dense', 'squish', 'pack'],
-        h: 15,
+        h: categoryHeight[category] || 15,
         m: ['pack'],
         customData: self.data.trackLines[category]
       });

@@ -705,15 +705,25 @@ $.widget('ui.genotrack', {
     });
   },
  
-  _areaTipTipHtml: function(tipTipData, title, withHidden) {
+  _areaTipTipHtml: function(tipTipData, title, withHiddenFields) {
     var $tipTipDiv = $('<div/>'),
       $name = $('<div class="name"/>').appendTo($tipTipDiv),
       $table = $('<table/>').appendTo($tipTipDiv),
       $tbody = $('<tbody/>').appendTo($table),
-      alreadyShown = {},
-      $prevDescTr;
-    _.each(tipTipData, function(v, k) {
-      var $tr;
+      keys = _.keys(tipTipData),
+      hiddenKeys = _.filter(_.keys(tipTipData), function(k) { return k[0] == '.'; }),
+      $prevDescTr, hiddenKeys;
+    
+    if (withHiddenFields === true) { 
+      // If we're *showing* hidden fields, *hide* fields that correspond to the undotted fieldname
+      keys = _.difference(keys, _.map(hiddenKeys, function(k) { return k.replace(/^\.+/, ''); }));
+    } else {
+      keys = _.difference(keys, hiddenKeys);
+    }
+    
+    _.each(keys, function(k) {
+      var v = tipTipData[k],
+          $tr;
       if (/^description$|^type$|refseq summary/i.test(k)) {
         $prevDescTr = $tbody.children('.desc');
         if ($prevDescTr.length) { $tr = $('<tr class="desc"/>').insertAfter($prevDescTr); }
@@ -721,12 +731,7 @@ $.widget('ui.genotrack', {
         if (v.length > 300) { v = v.substr(0, 300).replace(/\s+\S+$/, '') + '...'; }
         $('<td colspan="2"/>').text(v).appendTo($tr);
       } else {
-        if (k[0] == '.') {
-          if (withHidden !== true) { return; }
-          k = k.replace(/^\.+/, '');
-          alreadyShown[k] = true;
-        } else if (alreadyShown[k]) { return; }
-        
+        k = k.replace(/^\.+/, '');
         $tr = $('<tr/>').appendTo($tbody);
         if (v == '---') {
           $('<td colspan="2" class="fields-header"/>').text(k).appendTo($tr);

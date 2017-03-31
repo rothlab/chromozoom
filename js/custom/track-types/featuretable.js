@@ -239,11 +239,13 @@ var FeatureTableFormat = {
         position: feature.chrom + ':' + feature.chromStart, // Feature table chromStart's are already 1-based.
         size: feature.chromEnd - feature.chromStart
       };
-    if (feature.qualifiers.note && feature.qualifiers.note[0]) {  }
     _.each(feature.qualifiers, function(v, k) {
       if (k == 'note') { content.description = v.join('; '); return; }
       content[k] = v.join('; ');
-      if (qualifiersToAbbreviate[k] && content[k].length > 25) { content[k] = content[k].substr(0, 25) + '...'; }
+      if (qualifiersToAbbreviate[k] && content[k].length > 25) {
+        content['.' + k] = content[k].replace(/\s+/g, '');
+        content[k] = content[k].substr(0, 25) + "\u2026";
+      }
     });
     return content;
   },
