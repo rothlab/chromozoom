@@ -4,10 +4,14 @@ body {
   line-height: 1.5;
   color: #222;
   background: #f2f2f2;
+  margin: 2em auto;
+  padding: 0 1em;
+  width: 600px;
+  max-width: 1000px;
 }
 
 .name {
-  margin: 1em 0;
+  margin: 0 0 0.5em 0;
   font-weight: bold;
   font-size: 150%;
   word-wrap: break-word;
@@ -16,6 +20,10 @@ body {
 table {
   min-width: 600px;
   border-collapse: collapse;
+}
+
+table tr.desc td {
+  padding-bottom: 0.5em;
 }
 
 table td {
@@ -31,7 +39,7 @@ table td.field {
 
 table td.value div {
   word-wrap: break-word;
-  max-width: 400px;
+  max-width: 450px;
 }
 
 table td.fields-header {
