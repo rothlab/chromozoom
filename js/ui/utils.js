@@ -34,6 +34,7 @@ module.exports = function($) {
   
   // Get the last name in a path-like string (after the last slash/backslash)
   utils.basename = function(path) { return path.replace(/^.*[\/\\]/g, ''); };
+  utils.dirname = function(path) { var m = path.match(/.*[\/\\]/); return m ? m[0] : ""; }
   
   // Decode characters that are safe within our query strings, for increased readability
   utils.decodeSafeOctets = function(query) {

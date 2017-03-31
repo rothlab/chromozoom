@@ -231,6 +231,19 @@ var BamFormat = {
     });
   },
   
+  // Sets feature.tags[...] to a human interpretable version of optional fields (columns 12+ in SAM output)
+  parseTags: function(feature, tags) {
+    var tagRegex = /^[A-Za-z][A-Za-z0-9]$/,
+      typeRegex = /^[A-Za-z]$/;
+    feature.tags = {};
+    _.each(tags, function(tagAndVal) {
+      tagPieces = tagAndVal.split(':', 3);
+      // Ensure tag is in the proper XX:Y:$val format. If not, ignore it (silently, for now).
+      if (tagPieces.length !== 3 || !tagRegex.test(tagPieces[0]) || !typeRegex.test(tagPieces[1])) { return; }
+      feature.tags[tagPieces[0]] = tagPieces[2];
+    });
+  },
+  
   // Sets feature.blocks and feature.end based on feature.cigar
   // See section 1.4 of https://samtools.github.io/hts-specs/SAMv1.pdf for an explanation of CIGAR 
   parseCigar: function(feature, lineno) {        
@@ -311,6 +324,7 @@ var BamFormat = {
       feature.desc = feature.qname + ' at ' + feature.rname + ':' + feature.pos;
       feature.tlen = parseInt10(feature.tlen);
       this.type('bam').parseFlags.call(this, feature, lineno);
+      this.type('bam').parseTags.call(this, feature, fields.slice(cols.length));
       feature.strand = feature.flags.readStrandReverse ? '-' : '+';
       this.type('bam').parseCigar.call(this, feature, lineno); // This also sets .end appropriately
     }
@@ -494,12 +508,13 @@ var BamFormat = {
       mateHeaders = ["this alignment", "mate pair alignment"],
       leftMate, rightMate, pairOrientation;
     function yesNo(bool) { return bool ? "yes" : "no"; }
-    function addAlignedSegmentInfo(content, seg, prefix) {
+    function addAlignedSegmentInfo(content, seg, suffix) {
       var cigarAbbrev = seg.cigar && seg.cigar.length > 25 ? seg.cigar.substr(0, 24) + '...' : seg.cigar;
-      prefix = prefix || "";
+      suffix = suffix || "";
       
       _.each({
         "position": seg.rname + ':' + seg.pos, // Note: POS is 1-based.
+        ".cigar": seg.cigar,
         "cigar": cigarAbbrev,
         "read strand": seg.flags.readStrandReverse ? '(-)' : '(+)',
         "mapped": yesNo(!seg.flags.isReadUnmapped),
@@ -507,8 +522,13 @@ var BamFormat = {
         "secondary": yesNo(seg.flags.isSecondaryAlignment),
         "supplementary": yesNo(seg.flags.isSupplementaryAlignment),
         "duplicate": yesNo(seg.flags.isDuplicateRead),
-        "failed QC": yesNo(seg.flags.isReadFailingVendorQC)
-      }, function(v, k) { content[prefix + k] = v; });
+        "failed QC": yesNo(seg.flags.isReadFailingVendorQC),
+        ".read sequence": seg.seq,
+        ".base quality": seg.qual
+      }, function(v, k) { content[k + suffix] = v; });
+      _.each(feature.tags, function(v, k) {
+        content['.' + k + suffix] = v;
+      });
     }
     
     if (feature.mate && feature.mate.flags) {

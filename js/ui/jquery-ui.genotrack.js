@@ -19,6 +19,7 @@ $.widget('ui.genotrack', {
   // Default options that can be overridden
   options: {
     disabled: false,
+    defaultFont: "11px -apple-system, BlinkMacSystemFont,'Segoe UI','Lucida Grande',Helvetica,Arial,sans-serif",
     scales: {},
     line: null,       // must be specified on instantiation
     side: null        // must be specified on instantiation
@@ -704,40 +705,67 @@ $.widget('ui.genotrack', {
     });
   },
  
+  _areaTipTipHtml: function(tipTipData, title, withHidden) {
+    var $tipTipDiv = $('<div/>'),
+      $name = $('<div class="name"/>').appendTo($tipTipDiv),
+      $table = $('<table/>').appendTo($tipTipDiv),
+      $tbody = $('<tbody/>').appendTo($table),
+      alreadyShown = {},
+      $prevDescTr;
+    _.each(tipTipData, function(v, k) {
+      var $tr;
+      if (/^description$|^type$|refseq summary/i.test(k)) {
+        $prevDescTr = $tbody.children('.desc');
+        if ($prevDescTr.length) { $tr = $('<tr class="desc"/>').insertAfter($prevDescTr); }
+        else { $tr = $('<tr class="desc"/>').prependTo($tbody); }
+        if (v.length > 300) { v = v.substr(0, 300).replace(/\s+\S+$/, '') + '...'; }
+        $('<td colspan="2"/>').text(v).appendTo($tr);
+      } else {
+        if (k[0] == '.') {
+          if (withHidden !== true) { return; }
+          k = k.replace(/^\.+/, '');
+          alreadyShown[k] = true;
+        } else if (alreadyShown[k]) { return; }
+        
+        $tr = $('<tr/>').appendTo($tbody);
+        if (v == '---') {
+          $('<td colspan="2" class="fields-header"/>').text(k).appendTo($tr);
+        } else {
+          $('<td class="field" width="45%"/>').text(k).appendTo($tr);
+          $('<div/>').text(v).appendTo($('<td class="value" width="55%"/>').appendTo($tr));
+        }
+      }
+    });
+    if (title) { $name.text(title); }
+    return $tipTipDiv;
+  },
+  
   _areaTipTipEnter: function(callback) {
     var self = $(this).data('genotrack'),
       href = $(this).attr('href'),
       tiptipData = $(this).data('tiptipData'),
-      oldTitle = $(this).data('title');
+      oldTitle = $(this).data('title'),
+      $tipTipDiv;
     if ($('body').hasClass('dragging')) { return callback(false); }
-    function createTipTipHtml(data) {
-      var $tipTipDiv = $('<div/>'),
-        $name = $('<div class="name"/>').appendTo($tipTipDiv),
-        $table = $('<table/>').appendTo($tipTipDiv),
-        $tbody = $('<tbody/>').appendTo($table),
-        $prevDescTr;
-      _.each(data, function(v, k) {
-        var $tr;
-        if (/^description$|^type$|refseq summary/i.test(k)) {
-          $prevDescTr = $tbody.children('.desc');
-          if ($prevDescTr.length) { $tr = $('<tr class="desc"/>').insertAfter($prevDescTr); }
-          else { $tr = $('<tr class="desc"/>').prependTo($tbody); }
-          if (v.length > 300) { v = v.substr(0, 300).replace(/\s+\S+$/, '') + '...'; }
-          $('<td colspan="2"/>').text(v).appendTo($tr);
-        } else {
-          $tr = $('<tr/>').appendTo($tbody);
-          if (v == '---') {
-            $('<td colspan="2" class="fields-header"/>').text(k).appendTo($tr);
-          } else {
-            $('<td class="field" width="45%"/>').text(k).appendTo($tr);
-            $('<div/>').text(v).appendTo($('<td class="value" width="55%"/>').appendTo($tr));
-          }
-        }
-      });
-      if (oldTitle) { $name.text(oldTitle); }
+    if (tiptipData) {
+      $tipTipDiv = self._areaTipTipHtml(tiptipData, oldTitle);
       callback($tipTipDiv);
     }
-    if (tiptipData) { createTipTipHtml(tiptipData); }
+  },
+  
+  // Default click handler for areas with data but no href.
+  // Creates a new window that displays all data about the area, generated from its tipTipData.
+  _areaDefaultClick: function(e) {
+    var self = this,
+      $a = $(e.target).closest('a.area'),
+      title = $a.data('title') || $a.attr('title'),
+      tipTipData = $a.data('tiptipData'),
+      cssUrl = utils.dirname(window.location.pathname) + "css/item-data.css";
+      headHtml = '<!DOCTYPE html>\n<html><head><link rel="stylesheet" type="text/css" href="' + cssUrl + '"/></head>',
+      bodyHtml = '<body>' + self._areaTipTipHtml(tipTipData, title, true).html() + '</body></html>';
+    
+    window.open().document.write(headHtml + bodyHtml);
+    e.preventDefault(); // We shouldn't execute the placeholder javascript: hrefs
   },
  
   makeAnchor: function($tile, area, bppp, density, flags) {
@@ -759,15 +787,25 @@ $.widget('ui.genotrack', {
       ratio = o.browser.genobrowser('zoom') / bppp,
       // area[10], if set, is the width of the text label attached to the left side of the area.
       leftPx = (area[0] - (_.isUndefined(area[10]) ? 0 : area[10] * ratio)),
-      leftPct = leftPx * scaleToPct + leftPadPct + '%';
+      leftPct = leftPx * scaleToPct + leftPadPct + '%',
+      href = (custom ? '' : this.baseURL) + area[5];
     
-    $a.attr('href', (custom ? '' : this.baseURL) + area[5]).attr('target', '_blank');
+    $a.attr('href', href).attr('target', '_blank');
+    // If the href is a placeholder (starts with javascript:) execute a default handler that spits data into a new window
+    if ((/^javascript:/).test(href)) { $a.click(_.bind(this._areaDefaultClick, this)); }
     $a.css({top: area[1] - this._scrollTop, height: area[3] - area[1] - 2});
     
+    // FIXME: the following branch is deprecated now that all labels are drawn with _drawAreaLabels() to <canvas>
     if (flags.label) {
       $a.css({right: leftPct + '%', color: 'rgb(' + (area[7] || defaultColor) + ')'}).addClass('label');
       if (area[8]) { $a.html(area[8]); } else { $a.text(area[4]); }
-      $a.mouseover({self: this, bppp: bppp, density: density, hrefHash: hash, areaId: $tile.attr('id') + '.' + flags.i}, this._areaMouseOver);
+      $a.mouseover({
+        self: this, 
+        bppp: bppp, 
+        density: density, 
+        hrefHash: hash, 
+        areaId: $tile.attr('id') + '.' + flags.i
+      }, this._areaMouseOver);
     } else {
       $a.addClass('rect').css({left: leftPct, width: ((area[2] - leftPx) * scaleToPct) + '%'});
       if (flags.flashme) {
@@ -800,7 +838,7 @@ $.widget('ui.genotrack', {
       canvasAttrs = {"class": 'labels dens-' + density + ($oldC.length ? ' hidden' : ''), width: canvasWidth, height: canvasHeight},
       $c = $.mk('canvas').canvasAttr(canvasAttrs).data('density', density).appendTo($scrollCont),
       ctx = $c.get(0).getContext,
-      defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif",
+      defaultFont = o.defaultFont,
       defaultColor = (custom && (/^\d+,\d+,\d+$/).test(custom.opts.color)) || '0,0,0';
       
     if (!ctx) { return; }
@@ -1092,7 +1130,7 @@ $.widget('ui.genotrack', {
         $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
         ctx = $c.get(0).getContext,
         textY = o.chrBands ? 16 : (offsetForNtText ? 10 : 16),
-        defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif";
+        defaultFont = o.defaultFont;
       if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
       if (!ctx) { return; }
 
@@ -1160,7 +1198,7 @@ $.widget('ui.genotrack', {
         canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": 'bands' + ($oldC.length ? ' hidden' : '')},
         $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
         ctx = $c.get(0).getContext,
-        defaultFont = "11px 'Lucida Grande',Tahoma,Arial,Liberation Sans,FreeSans,sans-serif";
+        defaultFont = o.defaultFont;
       if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
       if (!ctx) { return; }
      

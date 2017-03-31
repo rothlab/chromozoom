@@ -1,0 +1,43 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Lucida Grande", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  font-size: 16px;
+  line-height: 1.5;
+  color: #222;
+  background: #f2f2f2;
+}
+
+.name {
+  margin: 1em 0;
+  font-weight: bold;
+  font-size: 150%;
+  word-wrap: break-word;
+}
+
+table {
+  min-width: 600px;
+  border-collapse: collapse;
+}
+
+table td {
+  border-bottom: 1px solid #ddd;
+}
+
+table td.field {
+  text-align: right;
+  font-weight: bold;
+  padding-right: 1em;
+  vertical-align: top;
+}
+
+table td.value div {
+  word-wrap: break-word;
+  max-width: 400px;
+}
+
+table td.fields-header {
+  text-align: left;
+  text-transform: uppercase;
+  font-weight: bold;
+  padding-top: 1em;
+  border-bottom: 1px solid #444;
+}
