@@ -73,7 +73,7 @@ module.exports = function($, _) {
       lineFixDuration: 500,
       reticOpacity: 0.8,
       verticalDragDeadZone: 12,
-      maxNtRequest: 20000,
+      maxNtRequest: 50000,
       bounceMargin: 0.2,
       dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie', '#chrom-sizes-dialog', '#custom-genome-dialog', '#binaries-warning-dialog'],
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
@@ -2627,14 +2627,14 @@ module.exports = function($, _) {
       var self = this,
         o = self.options,
         chunkSize = o.maxNtRequest;
-      if (!this._dnaCallbacks) { this._dnaCallbacks = []; }
+      if (!self._dnaCallbacks) { self._dnaCallbacks = []; }
 
       function loadedFromAjax(data, statusCode, jqXHR) {
         self._dna[jqXHR._s] = data.seq;
         checkCallbacks();
       }
-      function ajaxLoadDNA() {
-        var slots = emptyCacheSlots(self.pos, self.pos + self.bpWidth() * self.$lines.length);
+      function ajaxLoadDNA(left, right) {
+        var slots = emptyCacheSlots(left, right);
         _.each(slots, function(s) {
           var ajaxOptions = {
             data: {db: o.genome, left: s * chunkSize + 1, right: (s + 1) * chunkSize + 1},
@@ -2692,8 +2692,8 @@ module.exports = function($, _) {
       }
       if (dna !== null) { callback(dna, extraData); }
       else {
-        this._dnaCallbacks.push({left: left, right: right, fn: callback, extraData: extraData});
-        ajaxLoadDNA();
+        self._dnaCallbacks.push({left: left, right: right, fn: callback, extraData: extraData});
+        ajaxLoadDNA(Math.min(left, self.pos), Math.max(right, self.pos + self.bpWidth() * self.$lines.length));
       }
     },
 

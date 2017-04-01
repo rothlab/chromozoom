@@ -68,7 +68,7 @@ CustomGenome.defaults = {
   tileWidth: 1000,
   subdirForBpppsUnder: 330,
   ideogramsAbove: 0,
-  maxNtRequest: 20000,
+  maxNtRequest: 50000,
   tracks: [{n: "ruler"}],  // initially visible tracks
   trackDesc: {
     ruler: {

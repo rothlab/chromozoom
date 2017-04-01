@@ -13,6 +13,7 @@ var utils = require('./utils/utils.js'),
   urlForFeature = utils.urlForFeature;
 var IntervalTree = require('./utils/IntervalTree.js').IntervalTree;
 var LineMask = require('./utils/LineMask.js').LineMask;
+var GeneticCode = require('./utils/GeneticCode.js').GeneticCode;
 
 var BED_STANDARD_FIELDS = ['chrom', 'chromStart', 'chromEnd', 'name', 'score', 'strand', 'thickStart', 'thickEnd', 'itemRgb',
     'blockCount', 'blockSizes', 'blockStarts'];
@@ -32,7 +33,18 @@ var BedFormat = {
     htmlUrl: '',
     searchable: false, // FIXME: switch to on by default once searching is implemented for BEDs with triejs
     drawLimit: {squish: null, pack: null},
-    bedPlusFields: null
+    bedPlusFields: null,
+    // Should we color codons?
+    // see https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#bigPsl_-_Pairwise_Alignments
+    baseColorUseCds: null,
+    // bppp value under which codons are drawn
+    drawCodonsUnder: 1,
+    // don't draw a codon letter if the codon is narrower than this, in px
+    minCodonLetterWidth: 9,
+    // how much sequence context do we need to draw codons? (we need sequence spanning most introns)
+    // 90% of human introns are <11,000 bp in length (Sakharkar et al. 2004).
+    // https://www.researchgate.net/publication/8491627_Distributions_of_exons_and_introns_in_the_human_genome
+    mostIntronsBelow: 15000
   },
   
   init: function() {
@@ -58,6 +70,34 @@ var BedFormat = {
     else if (o.url && !(/\$\$/).test(o.url)) { o.url += '$$'; }
     if (!validColorByStrand) { o.colorByStrand = ''; o.altColor = null; }
     else { o.altColor = altColors[1]; }
+    self.expectsSequence = o.drawCodons = o.baseColorUseCds === "given";
+    self.expectedSequencePadding = o.mostIntronsBelow;
+  },
+  
+  // Given the feature's thickStart, thickEnd, and blocks, this saves an .exonFrame to each block.
+  // Could perhaps use feature.extra.exonFrames, if it is given (as in bigGenePred) and >=0 for the block.
+  calcExonFrames: function(feature, lineno) {
+    var inCds = false,
+      nextExonFrame, lastBlock;
+    error = _.find(feature.blocks, function(block) {
+      block.exonFrame = null;
+      if (lastBlock && block.start < lastBlock.end) { return true; }
+      if (!inCds && feature.thickStart >= block.start && feature.thickStart < block.end) {
+        inCds = true;
+        block.exonFrame = 0;
+        nextExonFrame = (block.end - feature.thickStart) % 3;
+      } else if (inCds) {
+        block.exonFrame = nextExonFrame;
+        if (feature.thickEnd <= block.end) { inCds = false; }
+        else { nextExonFrame = (nextExonFrame + block.end - block.start) % 3; }
+      }
+      lastBlock = block;
+    });
+    
+    if (error) {
+      feature.blocks = null;
+      this.warn("Blocks either overlap or are out of order at line " + lineno);
+    }
   },
 
   parseLine: function(line, lineno) {
@@ -97,7 +137,10 @@ var BedFormat = {
       if (/^\d+$/.test(feature.thickStart) && /^\d+$/.test(feature.thickEnd)) {
         feature.thickStart = chrPos + parseInt10(feature.thickStart) + 1;
         feature.thickEnd = chrPos + parseInt10(feature.thickEnd) + 1;
-        if (/^\d+(,\d*)*$/.test(feature.blockSizes) && /^\d+(,\d*)*$/.test(feature.blockStarts)) {
+        if (feature.thickEnd < feature.thickStart) {
+          feature.thickStart = feature.thickEnd = null;
+          this.warn("thickEnd position cannot precede thickStart at line " + (lineno + 1 + this.opts.lineNum));
+        } else if (/^\d+(,\d*)*$/.test(feature.blockSizes) && /^\d+(,\d*)*$/.test(feature.blockStarts)) {
           feature.blocks = [];
           blockSizes = feature.blockSizes.split(/,/);
           _.each(feature.blockStarts.split(/,/), function(start, i) {
@@ -106,6 +149,7 @@ var BedFormat = {
             block.end = block.start + parseInt10(blockSizes[i]);
             feature.blocks.push(block);
           });
+          this.type('bed').calcExonFrames.call(this, feature, (lineno + 1 + this.opts.lineNum));
         }
       } else {
         feature.thickStart = feature.thickEnd = null;
@@ -130,6 +174,8 @@ var BedFormat = {
     self.sizes = ['dense', 'squish', 'pack'];
     self.mapSizes = ['pack'];
     self.isSearchable = self.opts.searchable;
+    // self.expectsSequence is enabled in .initOpts() if codon drawing is enabled
+    self.renderSequenceCallbacks = {};
     
     return true;
   },
@@ -165,8 +211,89 @@ var BedFormat = {
     return _.map(lines, function(l) { return _.pluck(l.items, 'data'); });
   },
   
+  codons: function(intervals, width, calcPixInterval, lineNum, start, end, sequence) {
+    var codons = [],
+      bppp = (end - start) / width,
+      translator = GeneticCode(),
+      seqPadding = this.expectedSequencePadding || 0;
+    
+    // Retrieves a subsequence from the provided sequence, but using 1-based right-open genomic coordinates.
+    // Returns an empty string if the range is out of bounds of the provided data.
+    function getSequence(left, right) {
+      return sequence.slice(left - start + seqPadding, right - start + seqPadding);
+    }
+
+    _.each(intervals, function(interval) {
+      var d = interval.data,
+        ln = lineNum(d),
+        revComp = d.strand === '-',
+        thickStart = d.thickStart !== null ? d.thickStart : d.start,
+        thickEnd = d.thickEnd !== null ? d.thickEnd : d.end,
+        blocks = d.blocks !== null ? d.blocks : [{start: d.start, end: d.end, exonFrame: 0}],
+        block, prevBlock, nextBlock, codon, pInt, jStart, cdsEnd, jEnd, translation;
+      
+      _.each(blocks, function(block) { block.partialCodons = block.partialCodons || [null, null]; });
+      
+      // Iterate over blocks in this interval to find codons in view, and create a drawable object for each./
+      // Note: The following partial codon resolution algorithm fails on blocks smaller than 1 codon.
+      for (var i = 0; i < blocks.length; i++) {
+        block = blocks[i];
+        prevBlock = i > 0 ? blocks[i - 1] : null;
+        nextBlock = blocks[i + 1] || null;
+        
+        if (block.exonFrame === null) { continue; }
+        
+        jStart = Math.max(block.start, thickStart) - block.exonFrame;
+        cdsEnd = Math.min(block.end, thickEnd);
+        jEnd = Math.min(cdsEnd - 2, end);
+        
+        // Fast forward to the first codon position in view
+        if (jStart < start) { jStart = start - ((start - jStart) % 3); }
+        
+        // Do we have to display a partial codon at the start of this block?
+        // We always cache partial codon sequences to the block.
+        if (jStart < block.start) {
+          if (prevBlock === null || block.start - jStart > 2) { throw "Impossible intron pattern encountered!"; }
+          codon = prevBlock.partialCodons[1] || getSequence(jStart - block.start + prevBlock.end, prevBlock.end);
+          block.partialCodons[0] = getSequence(block.start, jStart + 3);
+          codon += block.partialCodons[0];
+          translation = translator(codon, revComp);
+          if (translation) {
+            pInt = calcPixInterval({start: block.start, end: jStart + 3});
+            codons.push({ln: ln, pInt: pInt, partial: true, transl: translation});
+          }
+          jStart += 3;
+        }
+        
+        // Handle all of the in-view, full codons for this block
+        for (var j = jStart; j < jEnd; j += 3) {
+          codon = getSequence(j, j + 3);
+          translation = translator(codon, revComp);
+          if (!translation) { continue; }
+          pInt = calcPixInterval({start: j, end: j + 3});
+          codons.push({ln: ln, pInt: pInt, partial: false, transl: translation});
+        }
+        
+        // Do we have to display a partial codon at the end of this block?
+        if (j >= cdsEnd - 2 && j < cdsEnd) {
+          if (nextBlock === null) { continue; }   // Incomplete last codon.
+          block.partialCodons[1] = getSequence(j, cdsEnd);
+          codon = nextBlock.partialCodons[0] || getSequence(nextBlock.start, nextBlock.start + 3 - cdsEnd + j);
+          codon = block.partialCodons[1] + codon;
+          translation = translator(codon, revComp);
+          if (translation) {
+            pInt = calcPixInterval({start: j, end: cdsEnd});
+            codons.push({ln: ln, pInt: pInt, partial: true, transl: translation});
+          }
+        }
+      }
+    });
+    return codons;
+  },
+  
   prerender: function(start, end, density, precalc, callback) {
     var width = precalc.width,
+      sequence = precalc.sequence,
       bppp = (end - start) / width,
       intervals = this.data.search(start, end),
       drawSpec = [],
@@ -188,8 +315,18 @@ var BedFormat = {
         drawSpec.push(pInt);
       });
     } else {
-      drawSpec = {layout: this.type('bed').stackedLayout.call(this, intervals, width, calcPixInterval, lineNum)};
+      if (!sequence) {
+        // First drawing pass: draw the intervals, including possibly introns/exons and codon stripes
+        drawSpec = {layout: this.type('bed').stackedLayout.call(this, intervals, width, calcPixInterval, lineNum)};
+      } else {
+        // Second drawing pass: draw codon sequences
+        drawSpec = {
+          codons: this.type('bed').codons.call(this, intervals, width, calcPixInterval, lineNum, start, 
+                                               end, sequence)
+        };
+      }
       drawSpec.width = width;
+      drawSpec.bppp = bppp;
     }
     return _.isFunction(callback) ? callback(drawSpec) : drawSpec;
   },
@@ -290,11 +427,11 @@ var BedFormat = {
     ctx.stroke();
   },
   
-  drawFeature: function(ctx, width, data, i, lineHeight) {
+  drawFeature: function(ctx, width, data, lineNum, lineHeight) {
     var self = this,
       o = self.opts,
       color = o.color,
-      y = i * lineHeight,
+      y = lineNum * lineHeight,
       halfHeight = Math.round(0.5 * (lineHeight - 1)),
       quarterHeight = Math.ceil(0.25 * (lineHeight - 1)),
       lineGap = lineHeight > 6 ? 2 : 1,
@@ -303,8 +440,10 @@ var BedFormat = {
     
     // First, determine and set the color we will be using
     // Note that the default color was already set in drawSpec
-    color = self.type('bed').calcFeatureColor.call(self, data);
-    if (o.itemRgb || o.altColor || o.useScore) { ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")"; }
+    if (o.itemRgb || o.altColor || o.useScore) {
+      color = self.type('bed').calcFeatureColor.call(self, data);
+      ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")";
+    }
     
     if (data.thickInt) {
       // The coding region is drawn as a thicker line within the gene
@@ -321,22 +460,20 @@ var BedFormat = {
           if (thickOverlap) {
             ctx.fillRect(thickOverlap.x, y + 1, Math.max(thickOverlap.w, 1), lineHeight - lineGap);
           }
-          // If there are introns, arrows are drawn on the introns, not the exons...
+          // If there are introns, arrows are drawn on the introns, not the exons.
           if (data.d.strand && prevBInt) {
             ctx.strokeStyle = "rgb(" + color + ")";
             self.type('bed').drawArrows(ctx, width, y, halfHeight, prevBInt.x + prevBInt.w, bInt.x, data.d.strand);
           }
           prevBInt = bInt;
         });
-        // ...unless there were no introns. Then it is drawn on the coding region.
-        if (data.blockInts.length == 1) {
-          ctx.strokeStyle = "white";
-          self.type('bed').drawArrows(ctx, width, y, halfHeight, data.thickInt.x, data.thickInt.x + data.thickInt.w, data.d.strand);
-        }
       } else {
         // We have a coding region but no introns/exons
         ctx.fillRect(data.pInt.x, y + halfHeight - quarterHeight + 1, data.pInt.w, quarterHeight * 2 - 1);
         ctx.fillRect(data.thickInt.x, y + 1, data.thickInt.w, lineHeight - lineGap);
+      }
+      // If there were no introns/exons, or if there was only one exon, draw the arrows directly on the exon.
+      if (!data.blockInts || data.blockInts.length == 1) {
         ctx.strokeStyle = "white";
         self.type('bed').drawArrows(ctx, width, y, halfHeight, data.thickInt.x, data.thickInt.x + data.thickInt.w, data.d.strand);
       }
@@ -348,13 +485,87 @@ var BedFormat = {
     }
   },
   
+  drawStripes: function(ctx, width, y, height, startX, endX, stripeWidth) {
+    for (var x = startX; x < Math.min(endX, width); x += stripeWidth * 2) {
+      ctx.fillRect(x, y, stripeWidth, height);
+    }
+  },
+  
+  drawCodons: function(ctx, width, data, lineNum, lineHeight, ppbp) {
+    var self = this,
+      o = self.opts,
+      y = lineNum * lineHeight + 1,
+      height = lineHeight - (lineHeight > 6 ? 2 : 1),
+      stripeWidth = ppbp * 3,
+      thickOverlap = null,
+      exonFrame = null,
+      firstStripeX = null;
+
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    
+    function firstStripe(pInt, exonFrame) {
+      exonFrame = exonFrame || 0;
+      var startX = pInt.ox < 0 ? (pInt.ox % (stripeWidth * 2) + stripeWidth) : pInt.x + stripeWidth;
+      return startX - (exonFrame * ppbp);
+    }
+    
+    if (data.thickInt) {
+      if (data.blockInts && data.blockInts.length > 1) {
+        _.each(data.blockInts, function(bInt, i) {
+          thickOverlap = data.thickInt.w > 0 && utils.pixIntervalOverlap(bInt, data.thickInt);
+          if (thickOverlap && thickOverlap.w > 0) {
+            exonFrame = data.d.blocks[i].exonFrame;
+            firstStripeX = firstStripe(thickOverlap, exonFrame);
+            self.type('bed').drawStripes(ctx, width, y, height, firstStripeX, thickOverlap.x + thickOverlap.w, stripeWidth);
+          }
+        });
+      } else {
+        firstStripeX = firstStripe(data.thickInt);
+        self.type('bed').drawStripes(ctx, width, y, height, firstStripeX, data.thickInt.x + data.thickInt.w, stripeWidth);
+      }
+    } else {
+      firstStripeX = firstStripe(data.pInt);
+      self.type('bed').drawStripes(ctx, width, y, height, firstStripeX, data.pInt.x + data.pInt.w, stripeWidth);
+    }
+    
+    ctx.fillStyle = "rgb(" + o.color + ")";
+  },
+  
+  drawTranslatedCodon: function(ctx, width, codonData, lineHeight) {
+    var self = this,
+      o = self.opts,
+      pInt = codonData.pInt,
+      textLeft = pInt.oPrev ? pInt.ox : pInt.x,
+      textRight = pInt.x + pInt.w + pInt.ow,
+      textX = (textLeft + textRight) * 0.5,
+      y = codonData.ln * lineHeight + 1,
+      height = lineHeight - (lineHeight > 6 ? 2 : 1),
+      bgColors = {"M": "0,255,0", "*": "255,0,0"},  // note, alternative start sites are lowercase "m"
+      bgColor = bgColors[codonData.transl.special],
+      textColor = codonData.partial ? '122,241,255' : '255,255,255';
+        
+    if (pInt.w > 0 && pInt.x + pInt.w <= width && pInt.x >= 0) {
+      if (bgColor) {
+        ctx.fillStyle = 'rgb(' + bgColor + ')';
+        ctx.fillRect(pInt.x, y, codonData.pInt.w, height);
+      }
+      if (textRight - textLeft >= o.minCodonLetterWidth && lineHeight > 10) {
+        ctx.fillStyle = 'rgb(' + textColor + ')';
+        ctx.fillText(codonData.transl.aa, textX, y + height - 2);
+      }
+    }
+  },
+  
   drawSpec: function(canvas, drawSpec, density) {
     var self = this,
+      o = self.opts,
+      ppbp = drawSpec.bppp && 1 / drawSpec.bppp,
       ctx = canvas.getContext,
-      urlTemplate = self.opts.url ? self.opts.url : 'javascript:void("'+self.opts.name+':$$")',
-      drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
+      urlTemplate = o.url ? o.url : 'javascript:void("' + o.name + ':$$")',
+      drawLimit = o.drawLimit && o.drawLimit[density],
+      drawCodons = o.drawCodons && drawSpec.bppp <= o.drawCodonsUnder,
       lineHeight = density == 'pack' ? 15 : 6,
-      color = self.opts.color,
+      color = o.color,
       areas = null;
     
     if (!urlTemplate.match(/\$\$/)) { urlTemplate += '$$'; }
@@ -368,8 +579,17 @@ var BedFormat = {
       ctx = canvas.getContext('2d');
       ctx.fillStyle = "rgb("+color+")";
       _.each(drawSpec, function(pInt) {
-        if (self.opts.useScore) { ctx.fillStyle = "rgba("+self.type('bed').calcGradient(color, pInt.v)+")"; }
+        if (o.useScore) { ctx.fillStyle = "rgba(" + self.type('bed').calcGradient(color, pInt.v) + ")"; }
         ctx.fillRect(pInt.x, 1, pInt.w, 13);
+      });
+    } else if (drawSpec.codons) {
+      // Now that we have sequence data, draw codon translations on *top* of the already drawn features
+      ctx = canvas.getContext('2d');
+      ctx.font = "12px 'Menlo','Bitstream Vera Sans Mono','Consolas','Lucida Console',monospace";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'baseline';
+      _.each(drawSpec.codons, function(codon) {
+        self.type('bed').drawTranslatedCodon.call(self, ctx, drawSpec.width, codon, lineHeight);  
       });
     } else {
       if ((drawLimit && drawSpec.layout && drawSpec.layout.length > drawLimit) || drawSpec.tooMany) { 
@@ -384,8 +604,9 @@ var BedFormat = {
       ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
       _.each(drawSpec.layout, function(l, i) {
         _.each(l, function(data) {
-          self.type('bed').drawFeature.call(self, ctx, drawSpec.width, data, i, lineHeight);              
+          self.type('bed').drawFeature.call(self, ctx, drawSpec.width, data, i, lineHeight);  
           self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
+          if (drawCodons) { self.type('bed').drawCodons.call(self, ctx, drawSpec.width, data, i, lineHeight, ppbp); }
         });
       });
     }
@@ -394,9 +615,42 @@ var BedFormat = {
   render: function(canvas, start, end, density, callback) {
     var self = this;
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
+      var callbackKey = start + '-' + end + '-' + density;
       self.type().drawSpec.call(self, canvas, drawSpec, density);
+      
+      // Have we been waiting to draw sequence data too? If so, do that now, too.
+      if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
+        self.renderSequenceCallbacks[callbackKey]();
+        delete self.renderSequenceCallbacks[callbackKey];
+      }
+      
       if (_.isFunction(callback)) { callback(); }
     });
+  },
+  
+  renderSequence: function(canvas, start, end, density, sequence, callback) {
+    var self = this,
+      width = canvas.unscaledWidth(),
+      drawCodons = self.opts.drawCodons,
+      drawCodonsUnder = self.opts.drawCodonsUnder;
+    
+    // If we're not drawing codons or we weren't able to fetch sequence, there is no reason to proceed.
+    if (!drawCodons || !sequence || (end - start) / width > drawCodonsUnder) { return false; }
+
+    function renderSequenceCallback() {
+      self.prerender(start, end, density, {width: width, sequence: sequence}, function(drawSpec) {
+        self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+        if (_.isFunction(callback)) { callback(); }
+      });
+    }
+    
+    // Check if the canvas was already rendered (by lack of the class 'unrendered').
+    // If yes, go ahead and execute renderSequenceCallback(); if not, save it for later.
+    if ((' ' + canvas.className + ' ').indexOf(' unrendered ') > -1) {
+      self.renderSequenceCallbacks[start + '-' + end + '-' + density] = renderSequenceCallback;
+    } else {
+      renderSequenceCallback();
+    }
   },
 
   loadOpts: function($dialog) {

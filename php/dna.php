@@ -56,7 +56,7 @@ if (preg_match('/^ucsc:/', $db)) {
 $left = max(intval($REQ['left']) - 1, 0);
 $right = max(intval($REQ['right']) - 1, 0);
 
-$max_length = isset($genome_config['max_nt_request']) ? $genome_config['max_nt_request'] : 20000;
+$max_length = isset($genome_config['max_nt_request']) ? $genome_config['max_nt_request'] : 50000;
 if ($right - $left <= 0 || $right - $left > $max_length) { forbidden('invalid segment length'); }
 
 $chr_order = $genome_config['chr_order'];

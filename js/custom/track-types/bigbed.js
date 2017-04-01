@@ -6,27 +6,18 @@ var utils = require('./utils/utils.js'),
   floorHack = utils.floorHack;
 var IntervalTree = require('./utils/IntervalTree.js').IntervalTree;
 var RemoteTrack = require('./utils/RemoteTrack.js').RemoteTrack;
+var bed = require('./bed.js');
 
 // Intended to be loaded into CustomTrack.types.bigbed
 var BigBedFormat = {
-  defaults: {
+  defaults: _.extend({}, bed.defaults, {
     chromosomes: '',
-    itemRgb: 'off',
-    colorByStrand: '',
-    useScore: 0,
-    group: 'user',
-    priority: 'user',
-    offset: 0,
-    detail: false,
-    url: '',
-    htmlUrl: '',
-    searchable: false,
     drawLimit: {squish: 500, pack: 100},
     // Data for how many nts should be fetched in one go? (0 means guess this from the index's summary stats)
     optimalFetchWindow: 0,
     // Above what tile width (in nts) do we avoid fetching data altogether? (0 means guess this from the index's summary stats)
     maxFetchWindow: 0
-  },
+  }),
 
   init: function() {
     if (!this.opts.bigDataUrl) {
@@ -73,6 +64,8 @@ var BigBedFormat = {
     self.sizes = ['dense', 'squish', 'pack'];
     self.mapSizes = ['pack'];
     self.isSearchable = self.opts.searchable;
+    // self.expectsSequence is enabled in .initOpts() if codon drawing is enabled
+    self.renderSequenceCallbacks = {};
     
     return true;
   },
@@ -108,6 +101,7 @@ var BigBedFormat = {
   prerender: function(start, end, density, precalc, callback) {
     var self = this,
       width = precalc.width,
+      sequence = precalc.sequence,
       data = self.data,
       bppp = (end - start) / width,
       // Note: bigBed tools expect regions in 0-based, right-OPEN coordinates.
@@ -147,8 +141,17 @@ var BigBedFormat = {
           var calcPixInterval, drawSpec = {};
           if (intervals.tooMany) { return callback(intervals); }
           calcPixInterval = new utils.pixIntervalCalculator(start, width, bppp, density == 'pack');
-          drawSpec.layout = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+          
+          if (!sequence) {
+            // First drawing pass: draw the intervals, including possibly introns/exons and codon stripes
+            drawSpec.layout = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+          } else {
+            // Second drawing pass: draw codon sequences
+            drawSpec.codons = self.type('bed').codons.call(self, intervals, width, calcPixInterval, lineNum, 
+                                                           start, end, sequence);
+          }
           drawSpec.width = width;
+          drawSpec.bppp = bppp;
           callback(drawSpec);
         });
       }
@@ -158,9 +161,42 @@ var BigBedFormat = {
   render: function(canvas, start, end, density, callback) {
     var self = this;
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
+      var callbackKey = start + '-' + end + '-' + density;
       self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+      
+      // Have we been waiting to draw sequence data too? If so, do that now, too.
+      if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
+        self.renderSequenceCallbacks[callbackKey]();
+        delete self.renderSequenceCallbacks[callbackKey];
+      }
+      
       if (_.isFunction(callback)) { callback(); }
     });
+  },
+  
+  renderSequence: function(canvas, start, end, density, sequence, callback) {
+    var self = this,
+      width = canvas.unscaledWidth(),
+      drawCodons = self.opts.drawCodons,
+      drawCodonsUnder = self.opts.drawCodonsUnder;
+    
+    // If we're not drawing codons or we weren't able to fetch sequence, there is no reason to proceed.
+    if (!drawCodons || !sequence || (end - start) / width > drawCodonsUnder) { return false; }
+    
+    function renderSequenceCallback() {
+      self.prerender(start, end, density, {width: width, sequence: sequence}, function(drawSpec) {
+        self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+        if (_.isFunction(callback)) { callback(); }
+      });
+    }
+    
+    // Check if the canvas was already rendered (by lack of the class 'unrendered').
+    // If yes, go ahead and execute renderSequenceCallback(); if not, save it for later.
+    if ((' ' + canvas.className + ' ').indexOf(' unrendered ') > -1) {
+      self.renderSequenceCallbacks[start + '-' + end + '-' + density] = renderSequenceCallback;
+    } else {
+      renderSequenceCallback();
+    }
   },
   
   // Searches the extraIndex'es on the bigBed for fields prefixed by `query`

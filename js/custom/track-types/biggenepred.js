@@ -2,12 +2,15 @@
 // = bigBed format: http://genome.ucsc.edu/goldenPath/help/bigBed.html =
 // =====================================================================
 
-var bigbed = require('./bigbed.js')
+var bigbed = require('./bigbed.js'),
   utils = require('./utils/utils.js'),
   strip = utils.strip;
 
 // Intended to be loaded into CustomTrack.types.biggenepred
 var BigGenePredFormat = _.extend({}, bigbed, {
+  defaults: _.extend({}, bigbed.defaults, {
+    baseColorUseCds: "given"
+  }),
   
   tipTipData: function(feature) {
     var tipTipData = {};

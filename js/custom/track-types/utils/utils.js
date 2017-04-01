@@ -69,19 +69,21 @@ module.exports.pixIntervalCalculator = function(start, width, bppp, withText, na
       w: (itvlEnd - itvlStart) / bppp,
       t: 0,          // calculated width of text
       oPrev: false,  // overflows into previous tile?
-      oNext: false   // overflows into next tile?
+      ox: 0,         // how much did it overflow into the previous tile?
+      oNext: false,  // overflows into next tile?
+      ow: 0          // how much did it overflow into the next tile?
     };
     // small positive intervals get forcibly rounded up to 1 (so they are drawn), everything else to the nearest whole pixel
     pInt.w = pInt.w > 0 && pInt.w < 1 ? 1 : Math.round(pInt.w);
     pInt.tx = pInt.x;
     pInt.tw = pInt.w;
-    if (pInt.x < 0) { pInt.w += pInt.x; pInt.x = 0; pInt.oPrev = true; }
+    if (pInt.x < 0) { pInt.w += pInt.x; pInt.ox = pInt.x; pInt.x = 0; pInt.oPrev = true; }
     else if (withText) {
       pInt.t = _.isNumber(withText) ? withText : Math.min(nameFunc(d).length * 10 + 2, pInt.x);
       pInt.tx -= pInt.t;
       pInt.tw += pInt.t;  
     }
-    if (pInt.x + pInt.w > width) { pInt.w = width - pInt.x; pInt.oNext = true; }
+    if (pInt.x + pInt.w > width) { pInt.ow = pInt.w - width + pInt.x; pInt.w -= pInt.ow; pInt.oNext = true; }
     return pInt;
   };
 };
@@ -89,11 +91,12 @@ module.exports.pixIntervalCalculator = function(start, width, bppp, withText, na
 // For two given objects of the form {x: 1, w: 2} (pixel intervals), describe the overlap.
 // Returns null if there is no overlap.
 module.exports.pixIntervalOverlap = function(pInt1, pInt2) {
-  var overlap = {},
+  var overlap = {ox: 0},
     tmp;
-  if (pInt1.x > pInt2.x) { tmp = pInt2; pInt2 = pInt1; pInt1 = tmp; }       // swap so that pInt1 is always lower
+  if (pInt1.x > pInt2.x) { tmp = pInt2; pInt2 = pInt1; pInt1 = tmp; }       // swap so that pInt1 is always lower or equal
   if (!pInt1.w || !pInt2.w || pInt1.x + pInt1.w < pInt2.x) { return null; } // detect no-overlap conditions
   overlap.x = pInt2.x;
+  overlap.ox = Math.max(pInt1.ox, pInt2.ox);
   overlap.w = Math.min(pInt1.w - pInt2.x + pInt1.x, pInt2.w);
   return overlap;
 };

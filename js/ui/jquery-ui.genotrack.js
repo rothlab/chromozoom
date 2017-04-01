@@ -1337,7 +1337,8 @@ $.widget('ui.genotrack', {
       self = d.self,
       track = self.options.track,
       $tile = $canvas.closest('.tile'),
-      $browser = self.options.browser;
+      $browser = self.options.browser,
+      seqPadding = d.custom.expectedSequencePadding || 0;
      
     function pushCallback() { _.isFunction(callback) && $canvas.data('renderingCallbacks').push(callback); }
     if ($canvas.data('rendering') === true) { pushCallback(); return; }
@@ -1370,7 +1371,7 @@ $.widget('ui.genotrack', {
     });
    
     if (d.custom.expectsSequence && (d.end - d.start) < $browser.genobrowser('option', 'maxNtRequest')) {
-      $browser.genobrowser('getDNA', d.start, d.end, function(sequence) {
+      $browser.genobrowser('getDNA', d.start - seqPadding, d.end + seqPadding, function(sequence) {
         d.custom.renderSequence(canvas, d.start, d.end, d.density, sequence, function() {
           // TODO: may need to self.fixClickAreas() again if .renderSequence added areas?
         });
