@@ -428,7 +428,7 @@ var BedFormat = {
     ctx.stroke();
   },
   
-  drawFeature: function(ctx, width, data, lineNum, lineHeight) {
+  drawFeature: function(ctx, width, data, lineNum, lineHeight, noExonArrows) {
     var self = this,
       o = self.opts,
       color = o.color,
@@ -474,15 +474,17 @@ var BedFormat = {
         ctx.fillRect(data.thickInt.x, y + 1, data.thickInt.w, lineHeight - lineGap);
       }
       // If there were no introns/exons, or if there was only one exon, draw the arrows directly on the exon.
-      if (!data.blockInts || data.blockInts.length == 1) {
+      if ((!data.blockInts || data.blockInts.length == 1) && !noExonArrows) {
         ctx.strokeStyle = "white";
         self.type('bed').drawArrows(ctx, width, y, halfHeight, data.thickInt.x, data.thickInt.x + data.thickInt.w, data.d.strand);
       }
     } else {
       // Nothing fancy.  It's a box.
       ctx.fillRect(data.pInt.x, y + 1, Math.max(data.pInt.w, 1), lineHeight - lineGap);
-      ctx.strokeStyle = "white";
-      self.type('bed').drawArrows(ctx, width, y, halfHeight, data.pInt.x, data.pInt.x + data.pInt.w, data.d.strand);
+      if (!noExonArrows) {
+        ctx.strokeStyle = "white";
+        self.type('bed').drawArrows(ctx, width, y, halfHeight, data.pInt.x, data.pInt.x + data.pInt.w, data.d.strand);
+      }
     }
   },
   
@@ -605,7 +607,7 @@ var BedFormat = {
       ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
       _.each(drawSpec.layout, function(l, i) {
         _.each(l, function(data) {
-          self.type('bed').drawFeature.call(self, ctx, drawSpec.width, data, i, lineHeight);  
+          self.type('bed').drawFeature.call(self, ctx, drawSpec.width, data, i, lineHeight, drawCodons);  
           self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
           if (drawCodons) { self.type('bed').drawCodons.call(self, ctx, drawSpec.width, data, i, lineHeight, ppbp); }
         });
