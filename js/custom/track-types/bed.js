@@ -34,7 +34,8 @@ var BedFormat = {
     searchable: false, // FIXME: switch to on by default once searching is implemented for BEDs with triejs
     drawLimit: {squish: null, pack: null},
     bedPlusFields: null,
-    // Should we color codons?
+    // Should we try to draw codons?
+    // If the following is set to "given", we use the genome sequence and BED blocks to draw codons
     // see https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#bigPsl_-_Pairwise_Alignments
     baseColorUseCds: null,
     // bppp value under which codons are drawn
