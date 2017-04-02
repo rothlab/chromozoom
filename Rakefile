@@ -1,7 +1,4 @@
-$:.unshift File.expand_path("../lib", __FILE__)
-
-require 'ucsc_stitch'
-require 'subscreens'
+require_relative 'lib/subscreens'
 c = nil
 
 task :default => :check
@@ -19,8 +16,7 @@ REQUIRED_LINKS = {
 }
 REQUIRED_LINK_WARN = <<-EOS
 WARN: could not find the following in your $PATH: %1$s
-  You won't need %2$s if you are just tile stitching, but they are needed 
-  to serve custom tracks for the ChromoZoom interface.
+  You will need this program to fetch data for the web frontend.
   To acquire %2$s, try visiting the following sites:
    - %3$s
 EOS
@@ -32,7 +28,18 @@ REQUIRED_LINKS.each do |l, url|
     else $missing_links[:names] << l; $missing_links[:urls] << url; end
   end
 end
-REQUIRED_BINS = {"convert"=>"ImageMagick", "montage"=>"ImageMagick", "identify"=>"ImageMagick", "curl"=>"curl"}
+REQUIRED_SCRAPING_BINS = {
+  "fetchChromSizes"=>"http://hgdownload.cse.ucsc.edu/admin/exe/",
+  "bedToBigBed"=>"http://hgdownload.cse.ucsc.edu/admin/exe/",
+  "curl"=>"https://curl.haxx.se/"
+}
+REQUIRED_SCRAPING_BINS_WARN = <<-EOS
+WARN: could not find the following in your $PATH: %1$s
+  You don't need this program to serve the web frontend of ChromoZoom,
+  but you do need it to scrape track data from UCSC.
+  To acquire %2$s, try visiting the following sites:
+   - %3$s
+EOS
 file "ucsc.yaml" do
   cp "ucsc.dist.yaml", "ucsc.yaml"
 end
@@ -46,7 +53,10 @@ rule /^build\/.+\.js$/ => proc { |js| sources_for_javascript js } do |t|
   sh "browserify #{t.sources.first} | uglifyjs > #{t.name}"
 end
 
+desc "Builds minified (production) ChromoZoom javascripts, outputting them in build/"
 task :browserify => JAVASCRIPTS
+
+desc "Builds debuggable versions of ChromoZoom javascripts, updating them upon file save"
 task :watchify do
   # Useful for development. Compiles in debug mode (with source maps) while you edit the source.
   cmds = JAVASCRIPTS.map{ |js| "watchify -d #{sources_for_javascript(js).first} -o #{js} -v"}
@@ -55,15 +65,19 @@ end
 
 desc "Checks that all requirements for ChromoZoom are in place"
 task :check => [:browserify, "ucsc.yaml", "bin"] + REQUIRED_LINKS.keys.map{|l| "bin/#{l}" } do |t|
-  if missing = REQUIRED_BINS.keys.find{|b| `which #{b}`.strip.size == 0 }
-    fail "FAIL: Could not find \`#{missing}\` in your $PATH; please ensure #{REQUIRED_BINS[missing]} is installed."
+  missing = REQUIRED_SCRAPING_BINS.keys.select{|b| `which #{b}`.strip.size == 0 }
+  if missing.size > 0
+    puts REQUIRED_SCRAPING_BINS_WARN % [
+      missing.join(", "), 
+      missing.size > 1 ? "them" : "it", 
+      REQUIRED_SCRAPING_BINS.values_at(*missing).uniq.join("\n   - ")
+    ]
   end
   if $missing_links[:names].size > 0
-    puts REQUIRED_LINK_WARN % [
+    fail REQUIRED_LINK_WARN % [
       $missing_links[:names].join(", "), 
       $missing_links[:names].size > 1 ? "them" : "it", 
       $missing_links[:urls].uniq.join("\n   - ")
     ]
   end
-  c = UCSCClient.new
 end
