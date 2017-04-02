@@ -112,8 +112,9 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
         bedlike_format = ut.is_bedlike_format(tr_type)
 
         # First, check if we need to update the table at all
-        if track_has_a_table and track_name in last_updates:
+        if track_has_a_table:
             update_date = ut.get_update_time(cur, organism, track_name)
+        if track_has_a_table and track_name in last_updates:
             if not args.update_metadata_only and last_updates[track_name] == update_date:
                 print('INFO ({}): [db {}] data for table "{}" is up to date.'.format(ut.print_time(),
                         organism, track_name))
