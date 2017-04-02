@@ -111,9 +111,9 @@ I've created a binary that enables these prefix queries, which you can install i
 
 This should produce a `bigBedSearch` executable that you can copy to ChromoZoom's `bin/` directory so the web frontend can use it.
 
-If you want HTTPS to work, either make sure /usr/include/openssl is available, or specify the equivalent SSL_DIR as an environment variable.
+If you want HTTPS to work, either make sure `/usr/include/openssl` is available, or specify the equivalent SSL_DIR as an environment variable.
 
-You can also use that source tree to produce customized versions of `bigBedInfo`, `bigBedSummary`, `bigBedToBed`, `bigWigInfo`, and `bigWigSummary`, e.g., if you're having problems with UCSC's binaries. (HTTPS doesn't always seem to work in UCSC's macOS binaries.)
+You can also use that source tree to produce customized versions of `bigBedInfo`, `bigBedSummary`, `bigBedToBed`, `bigWigInfo`, and `bigWigSummary`, if UCSC's binaries weren't compiled in the way you prefer. (e.g., HTTPS doesn't always seem to work in UCSC's macOS binaries.)
 
 ### HTTPS support for `samtools`
 
