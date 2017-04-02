@@ -43,6 +43,9 @@ EOS
 file "ucsc.yaml" do
   cp "ucsc.dist.yaml", "ucsc.yaml"
 end
+file ".git/hooks/pre-commit" do
+  ln_sf "../../git-hooks-pre-commit.sh", ".git/hooks/pre-commit"
+end
 
 directory "build"
 JAVASCRIPTS = ["build/chromozoom.js", "build/CustomGenomeWorker.js", "build/CustomTrackWorker.js"]
@@ -64,7 +67,8 @@ task :watchify do
 end
 
 desc "Checks that all requirements for ChromoZoom are in place"
-task :check => [:browserify, "ucsc.yaml", "bin"] + REQUIRED_LINKS.keys.map{|l| "bin/#{l}" } do |t|
+REQUIREMENTS = ["ucsc.yaml", "bin", ".git/hooks/pre-commit"] + REQUIRED_LINKS.keys.map{|l| "bin/#{l}" }
+task :check => [:browserify] + REQUIREMENTS do |t|
   missing = REQUIRED_SCRAPING_BINS.keys.select{|b| `which #{b}`.strip.size == 0 }
   if missing.size > 0
     puts REQUIRED_SCRAPING_BINS_WARN % [
