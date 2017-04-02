@@ -27,11 +27,11 @@ Out of the box, ChromoZoom is serves a web interface that can display data on to
 
 - PHP 5.x + Apache (or another webserver that can run PHP scripts)
     - Note that [magic quotes][16] must be **disabled**.
-- [libcurl bindings for PHP][10] (included in OS X's default PHP install)
-- If you would like to support the full range of custom tracks and genomes, you need the following on your `$PATH`, which during setup will be symlinked into a new directory in this repo called `bin/`:
+- [libcurl bindings for PHP][10] (on macOS, this is included in the default PHP install)
+- To support any of the binary track and genome formats, you will need the following on your `$PATH`, which during setup will be symlinked into a new directory in this repo called `bin/`:
     - [`tabix`][11], a generic indexer for TAB-delimited genome position files
     - [`samtools`][11], utilities for viewing for the Sequence Alignment/Map (SAM) and BAM (Binary SAM) formats
-    - The following [Jim Kent binaries for big tracks][12]:
+    - The following [Jim Kent binaries][12]:
         - `bigBedInfo`
         - `bigBedSummary`
         - `bigBedToBed`
@@ -41,7 +41,7 @@ Out of the box, ChromoZoom is serves a web interface that can display data on to
 
 Place a checkout of this repo somewhere in your webserver's DOCROOT.  To setup the aforementioned symlinks to binaries, run `rake check` from the command line at the root of the repo.  Files under `php/` and `index.php` will need to be executable by the webserver.  Access `index.php` from a web browser to view the ChromoZoom interface.
 
-**Note:** To view VCF/tabix or BAM files from `https://` URLs, you will need to compile `tabix` and `samtools` with support for `libcurl`. See [below](#https-support-for-samtools) for details.
+**Note:** To support HTTPS URLs for VCF/tabix or BAM files, you will need to compile `tabix` and `samtools` with `libcurl` support. See [below](#https-support-for-samtools) for details.
 
 [10]: http://php.net/manual/en/book.curl.php
 [11]: http://www.htslib.org/download/
