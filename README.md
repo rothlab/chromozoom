@@ -92,7 +92,7 @@ which will also run before you commit code to git, since `rake check` installs a
 
 ## Recommended Enhancements
 
-None of the following components are strictly necessary for running ChromoZoom; however, they increase the capabilities of the browser, such as being able to search and display certain formats. Both of these upgrades are in use on our main instance, [chromozoom.org](http://chromozoom.org).
+None of the following components are strictly necessary for running ChromoZoom; however, they add capabilities of the browser, such as better searching and track format support. Both of these upgrades are in use on our main instance, [chromozoom.org](http://chromozoom.org).
 
 1. Compiling [`bigBedSearch`][bbs], which allows prefix searching of bigBed fields
 2. [HTTPS support](#https-support-for-samtools) for `samtools` and `tabix`
@@ -101,7 +101,7 @@ None of the following components are strictly necessary for running ChromoZoom; 
 
 ### Compiling [`bigBedSearch`][bbs]
 
-The [bigBed format][] can include extra B+ tree indices in the very last section of the file, which ChromoZoom can then use to search for features by the text content of various fields in the uncompressed BED data. e.g., if you want to search a gene track for gene names matching a certain prefix, these indices make such a search practical even if the track itself is large and somewhere else on the web.
+The [bigBed format][bbbw] can include extra B+ tree indices in the very last section of the file, which ChromoZoom can then use to search for features by the text content of various fields in the uncompressed BED data. e.g., if you want to search a gene track for gene names matching a certain prefix, these indices make such a search practical even if the track itself is large and somewhere else on the web.
 
 I've created a binary that enables these prefix queries, which you can install if you have `gcc` and `make`:
 
