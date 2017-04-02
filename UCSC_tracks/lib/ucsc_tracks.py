@@ -803,7 +803,8 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
     
     bb_file = organism + '/bigBed/' + os.path.basename(bed_file)[:-4] + '.bb'
     bed_file_size = os.path.getsize(bed_file)
-    indexable_fields = ['name'] if int(re.search(r'\d+', bed_type).group(0)) >= 4 else []
+    num_cols = re.search(r'\d+', bed_type)
+    indexable_fields = ['name'] if int(num_cols.group(0) if num_cols else 0) >= 4 else []
     whitelist = ['name2', 'id']
     if bed_plus_fields is not None:
         indexable_fields += [field for field in bed_plus_fields if field in whitelist]

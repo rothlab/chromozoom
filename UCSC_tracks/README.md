@@ -45,3 +45,4 @@ On most computers (particularly Macs) it is easiest to install [Anaconda](https:
 If you only want to fetch tracks for organism databases matching a prefix, e.g. `hg38`,
 
     $ python get_tracks.py --org_prefix=hg38
+
