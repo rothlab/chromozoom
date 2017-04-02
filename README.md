@@ -134,7 +134,7 @@ If the last step fails with something about m4 macros, try being more forceful w
 
 (**Side note.** To get this to compile with a slightly older `libcurl`, such as the moderately ancient version 7.19.7 on [certain high-performance computing nodes](https://hpc.mssm.edu), you may have to remove the case statement about `CURLE_NOT_BUILT_IN` from `hfile_libcurl.c`.)
 
-Once it works, you'll find `tabix` in this directory, along with `htsfile` (which is like `file`, for sequencing formats), both with HTTPS formats. Test that it's working with
+Once it works, you'll find `tabix` in this directory, along with `htsfile` (which is like `file`, for sequencing formats), both with HTTPS support. Test that it's working with
 
     $ ./htsfile https://hostname.example.com/path/to/some.bam
 
@@ -155,4 +155,4 @@ You should find `samtools` in this directory. Test it against some BAM file on a
 
     $ ./samtools view https://hostname.example.com/path/to/some.bam 1:1-10000
 
-(Note that this will spit out a `.bai` file into the current directory, which you'll want to delete.)
+(Note that this will spit out a `.bai` file into the current directory, which you can safely delete afterward.)
