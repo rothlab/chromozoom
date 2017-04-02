@@ -27,34 +27,36 @@
     <div id="navbar" class="shadow">
       <div id="controls">
         <div class="control-seg">
-          <button id="tracks" name="tracks">
+          <a class="smaller" id="tracks">
             <span>show<span class="even-less"> tracks</span><span class="less">&hellip;</span></span>
-          </button>
+          </a>
           <div id="track-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow picker"></div>
         </div>
         <div class="control-seg">
-          <button id="custom-tracks" name="custom-tracks">
+          <a class="smaller" id="custom-tracks">
             <span>custom<span class="even-less"> tracks</span><span class="less">&hellip;</span></span>
-          </button>
+          </a>
           <div id="custom-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow picker">
-            <div class="form-line"><div class="spinner"></div><strong>add file: </strong><label></label></div>
-            <div class="help-line indented">
-              Files are read locally, not sent to the server.
+            <div class="form-line"><div class="spinner"></div><strong>add file</strong><label></label></div>
+            <div class="help-line">
+              <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format1">BED</a>,
+              <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bedgraph.html">bedGraph</a>,
+              and
+              <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/wiggle.html">WIG</a>
+              files can be loaded from your hard disk.
             </div>
-            <div class="form-line"><div class="spinner"></div><strong>paste: </strong>
+            <div class="form-line"><div class="spinner"></div><strong class="fullwidth">paste data or URLs</strong>
               <label>
                 <textarea class="paste" name="customPaste" rows="1" cols="30"></textarea>
                 <input type="button" name="customPasteAdd" value="add"/>
               </label>
-            </div>
-            <div class="help-line indented">
-              Pasted data are not sent to the server.
             </div>
             <div class="form-line"><div class="spinner"></div><strong>add URL: </strong><label></label></div>
             <div class="help-line">
               <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format1">BED</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bedgraph.html">bedGraph</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/wiggle.html">WIG</a>,
+              <a target="_blank" href="http://samtools.github.io/hts-specs/">BAM</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigBed.html">bigBed</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigWig.html">bigWig</a>,
               and <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/vcf.html">VCFTabix</a><br/>
@@ -66,15 +68,17 @@
         <div class="control-seg">       
           <div id="loc-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow"></div>
           <input type="text" id="loc" name="loc" placeholder="location, gene, or keyword"/>
-          <input type="button" id="jump" name="jump" value="jump" />
-          <label id="zoom-label" for="zoom">zoom:</label>
-          <input type="button" id="zoom-out" name="zoom-out" value="-" />
+          <a class="smaller" id="jump">go</a>
+        </div>
+        <div class="control-seg">       
+          <label id="zoom-label" for="zoom">zoom</label>
+          <a id="zoom-out">&ndash;</a>
         </div>
         <div class="control-seg">
           <div id="zoom-cont" class="ui-widget ui-widget-content ui-corner-all"><div id="zoom"></div></div>
         </div>
         <div class="control-seg">
-          <input type="button" id="zoom-in" name="zoom-in" value="+" />
+          <a id="zoom-in">+</a>
         </div>
         <div class="control-seg last">
           <div id="line-mode">
@@ -117,11 +121,11 @@
           <a href="docs/" target="_blank">User guide</a> &nbsp;&middot;&nbsp;
           <a href="#about">About</a> &nbsp;&middot;&nbsp;
           <a href="http://chromozoom.uservoice.com" id="feedback-link">Feedback</a> &nbsp;&middot;&nbsp;
-          <a href="http://github.com/rothlab/chromozoom" target="_blank">Fork me on Github!</a>
+          <a href="http://github.com/rothlab/chromozoom" target="_blank">Source code</a>
         </p>
       </div>
       <div id="genome">
-        <input type="button" id="change-genome" name="change-genome" value="&and;" />
+        <a id="change-genome">&and;</a>
         <h1 class="title"></h1>
         <h2 class="description"></h2>
         <div id="genome-picker" class="ui-widget ui-widget-content ui-corner-top shadow picker picker-dark"></div>
@@ -150,8 +154,8 @@
           </div>
           <p>
             <strong class="num">4.</strong> <strong>Add more tracks</strong> using the
-            <button disabled="disabled">show tracks...</button> button 
-            in the top left corner.
+            <a class="ui-button smaller ui-widget ui-state-default ui-corner-all ui-button-text-only ui-state-fake">show tracks...</a>
+            button in the top left corner.
           </p>
         </div>
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">

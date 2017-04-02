@@ -66,7 +66,7 @@ module.exports = function($, _) {
       zoomBtns: ['#zoom-in', '#zoom-out'],
       trackPicker: ['#tracks', '#track-picker', '#custom-tracks', '#custom-picker'],
       jump: ['#loc', '#jump', '#loc-picker'],
-      genomePicker: ['#genome', '#genome-picker'],
+      genomePicker: ['#genome', '#genome-picker', '#change-genome'],
       lineMode: '#line-mode',
       linking: ['#linking', '#link-picker'],
       overlay: ['#overlay', '#overlay-message'],
@@ -124,8 +124,8 @@ module.exports = function($, _) {
         }
       });
       $(document.body).bind('wheel DOMMouseScroll mousewheel', _.bind(self._recvZoom, self));
-      $(o.zoomBtns[0]).click(function() { delete self.centeredOn; self._animateZoom(true, 1000); });
-      $(o.zoomBtns[1]).click(function() { delete self.centeredOn; self._animateZoom(false, 1000); });
+      $(o.zoomBtns[0]).button().click(function() { delete self.centeredOn; self._animateZoom(true, 1000); });
+      $(o.zoomBtns[1]).button().click(function() { delete self.centeredOn; self._animateZoom(false, 1000); });
       $elem.mouseenter(function() { self.showReticle('mouseArea', false); });
       $elem.mouseleave(function() { self.showReticle('mouseArea', true); });
       $(o.lineMode).buttonset().click(function() { self._fixNumLines(self.centralLine); });
@@ -318,7 +318,7 @@ module.exports = function($, _) {
         $genomePicker = $(o.genomePicker[1]),
         $ul = $('<ul/>').appendTo($genomePicker),
         $title = $genome.find('.title'),
-        $toggleBtn = $genome.children('input').eq(0),
+        $toggleBtn = $(o.genomePicker[2]).button(),
         speciesParenthetical = o.species.match(/\((.+)\)/),
         $binaryWarningDialog = $(o.dialogs[6]),
         $a;
@@ -332,7 +332,7 @@ module.exports = function($, _) {
       $('<span class="name"/>').text('Load from file or URL\u2026').appendTo($a);
       $('<span class="long-desc"/>').text('in GenBank or FASTA format').appendTo($a);
 
-      $genome.find('.clickable').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+      $genome.find('.choice').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       self._updateGenomePicker();
 
       self._createPicker($toggleBtn, $genomePicker);
@@ -370,13 +370,13 @@ module.exports = function($, _) {
         allTracks = self._sortedTracks(o.availTracks.concat(o.compositeTracks)),
         groups = {},
         ungrouped = {},
-        $toggleBtn = $(o.trackPicker[0]),
+        $toggleBtn = $(o.trackPicker[0]).button(),
         $trackPicker = $(o.trackPicker[1]).empty(),
         $searchBar = $('<div class="search-bar"/>').appendTo($trackPicker),
         $ul = $('<ul class="choices"/>').appendTo($trackPicker),
         $div = $('<div class="button-line"/>').appendTo($trackPicker),
-        $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div),
-        $b = $('<input type="button" name="done" value="done"/>').appendTo($div),
+        $reset = $('<a>reset</a>').button().appendTo($div),
+        $b = $('<a>done</a>').button().appendTo($div),
         $search, searchDebounced;
 
       function addSection(cat) {
@@ -436,7 +436,7 @@ module.exports = function($, _) {
         o = self.options,
         fileInputHTML = '<input type="file" name="customFile"/>',
         urlInputHTML = '<input type="url" name="customUrl" class="url"/><input type="button" name="customUrlGet" value="go!"/>',
-        $toggleBtn = $(o.trackPicker[2]),
+        $toggleBtn = $(o.trackPicker[2]).button(),
         $picker = $(o.trackPicker[3]).hide(),
         $ul = $('<ul class="choices"/>').prependTo($picker),
         $add = $picker.find('.form-line').first(),
@@ -567,8 +567,8 @@ module.exports = function($, _) {
       CustomTracks.error = customTrackError;
 
       $div = $('<div class="button-line"/>').appendTo($picker);
-      $reset = $('<input type="button" name="reset" value="reset"/>').appendTo($div);
-      $b = $('<input type="button" name="done" value="done"/>').appendTo($div);
+      $reset = $('<a>reset</a>').button().appendTo($div);
+      $b = $('<a>done</a>').button().appendTo($div);
       $reset.click(function(e) { self._resetCustomTracks(); });
 
       return self._createPicker($toggleBtn, $picker, $b);
@@ -595,7 +595,7 @@ module.exports = function($, _) {
         if ($suggest.length) { $suggest.click(); }
         else { self.jumpTo($loc.val()); }
       }
-      $jump.click(jumpToSubmit);
+      $jump.button().click(jumpToSubmit);
       $loc.keydown(function(e) {
         if (e.which == 13) { jumpToSubmit(); }
         else if (e.which == 40) {
@@ -813,7 +813,10 @@ module.exports = function($, _) {
 
       if ($dialog.hasClass('initialized')) { return; } // The following only needs to be initialized once
 
-      $dialog.bind('open.genobrowser', function() { self.$customTracks.trigger('close.genobrowser'); });
+      $dialog.bind('open.genobrowser', function() { 
+        self.$customTracks.trigger('close.genobrowser');
+        self.$trackPicker.trigger('close.genobrowser');
+      });
       $dialog.find('.range-slider').each(function() {
         var $min = $(this).prev('input'),
           $max = $(this).next('input'),
@@ -1668,8 +1671,7 @@ module.exports = function($, _) {
         $ul = to ? $(to) : $(o.trackPicker[1]).children('ul').eq(0);
 
       _.each(tracks, function(t) {
-        // TODO: This needs to distinguish between traditional tracks and custom annotation tracks brought in
-        //       by custom genomes. The latter should have an options dialog and download links instead of "more info";
+        // TODO: Provide download links for custom tracks that have bigDataUrl? Or even for small formats too?
         var n = t.n,
           composite = !!t.c,
           $li = $('<li class="choice"/>').appendTo($ul),
@@ -1677,9 +1679,12 @@ module.exports = function($, _) {
           $c = $('<input type="checkbox"/>').attr('name', n).prependTo($('<div class="chk"/>').prependTo($l)),
           $d = $('<div class="desc"/>').appendTo($l),
           db = o.genome.split(':'),
+          $mb = $('<div class="ui-buttonset more-btns"/>'),
           href = o.trackDescURL + '?db=' + (db[0] === 'ucsc' ? db[1] : db[0]) + '&g=' + n + '#TRACK_HTML',
-          $a = d[n].lg ? $('<a class="more" target="_blank">more info&hellip;</a>').attr('href', href) : '',
+          $am = d[n].lg && $('<a class="more" target="_blank"><img src="css/question.svg" class="zondicon"/></a>'),
+          $ac = t.custom && $('<a class="opts"><img src="css/cog.svg" class="zondicon"/></a>'),
           $span = $('<span/>').text(d[n].sm),
+          moreBtns = !!$am + !!$ac,
           $innerUl, childTracks, childTracksUnderPriority;
 
         if (!composite && !self.availTracks[t.n]) {
@@ -1687,7 +1692,14 @@ module.exports = function($, _) {
           self.availTracks[t.n] = $.extend({}, t);
         }
 
-        $('<h3/>').addClass('name').append($span).append($a).appendTo($d);
+        $('<h3/>').addClass('name').append($span).appendTo($d);
+        if ($am) { $am.attr({href: href, title: "More info about this track"}).button().appendTo($mb); } 
+        if ($ac) { $ac.attr('title', "Options").button().click(_.bind(self.editCustomTrack, self, n)).appendTo($mb); }
+        if (moreBtns) { $mb.appendTo($li); }
+        if (moreBtns > 1) {
+          $mb.children('.ui-button').removeClass('ui-corner-all').eq(0).addClass('ui-corner-left');
+          $mb.children('.ui-button').eq(-1).addClass('ui-corner-right');
+        }
         if (d[n].lg) { $('<p/>').addClass('long-desc').text(d[n].lg).appendTo($d); }
 
         if (composite) {
@@ -1714,7 +1726,7 @@ module.exports = function($, _) {
 
         $l.bind('click', function(e) { if ($(e.target).is('a')) { e.stopPropagation(); }});
         $l.attr('title', n + (d[n].lg && d[n].lg.length > 58 ? ': ' + d[n].lg : ''));
-        $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+        $li.hover(function() { $li.addClass('hover'); }, function() { $li.removeClass('hover'); });
         $c.bind('change', _.bind(self._fixTracks, self));
       });
     },
@@ -1817,8 +1829,8 @@ module.exports = function($, _) {
           $l = $('<label class="clickable"/>').appendTo($li);
           $c = $('<input type="checkbox"/>').attr('name', n).prependTo($('<div class="chk"/>').prependTo($l));
           $d = $('<div class="desc"></div>').appendTo($l);
-          $o = $('<button class="opts"><img src="css/gear.png" alt="gear" /></button>').appendTo($li),
-          $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+          $o = $('<button class="opts"><img src="css/cog.svg" class="zondicon icon" alt="options"/></button>').appendTo($li),
+          $li.hover(function() { $li.addClass('hover'); }, function() { $li.removeClass('hover'); });
           $l.attr('title', n);
           $c.bind('change', _.bind(self._fixTracks, self));
           $o.button().click(_.bind(self.editCustomTrack, self, n));
@@ -1877,7 +1889,7 @@ module.exports = function($, _) {
         trk = self.availTracks[n];
 
       self._initCustomTrackDialog(genomeSuppliedTrack);
-      trk.custom.loadOpts($dialog);
+      trk.custom.loadOpts($dialog, genomeSuppliedTrack);
       $dialog.data('track', trk);
       $dialog.trigger('open');
     },
@@ -2697,17 +2709,18 @@ module.exports = function($, _) {
       window.document.title = o.species + ' - ' + self._defaultTitle;
       $title.text(o.species.replace(/\s+\(.*$/, '')).attr('title', o.species);
       if (speciesParenthetical) { $('<em class="parenth" />').text(', ' + speciesParenthetical[1]).appendTo($title); }
-      $genome.find('.description').text(o.assemblyDate + ' (' + o.genome.replace(/\|.*$/, '') + ')');
+      $genome.find('.description').text(o.assemblyDate || '(' + o.genome.replace(/\|.*$/, '') + ')');
 
       // Fill the genome picker with available configured genomes
       $genome.find('.choice.genome-choice').remove();
       _.each(o.genomes, function(v, k) {
         if (/^_/.test(k) || k == o.genome) { return; }
-        var $a = $('<a class="clickable"/>').attr('href', './?db='+k);
-        $a.appendTo($('<li class="choice genome-choice"/>').insertBefore($li));
+        var $a = $('<a class="clickable"/>').attr('href', './?db='+k),
+          $newli = $('<li class="choice genome-choice"/>').insertBefore($li);
+        $a.appendTo($newli);
         $('<span class="name"/>').text(v.species).appendTo($a);
         $('<span class="long-desc"/>').text(v.assemblyDate + ' (' + k + ')').appendTo($a);
-        $a.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+        $newli.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       });
       if ($genome.find('.choice.genome-choice').length === 0) { $li.hide(); }
     }

@@ -183,13 +183,11 @@ body {
   -webkit-transform: rotate(-90deg);
   transform: rotate(-90deg);
 }
-.picker .choice { clear: both; }
+.picker .choice { clear: both; position: relative; }
 .picker .choice * { cursor: pointer; }
 .picker .choice a.clickable { text-decoration: none; }
 .picker .choice .clickable { display: block; padding: 0.3em 6px; }
-.picker .choice .more { display: none; font-size: 0.8em; font-weight: normal; padding-top: 2px; color: #346; }
-.picker .choice .clickable.hover { background: #f3f6fa; }
-.picker .choice .clickable.hover .more { display: block; float: right; }
+.picker .choice.hover .clickable { background: #f3f6fa; }
 .picker .choice input { margin: 0 0 0 3px; position: relative; top: -2px; }
 .picker .choice .chk { float: left; width: 20px; }
 .picker .choice.loading > .clickable > .chk {
@@ -203,7 +201,18 @@ body {
   height: 14px;
   padding: 6px 5px 0 1px;
 }
-.picker .button-line { text-align: center; margin: 0em; }
+
+.picker .more-btns {
+  position: absolute;
+  right: -6px;
+  top: 6px;
+  display: none;
+}
+.picker .choice.hover .more-btns { display: block; }
+.picker .ui-buttonset .ui-button { margin-right: -1px; }
+
+.picker .button-line { text-align: center; margin: 0 0 3px 0; }
+.picker .ui-button-text { font-size: 70%; font-weight: normal; }
 .choice .name {
   font-weight: bold;
   font-size: 90%;
@@ -212,7 +221,7 @@ body {
   text-overflow: ellipsis;
   overflow: hidden;
 }
-.picker .choice a.hover .name { text-decoration: underline; }
+.picker .choice.hover a .name { text-decoration: underline; }
 .choice .long-desc {
   display: block;
   font-size: 70%;
@@ -223,6 +232,15 @@ body {
   text-overflow: ellipsis;
   opacity: 0.6;
 }
+
+#navbar .choice .ui-button .zondicon {
+  height: 16px;
+  width: 16px;
+  padding-top: 3px;
+  opacity: 0.5;
+}
+#navbar .choice .ui-button.ui-state-hover .zondicon { opacity: 1; }
+
 .picker .search-warn {
   font-size: 90%;
   text-align: center;
@@ -241,11 +259,21 @@ body {
   font-size: 0.8em;
   clear: both;
 }
+.picker .form-line input[type="button"] {
+  margin-left: 2px;
+}
 .picker .form-line strong {
   float: left;
   text-align: right;
   margin: 0.2em 0.5em 0 0;
   width: 20%;
+}
+.picker .form-line strong.fullwidth {
+  float: none;
+  display: block;
+  text-align: left;
+  padding: 10px 0 0 10px;
+  width: 98%;
 }
 
 #custom-tracks {
@@ -267,11 +295,6 @@ body {
   position: absolute;
   right: 0;
   top: 6px;
-}
-#custom-picker .opts img { 
-  vertical-align: top;
-  padding: 2px 0 2px 0;
-  border: none;
 }
 #custom-picker .help-line {
   padding: 0.3em 0.8em 0.7em;
@@ -297,12 +320,13 @@ body {
   font-size: 0.8em;
 }
 #custom-picker .form-line textarea.paste {
-  width: 200px;
+  width: 290px;
   height: 3em;
   font-size: 0.8em;
   float: left;
   white-space: nowrap;
   overflow: scroll;
+  margin-bottom: 3px;
 }
 
 #loc {
@@ -401,7 +425,10 @@ body {
 }
 #zoom-label {
   font-size: 0.8em;
+  color: #777;
   padding-left: 1em;
+  position: relative;
+  top: -2px;
 }
 #zoom .ui-slider-handle {
   width: 9px;
@@ -426,6 +453,7 @@ body {
   font-size: 0.6em;
 }
 #navbar .ui-button { height: 21px; }
+.ui-button.smaller .ui-button-text { font-size: 70%; font-weight: normal; }
 #navbar .ui-button-text { line-height: 21px; padding: 0 6px; }
 #navbar .ui-button img { vertical-align: top; }
 #navbar.narrow .ui-button .wide { display: none; }
@@ -444,6 +472,7 @@ body {
 }
 
 #link-picker .form-line strong { width: 40%; }
+
 #link-picker .form-line .url { width: 56%; font-size: 0.8em; }
 #link-picker .form-line a { font-size: 0.8em; }
 
@@ -1180,11 +1209,15 @@ body.row-resizing * {
   padding: 4px 5px 4px 0;
   height: 22px;
 }
-#genome input {
+#change-genome {
   float: right;
   margin-left: 0.5em;
   opacity: 0.5;
   cursor: pointer;
+  font-size: 12px;
+}
+#change-genome .ui-button-text {
+  padding: 2px 6px;
 }
 #genome .title {
   position: absolute;
@@ -1242,7 +1275,7 @@ body.row-resizing * {
 }
 .picker-dark .divider { margin: 5px 0; border-top: 1px solid #444; }
 .picker-dark .choice a { color: #ddd; }
-.picker-dark .choice .clickable.hover { background: #333; }
+.picker-dark .choice.hover .clickable { background: #333; }
 
 /* ================= */
 /* = Dialog panels = */
@@ -1288,6 +1321,13 @@ body.row-resizing * {
   text-align: center;
   padding: 4px 0;
   border-top: 1px solid #DDD;
+}
+
+#intro-dialog .ui-state-fake {
+  font-weight: normal;
+  padding: 4px 10px;
+  cursor: default;
+  opacity: 0.7;
 }
 
 #intro-dialog button { font-size: 0.85em; }

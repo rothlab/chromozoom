@@ -41,7 +41,7 @@ function CustomTrack(opts, browserOpts) {
 
 CustomTrack.defaults = {
   name: 'User Track',
-  description: 'User Supplied Track',
+  description: '',
   color: '0,0,0',
   priority: 1
 };
@@ -86,13 +86,14 @@ CustomTrack.prototype.finishSetup = function() {
 }
 
 // Loads CustomTrack options into the track options dialog UI when it is opened
-CustomTrack.prototype.loadOpts = function($dialog) {
+CustomTrack.prototype.loadOpts = function($dialog, genomeSuppliedTrack) {
   var type = this.type(),
-    o = this.opts;
+    o = this.opts,
+    description = o.description || ((genomeSuppliedTrack ? 'Genome Annotation ' : 'User Supplied') + ' Track');
   $dialog.find('.custom-opts-form').hide();
   $dialog.find('.custom-opts-form.'+this._type).show();
   $dialog.find('.custom-name').text(o.name);
-  $dialog.find('.custom-desc').text(o.description);
+  $dialog.find('.custom-desc').text(description);
   $dialog.find('.custom-format').text(this._type);
   $dialog.find('[name=color]').val(o.color).change();
   if (type.loadOpts) { type.loadOpts.call(this, $dialog); }
