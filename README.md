@@ -90,7 +90,7 @@ which also runs right before you commit code to git, since `rake check` installs
 
 ## Recommended Enhancements
 
-None of the following components are strictly necessary for running ChromoZoom; however, they add capabilities of the browser, such as better searching and track format support. Both of these upgrades are in use on our main instance, [chromozoom.org](http://chromozoom.org).
+None of the following components are strictly necessary for running ChromoZoom—however, they add useful capabilities, such as improved searching and track format support. Both of these upgrades were used for our main instance at [chromozoom.org](http://chromozoom.org).
 
 1. Compiling [`bigBedSearch`][bbs], which allows prefix searching of bigBed fields
 2. [HTTPS support](#https-support-for-samtools) for `samtools` and `tabix`
