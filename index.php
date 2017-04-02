@@ -4,26 +4,9 @@
   include('lib/setup.php');
   $MISSING_BINARIES = find_and_link_binaries($REQUIRED_BINARIES);
     
-  $genomes = array();
-  foreach (glob('*.json') as $filename) {
-    $f = file_get_contents($filename);
-    $json = json_decode($f);
-    $genomes[preg_replace('/\.\\w+$/', '', $filename)] = array(
-      'species' => isset($json->species) ? $json->species : NULL, 
-      'assemblyDate' => isset($json->assemblyDate) ? $json->assemblyDate : NULL,
-      'ver' => crc32($f)
-    );
-  }
-  if (count($genomes)) {
-    $default = file_exists('_default.json') ? preg_replace('/\.\\w+$/', '', basename(realpath('_default.json'))) 
-      : reset(array_keys($genomes));
-    $db = isset($_GET['db']) && isset($genomes[$_GET['db']]) ? $_GET['db'] 
-      : (isset($_COOKIE['db']) && $genomes[$_COOKIE['db']] ? $_COOKIE['db'] : $default);
-    $db = preg_match('/^\w+$/', $db) && is_readable("$db.json") ? $db : NULL;
-    $ver = isset($genomes[$db]) ? "?v={$genomes[$db]['ver']}" : '';
-  } else {
-    $db = NULL;
-  }
+  $genomes = file_get_contents(file_exists('genomes.json') ? 'genomes.json' : 'genomes.dist.json');
+  $genomes = json_decode($genomes, TRUE);
+  redirect_to_default_db($genomes);
 ?><!DOCTYPE html>
 <html>
 <head>
@@ -36,10 +19,9 @@
   <script src="build/chromozoom.js"></script>
   <link rel="stylesheet" type="text/css" href="css/syngrey/jquery-ui-1.8.6.custom.css" />
   <link rel="stylesheet" type="text/css" href="css/style.css" />
-  <!--[if lte IE 8]><link rel="stylesheet" type="text/css" href="css/iehax.css" /><![endif]-->
+  <!--[if lte IE 11]><link rel="stylesheet" type="text/css" href="css/iehax.css" /><![endif]-->
 </head>
 <body>
-  
   <div id="wrapper">
     
     <div id="navbar" class="shadow">
@@ -537,11 +519,7 @@ chr3 2000000</textarea>
   <script type="text/javascript">
     $(function() {
       var genomes = <?php echo json_encode($genomes); ?>;
-    <?php if ($db === NULL): ?>
       var options = CustomGenomes.blank().options({width: window.innerWidth});
-    <?php else: ?>
-      var options = <?php echo file_get_contents("$db.json"); ?>;
-    <?php endif; ?>
       $("#browser").genobrowser($.extend(options, {genomes: genomes}));
     });
   </script>

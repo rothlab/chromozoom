@@ -14,28 +14,3 @@
   margin: 30px 10px 15px 0;
   float: left;
 }
-
-.msie #line-mode { display: none; }
-
-#zoom-cont .ticks .tick.last {
-  width: 1px;
-}
-
-.msie .browser-track .tile .tdata {
-  opacity: 1;
-  visibility: hidden;
-}
-.msie .browser-track .tile .tdata.dens-best {
-  visibility: visible;
-}
-
-.msie .browser-line .retic {
-  visibility: hidden;
-}
-
-.msie .browser-track .tile .area.flashing {
-  background: transparent url(color-80FFD76E.png);
-}
-.msie .browser-track .tile .area.hover {
-  background: transparent url(color-0C00FF00.png);
-}

@@ -5,13 +5,12 @@ tracks/
 UCSC_tracks/data
 .bundle/
 docs/examples/wgEncodeBroadHistone*.bigWig
-*.tch
 *.json
 *.yaml
 .DS_Store
 options.js
 !*.dist.yaml
-!*.example.yaml
+!*.dist.json
 **/venv
 **/__pycache__
 *.pyc

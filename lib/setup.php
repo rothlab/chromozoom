@@ -1,5 +1,7 @@
 <?php
 
+define("BASEDIR", dirname(dirname(__FILE__)));
+
 // Return an HTTP 403 and optionally a JSON string encoding an error. Used to indicate invalid input.
 function forbidden($err=NULL) { 
   header('HTTP/1.1 403 Forbidden');
@@ -9,8 +11,8 @@ function forbidden($err=NULL) {
 
 // Returns either the user's customized ucsc.yaml if it exists or the default distributed one.
 function where_is_ucsc_yaml() {
-  $ucsc_dist_yaml = dirname(dirname(__FILE__)) . "/ucsc.dist.yaml";
-  $ucsc_yaml = dirname(dirname(__FILE__)) . "/ucsc.yaml";
+  $ucsc_dist_yaml = BASEDIR . "/ucsc.dist.yaml";
+  $ucsc_yaml = BASEDIR . "/ucsc.yaml";
   return file_exists($ucsc_yaml) ? $ucsc_yaml : $ucsc_dist_yaml;
 }
 
@@ -25,7 +27,7 @@ function ucsc_config() {
 
 // Checks if a given binary $bin is in bin/; if not and it's in PATH, it's symlinked into bin/
 function not_symlinked_or_found_on_path($bin) {
-  $symlink = dirname(dirname(__FILE__)) . '/bin/' . $bin;
+  $symlink = BASEDIR . '/bin/' . $bin;
   if (@is_executable($symlink)) { return false; }
   $output = array(); $retval = 0;
   exec("which $bin", $output, $retval);
@@ -53,6 +55,21 @@ function ensure_tmp_dir_exists() {
   return is_dir($tmp_dir) && is_writable($tmp_dir) ? $tmp_dir : FALSE;
 }
 
+function redirect_to_default_db($genomes) {
+  $default = NULL;
+  foreach ($genomes as $db => $_) {
+    $pieces = explode(':', $db);
+    if ($pieces[0] == 'ucsc' && file_exists(BASEDIR . "/UCSC_tracks/data/" . $pieces[1])) {
+      $default = $db; break;
+    }
+  }
+  $default = isset($_COOKIE['db']) ? $_COOKIE['db'] : $default;
+  $db = isset($_GET['db']) ? $_GET['db'] : NULL;
+  if ($db === NULL && $default !== NULL) { 
+    header("Location: .?db=$default"); exit(); 
+  }
+}
+
 // check that $_GET[$param] contains a valid URL, optionally translating cache:// URLs to local file paths
 function validate_URL_in_GET_param($param, $allow_cache=FALSE) {
   if (!isset($_GET[$param])) { return FALSE; }
@@ -61,7 +78,7 @@ function validate_URL_in_GET_param($param, $allow_cache=FALSE) {
   if (!$valid) { return FALSE; }
   if ($valid && $allow_cache && $matches[1] == 'cache') {
     if (strpos($_GET[$param], '/../') !== FALSE) { return FALSE; } // prevents directory traversal shenanigans
-    $_GET[$param] = preg_replace('#^cache://#', dirname(dirname(__FILE__)) . "/", $_GET[$param]);
+    $_GET[$param] = preg_replace('#^cache://#', BASEDIR . "/", $_GET[$param]);
   }
   return $valid;
 }
