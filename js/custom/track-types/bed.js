@@ -40,6 +40,8 @@ var BedFormat = {
     baseColorUseCds: null,
     // bppp value under which codons are drawn
     drawCodonsUnder: 1,
+    // which genetic code to use, see https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi
+    translTable: 1,
     // don't draw a codon letter if the codon is narrower than this, in px
     minCodonLetterWidth: 9,
     // how much sequence context do we need to draw codons? (we need sequence spanning most introns)
@@ -215,7 +217,7 @@ var BedFormat = {
   codons: function(intervals, width, calcPixInterval, lineNum, start, end, sequence) {
     var codons = [],
       bppp = (end - start) / width,
-      translator = GeneticCode(),
+      translator = GeneticCode(this.opts.translTable),
       seqPadding = this.expectedSequencePadding || 0;
     
     // Retrieves a subsequence from the provided sequence, but using 1-based right-open genomic coordinates.

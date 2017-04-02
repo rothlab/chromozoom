@@ -1,11 +1,12 @@
-// There's more than one genetic code. We use NCBI's code numbering (as provided in transl_table in GenBank)
+// There's more than one genetic code. Therefore we need a configurable way to translate DNA --> AAs.
+// We use NCBI's code numbering scheme (used for /transl_table values in GenBank)
 //
-// By default, we use the standard code (1: pretty much all eukaryotes excepting their mitochondria)
+// By default, we should use the standard code (1: pretty much all eukaryotes excepting mitochondrial genes)
 // 
-// Besides mitochondria, notable carve-outs from a human disease perspective are:
-//  11: essentially all bacteria
-//  4: Mycoplasma
-//  12: some yeasts (Candida albicans, but not Saccharomyces)
+// Besides mitochondrial genes, notable carve-outs from a human disease/genetics perspective are:
+//   4: Mycoplasma
+//   11: essentially all bacteria
+//   12: some yeasts (Candida albicans, but not Saccharomyces)
 
 var _ = require('../../../underscore.min.js');
 

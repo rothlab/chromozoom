@@ -2,7 +2,11 @@
 
 The goal of ChromoZoom is to make genome browsing online as effortless as navigating the world on Google Maps, while retaining superior data density and customizability, modeled off of the capabilities of [UCSC genome browser](http://genome.ucsc.edu/) and [IGV](http://software.broadinstitute.org/software/igv/).
 
-All data is drawn directly in the browser using [canvas][] and [SVG][], similar to the approach of [igv.js][] and [pileup.js][]. Unlike these other projects, however, you do not need to download and install code onto a webserver to make full use of ChromoZoom. Instead of a demo instance, we instead intend to provide a first-class genome browsing experience at [chromozoom.org](http://chromozoom.org), with nearly all data from UCSC mirrored or immediately cross-loadable via extensive use of the [bigBed and bigWig formats][bbbw].
+All data is drawn directly in the browser using [canvas][] and [SVG][], similar to the approach of [igv.js][] and [pileup.js][]. There's a few substantial differences though:
+
+- We placed a premium on fast navigation. You can zoom with the mousewheel and "throw" the display, just like Google Maps.
+- You don't need to install software to a server or embed code into a webpage to use ChromoZoom. [Simply visit chromozoom.org](http://chromozoom.org), which is designed as a first-class genome browsing experience for nearly all of UCSC's tracks and genomes.
+- It's easy to create and load custom genomes using the [IGB Quickload format][igbql].
 
 [canvas]: http://en.wikipedia.org/wiki/Canvas_element
 [SVG]: http://en.wikipedia.org/wiki/Scalable_Vector_Graphics
