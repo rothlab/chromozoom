@@ -179,11 +179,11 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
                 bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_location=as_location)
                 file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
 
-                # If bigBed building failed, try fixing the autosql file once and retrying
+                # If bigBed building failed, try fixing the autosql file once and retrying once. Also, don't index `id`.
                 if file_location is None:
                     try:
                         ut.fix_bed_as_files(bed_location, bed_type)
-                        file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location)
+                        file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, None, True)
                     except:
                         pass
             

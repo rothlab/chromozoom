@@ -792,7 +792,7 @@ def extract_bed_plus_fields(track_type, as_location=None, as_string=None):
     return field_names[num_standard_fields:]
 
 
-def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
+def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None, no_id=False):
     """
     Generates BigBed file. Make sure you have 'fetchChromSizes' and 'bedToBigBed' in your $PATH
     """
@@ -805,7 +805,7 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields):
     bed_file_size = os.path.getsize(bed_file)
     num_cols = re.search(r'\d+', bed_type)
     indexable_fields = ['name'] if int(num_cols.group(0) if num_cols else 0) >= 4 else []
-    whitelist = ['name2', 'id']
+    whitelist = ['name2'] if no_id else ['name2', 'id']
     if bed_plus_fields is not None:
         indexable_fields += [field for field in bed_plus_fields if field in whitelist]
 
