@@ -536,7 +536,7 @@ var BedFormat = {
     ctx.fillStyle = "rgb(" + o.color + ")";
   },
   
-  drawTranslatedCodon: function(ctx, width, codonData, lineHeight) {
+  drawTranslatedCodon: function(ctx, width, codonData, lineHeight, textYOffset) {
     var self = this,
       o = self.opts,
       pInt = codonData.pInt,
@@ -556,7 +556,7 @@ var BedFormat = {
       }
       if (textRight - textLeft >= o.minCodonLetterWidth && lineHeight > 10) {
         ctx.fillStyle = 'rgb(' + textColor + ')';
-        ctx.fillText(codonData.transl.aa, textX, y + height - 2);
+        ctx.fillText(codonData.transl.aa, textX, y + height + textYOffset);
       }
     }
   },
@@ -590,11 +590,11 @@ var BedFormat = {
     } else if (drawSpec.codons) {
       // Now that we have sequence data, draw codon translations on *top* of the already drawn features
       ctx = canvas.getContext('2d');
-      ctx.font = "12px 'Menlo','Bitstream Vera Sans Mono','Consolas','Lucida Console',monospace";
+      ctx.font = (ppbp > 5 ? 12 : 9) + "px 'Menlo','Bitstream Vera Sans Mono','Consolas','Lucida Console',monospace";
       ctx.textAlign = 'center';
       ctx.textBaseline = 'baseline';
       _.each(drawSpec.codons, function(codon) {
-        self.type('bed').drawTranslatedCodon.call(self, ctx, drawSpec.width, codon, lineHeight);  
+        self.type('bed').drawTranslatedCodon.call(self, ctx, drawSpec.width, codon, lineHeight, ppbp > 5 ? -2 : -3);  
       });
     } else {
       if ((drawLimit && drawSpec.layout && drawSpec.layout.length > drawLimit) || drawSpec.tooMany) { 
