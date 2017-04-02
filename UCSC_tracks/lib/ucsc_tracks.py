@@ -188,7 +188,8 @@ def get_organisms_list(host='', prefix=None):
         print('FATAL ({}): Could not connect to UCSC MySQL server at "{}".'.format(print_time(), host))
         sys.exit(1)
     
-    org_names = qups("SELECT name FROM dbDb WHERE active = 1" + prefix_query, xcur)
+    org_names = qups("SELECT name FROM dbDb WHERE active = 1{} ORDER BY orderKey ASC".format(prefix_query),
+                     xcur)
     org_names = [name[0] for name in org_names]
     
     return org_names
