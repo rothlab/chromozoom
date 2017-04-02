@@ -51,11 +51,9 @@ Place a checkout of this repo somewhere in your webserver's DOCROOT.  To setup t
 
 ### To scrape data from UCSC
 
-We use a pipeline to stream data from genomes hosted at UCSC into highly efficient [binary formats][bbbw] that make it simple to serve thousands of annotation tracks from [chromozoom.org](http://chromozoom.org).
+We provide a pipeline to convert data from genomes hosted at UCSC into highly efficient [binary formats][bbbw] that make it simple to serve thousands of annotation tracks from flatfiles. This is the strategy used for [chromozoom.org](http://chromozoom.org).
 
-You'll find this script under `UCSC_tracks/get_tracks.py`. See the [README.md](https://github.com/rothlab/chromozoom/tree/master/UCSC_tracks) in that directory for full instructions on how to run the track scraper.
-
-You can scrape tracks for only the genomes that you're interested in using the `--org_prefix` switch.
+The script is at `UCSC_tracks/get_tracks.py`. See the [README.md](https://github.com/rothlab/chromozoom/tree/master/UCSC_tracks) in that directory for full instructions on how to run the track scraper. You can target the scraper to specific UCSC genome assemblies using the `--org_prefix` switch.
 
 ### Running in virtual environment
 
@@ -84,11 +82,11 @@ After making changes to the JavaScript in `js/`, you need to recompile the scrip
 
     $ rake watchify
 
-which will open three screen sessions and continuously recompile debug-friendly versions of the scripts (quit with Ctrl-A and typing `:quit`.) To compile production versions, use
+which will open three screen sessions and continuously recompile debug-friendly versions of the scripts (quit by pressing <kbd>Ctrl</kbd> + <kbd>A</kbd>, then type `:quit` + <kbd>Enter</kbd>.) To compile minified scripts for production, use
 
     $ rake browserify
 
-which will also run before you commit code to git, since `rake check` installs a pre-commit hook (see `git-hooks-pre-commit.sh`).
+which also runs right before you commit code to git, since `rake check` installs a pre-commit hook (see `git-hooks-pre-commit.sh`).
 
 ## Recommended Enhancements
 
