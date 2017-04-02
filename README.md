@@ -51,19 +51,20 @@ Place a checkout of this repo somewhere in your webserver's DOCROOT.  To setup t
 
 ### To scrape data from UCSC
 
-We use a pipeline to stream data from genomes hosted at UCSC into highly efficient [binary formats][bbbw] that make it simple to serve the data from [chromozoom.org](http://chromozoom.org).
+We use a pipeline to stream data from genomes hosted at UCSC into highly efficient [binary formats][bbbw] that make it simple to serve thousands of annotation tracks from [chromozoom.org](http://chromozoom.org).
 
-You'll find this script under `UCSC_tracks/get_tracks.py`. 
+You'll find this script under `UCSC_tracks/get_tracks.py`. See the [README.md](https://github.com/rothlab/chromozoom/tree/master/UCSC_tracks) in that directory for full instructions on how to run the track scraper.
+
+You can scrape tracks for only the genomes that you're interested in using the `--org_prefix` switch.
 
 ### Running in virtual environment
 
-Using virtualization ChromoZoom can run easily from any system. [VirtualBox](http://www.virtualbox.org/wiki/Downloads) and [Vagrant](http://www.vagrantup.com/downloads.html) must be installed.
-To set up your environment use commands:
+Using virtualization ChromoZoom can run easily from any system. [VirtualBox](http://www.virtualbox.org/wiki/Downloads) and [Vagrant](http://www.vagrantup.com/downloads.html) must be installed. To set up your environment, run the following:
 
     $ cd path/to/this/repo
     $ vagrant up
 
-Once set up, you can access ChromoZoom at `localhost:8080`
+Once set up, you can access ChromoZoom at `localhost:8080`.
 	
 ## Development
 

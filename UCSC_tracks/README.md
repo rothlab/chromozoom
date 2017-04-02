@@ -46,3 +46,10 @@ If you only want to fetch tracks for organism databases matching a prefix, e.g. 
 
     $ python get_tracks.py --org_prefix=hg38
 
+By default, only simple tracks are scraped (which is fairly quick excepting SNP tracks). To scrape composite and super tracks, which are the tracks on UCSC that contain many subtracks, use:
+
+    $ python get_tracks --composite_tracks --super_tracks --org_prefix=hg38
+
+To see a list of all options:
+
+    $ python get_tracks.py --help
