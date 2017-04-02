@@ -162,41 +162,32 @@
       
       <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" tabindex="-1" role="dialog" aria-labelledby="ui-dialog-title-intro-dialog" id="about-dialog-cont">
         <div id="about-dialog" class="ui-dialog-content ui-widget-content">
-          <h2 id="about">About ChromoZoom</h2>
+          <h2 id="about">About ChromoZoom v2</h2>
           <p>
-            ChromoZoom was written by Theodore Pak with the advice and support of Dr. Frederick "Fritz" Roth in 2012.  To cite ChromoZoom, please see our article in <a href="http://bioinformatics.oxfordjournals.org/content/early/2012/12/06/bioinformatics.bts695.short">Bioinformatics</a>.
+            ChromoZoom was written by Theodore Pak, Miha Skalic, and Adrian Pasculescu with the support of Dr. Frederick "Fritz" Roth and Dr. Andrew Kasarskis from 2012-<?= date('Y'); ?>.  To cite ChromoZoom, please use <a href="http://bioinformatics.oxfordjournals.org/content/early/2012/12/06/bioinformatics.bts695.short">our article in <em>Bioinformatics</em></a>.
           </p>
           <p>
-            Takafumi Yamaguchi, Joseph Mellor, and all the members of the <a href="http://llama.mshri.on.ca">Roth Laboratory</a> provided valuable design input and sample custom data.
+            Takafumi Yamaguchi, Joseph Mellor, members of the <a href="http://llama.mshri.on.ca">Roth Laboratory</a>, and students in the <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4534145/">Practical Analysis of Your Personal Genome class</a> at <a href="http://icahn.mssm.edu/research/genomics">Mount Sinai</a> provided valuable design input and sample data.
           </p>
           <p>
-            This project would not have been possible without the following open-source programs and libraries:
+            ChromoZoom v2 would not have been possible without the following open-source programs and libraries:
             <ul>
-              <li><a href="http://genome.ucsc.edu">The UCSC Genome Browser</a></li>
-              <li><a href="http://www.ruby-lang.org">Ruby</a>, <a href="http://rubygems.org">RubyGems</a>, 
-                <a href="http://gembundler.com">Bundler</a>, and <a href="http://rake.rubyforge.org/">Rake</a></li>
-              <li><a href="http://fallabs.com/tokyocabinet/">Tokyo Cabinet</a>
-                and <a href="http://fallabs.com/tokyotyrant/">Tokyo Tyrant</a></li>
-              <li>The <a href="http://nokogiri.org">nokogiri</a>, 
-                <a href="http://github.com/jmettraux/rufus-tokyo">rufus-tokyo</a>,
-                <a href="http://flori.github.com/json/">json</a>,
-                <a href="http://0xcc.net/ruby-bsearch/">bsearch</a>,
-                <a href="http://github.com/ffi/ffi/wiki">ffi</a>,
-                and <a href="http://htmlentities.rubyforge.org/">htmlentities</a> gems</li>
+              <li><a href="http://genome.ucsc.edu">UCSC Genome Browser</a> and 
+                <a href="http://www.htslib.org/">samtools/htslib</a></li>
+              <li><a href="http://www.ruby-lang.org">Ruby</a> and <a href="http://rake.rubyforge.org/">Rake</a>;
+                <a href="https://nodejs.org/">NodeJS</a>, <a href="http://browserify.org/">browserify</a>, and
+                <a href="https://github.com/substack/watchify">watchify</a></li>
+              <li><a href="http://documentcloud.github.com/underscore/">underscore.js</a>, 
+                <a href="http://jquery.com">jQuery</a>, <a href="http://jqueryui.com">jQuery UI</a>, and the
+                <a href="https://greensock.com/">Greensock Animation Platform</a></li>
               <li>The <a href="http://httpd.apache.org/">Apache HTTP Server</a>, 
                 <a href="http://php.net">PHP</a>,
                 and <a href="http://curl.haxx.se">cURL</a></li>
-              <li><a href="http://documentcloud.github.com/underscore/">underscore.js</a>, 
-                <a href="http://jquery.com">jQuery</a>,
-                and <a href="http://jqueryui.com">jQuery UI</a></li>
               <li>The <a href="http://code.drewwilson.com/entry/tiptip-jquery-plugin">TipTip</a>,
                 <a href="http://github.com/kpozin/jquery-nodom">NoDOM</a>,
                 <a href="https://github.com/jeresig/jquery.hotkeys">Hotkeys</a>,
-                <a href="https://github.com/padolsey/jQuery-Plugins/tree/master/sortElements/">SortElements</a>,
                 and <a href="http://github.com/furf/jquery-ui-touch-punch">touch-punch</a> extensions for jQuery</li>
               <li>JavaScript by <a href="http://github.com/shinout">Shin Suzuki</a></li>
-              <li><a href="http://www.imagemagick.org">ImageMagick</a>
-                and <a href="http://lodev.org/lodepng/">LodePNG</a></li>
             </ul>
           </p>
         </div>

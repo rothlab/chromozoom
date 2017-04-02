@@ -1,6 +1,7 @@
 <?php
 
 define("BASEDIR", dirname(dirname(__FILE__)));
+date_default_timezone_set('America/New_York');
 
 // Return an HTTP 403 and optionally a JSON string encoding an error. Used to indicate invalid input.
 function forbidden($err=NULL) { 
