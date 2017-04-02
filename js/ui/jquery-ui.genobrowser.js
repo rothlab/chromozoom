@@ -2145,19 +2145,6 @@ module.exports = function($, _) {
           loadAllChoicesAfter();
         }, self._searchId));
       });
-
-      // For non-custom genomes, we also run a server-side search for features matching this query
-      if (!o.custom) {
-        self.currentSearches.push($.ajax(o.ajaxDir + 'search.php', {
-          data: {position: search, db: o.genome},
-          dataType: 'json',
-          success: function(data) {
-            if (self._searchResults.id != self._searchId) { return; }  // too late
-            self._searchResults.data.push(data);
-            loadAllChoicesAfter();
-          }
-        }));
-      }
     },
 
     // Handles the selection of a search result from the search dropdown
