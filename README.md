@@ -83,7 +83,11 @@ After making changes to the JavaScript in `js/`, you need to recompile the scrip
 
     $ rake watchify
 
-which will open three screen sessions and continuously recompile debug-friendly versions of the scripts (quit with Ctrl-A and typing `:quit`.)
+which will open three screen sessions and continuously recompile debug-friendly versions of the scripts (quit with Ctrl-A and typing `:quit`.) To compile production versions, use
+
+    $ rake browserify
+
+which will also run before you commit code to git, since `rake check` installs a pre-commit hook (see `git-hooks-pre-commit.sh`).
 
 ## Recommended Enhancements
 
