@@ -325,12 +325,12 @@ module.exports = function($, _) {
 
       $ul.append('<li class="divider"/>');
       $a = $('<a class="clickable"/>').attr('href', o.dialogs[4]).appendTo($('<li class="choice"/>').appendTo($ul));
-      $('<span class="name"/>').text('More genomes\u2026').appendTo($a);
-      $('<span class="long-desc"/>').text('Fetch or specify chrom sizes').appendTo($a);
+      $('<span class="name"/>').text('See more genomes\u2026').appendTo($a);
+      $('<span class="long-desc"/>').text('from UCSC, GenBank and IGB').appendTo($a);
       $ul.append('<li class="divider"/>');
       $a = $('<a class="clickable"/>').attr('href', o.dialogs[5]).appendTo($('<li class="choice"/>').appendTo($ul));
       $('<span class="name"/>').text('Load from file or URL\u2026').appendTo($a);
-      $('<span class="long-desc"/>').text('in GenBank, FASTA, or EMBL format').appendTo($a);
+      $('<span class="long-desc"/>').text('in GenBank or FASTA format').appendTo($a);
 
       $genome.find('.clickable').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       self._updateGenomePicker();

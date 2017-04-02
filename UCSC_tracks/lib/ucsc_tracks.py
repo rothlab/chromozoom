@@ -716,10 +716,13 @@ def augment_knownGene_bed_file(organism, old_location):
     
     if not fetch_table_tsv_gz(organism, 'kgXref', kgXref_gz_file):
         print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "kgXref".'.format(print_time(), organism))
-    if not fetch_table_tsv_gz(organism, 'kgColor', kgColor_gz_file):
+        return old_location
+    elif not fetch_table_tsv_gz(organism, 'kgColor', kgColor_gz_file):
         print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "kgColor".'.format(print_time(), organism))
-    if not fetch_table_tsv_gz(organism, 'knownCds', knownCds_gz_file):
+        return old_location
+    elif not fetch_table_tsv_gz(organism, 'knownCds', knownCds_gz_file):
         print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "knownCds".'.format(print_time(), organism))
+        return old_location
         
     with gzip.open(kgXref_gz_file, 'rt', newline="\n") as kgXref_handle:
         for line in kgXref_handle:
