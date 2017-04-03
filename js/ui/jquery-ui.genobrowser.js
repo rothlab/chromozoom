@@ -332,7 +332,7 @@ module.exports = function($, _) {
       $('<span class="name"/>').text('Load from file or URL\u2026').appendTo($a);
       $('<span class="long-desc"/>').text('in GenBank or FASTA format').appendTo($a);
 
-      $genome.find('.choice').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+      $genome.find('.clickable').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       self._updateGenomePicker();
 
       self._createPicker($toggleBtn, $genomePicker);
@@ -1685,6 +1685,7 @@ module.exports = function($, _) {
           $ac = t.custom && $('<a class="opts"><img src="css/cog.svg" class="zondicon"/></a>'),
           $span = $('<span/>').text(d[n].sm),
           moreBtns = !!$am + !!$ac,
+          $hov = $l,
           $innerUl, childTracks, childTracksUnderPriority;
 
         if (!composite && !self.availTracks[t.n]) {
@@ -1695,7 +1696,7 @@ module.exports = function($, _) {
         $('<h3/>').addClass('name').append($span).appendTo($d);
         if ($am) { $am.attr({href: href, title: "More info about this track"}).button().appendTo($mb); } 
         if ($ac) { $ac.attr('title', "Options").button().click(_.bind(self.editCustomTrack, self, n)).appendTo($mb); }
-        if (moreBtns) { $mb.appendTo($li); }
+        if (moreBtns) { $mb.appendTo($li); $hov = $hov.add($mb); }
         if (moreBtns > 1) {
           $mb.children('.ui-button').removeClass('ui-corner-all').eq(0).addClass('ui-corner-left');
           $mb.children('.ui-button').eq(-1).addClass('ui-corner-right');
@@ -1726,7 +1727,7 @@ module.exports = function($, _) {
 
         $l.bind('click', function(e) { if ($(e.target).is('a')) { e.stopPropagation(); }});
         $l.attr('title', n + (d[n].lg && d[n].lg.length > 58 ? ': ' + d[n].lg : ''));
-        $li.hover(function() { $li.addClass('hover'); }, function() { $li.removeClass('hover'); });
+        $hov.hover(function() { $hov.addClass('hover'); }, function() { $hov.removeClass('hover'); });
         $c.bind('change', _.bind(self._fixTracks, self));
       });
     },
@@ -1830,7 +1831,7 @@ module.exports = function($, _) {
           $c = $('<input type="checkbox"/>').attr('name', n).prependTo($('<div class="chk"/>').prependTo($l));
           $d = $('<div class="desc"></div>').appendTo($l);
           $o = $('<button class="opts"><img src="css/cog.svg" class="zondicon icon" alt="options"/></button>').appendTo($li),
-          $li.hover(function() { $li.addClass('hover'); }, function() { $li.removeClass('hover'); });
+          $l.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
           $l.attr('title', n);
           $c.bind('change', _.bind(self._fixTracks, self));
           $o.button().click(_.bind(self.editCustomTrack, self, n));
@@ -2720,7 +2721,7 @@ module.exports = function($, _) {
         $a.appendTo($newli);
         $('<span class="name"/>').text(v.species).appendTo($a);
         $('<span class="long-desc"/>').text(v.assemblyDate + ' (' + k + ')').appendTo($a);
-        $newli.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+        $a.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       });
       if ($genome.find('.choice.genome-choice').length === 0) { $li.hide(); }
     }

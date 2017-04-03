@@ -187,7 +187,7 @@ body {
 .picker .choice * { cursor: pointer; }
 .picker .choice a.clickable { text-decoration: none; }
 .picker .choice .clickable { display: block; padding: 0.3em 6px; }
-.picker .choice.hover .clickable { background: #f3f6fa; }
+.picker .choice .clickable.hover { background: #f3f6fa; }
 .picker .choice input { margin: 0 0 0 3px; position: relative; top: -2px; }
 .picker .choice .chk { float: left; width: 20px; }
 .picker .choice.loading > .clickable > .chk {
@@ -208,7 +208,9 @@ body {
   top: 6px;
   display: none;
 }
-.picker .choice.hover .more-btns { display: block; }
+.picker .more-btns.hover {
+  display: block;
+}
 .picker .ui-buttonset .ui-button { margin-right: -1px; }
 
 .picker .button-line { text-align: center; margin: 0 0 3px 0; }
@@ -221,7 +223,7 @@ body {
   text-overflow: ellipsis;
   overflow: hidden;
 }
-.picker .choice.hover a .name { text-decoration: underline; }
+.picker .choice a.hover .name { text-decoration: underline; }
 .choice .long-desc {
   display: block;
   font-size: 70%;
@@ -1275,7 +1277,7 @@ body.row-resizing * {
 }
 .picker-dark .divider { margin: 5px 0; border-top: 1px solid #444; }
 .picker-dark .choice a { color: #ddd; }
-.picker-dark .choice.hover .clickable { background: #333; }
+.picker-dark .choice .clickable.hover { background: #333; }
 
 /* ================= */
 /* = Dialog panels = */
