@@ -150,12 +150,13 @@ def parse_trackdb_settings(settings):
     return parsed_settings
 
 
-def get_update_time(xcur, db, table_name):
+def get_last_remote_updates(xcur, db, table_names):
     """
-    Fetches table update time
+    Fetches table update times
     """
-    return str(qups(("SELECT UPDATE_TIME FROM information_schema.tables "
-                     "WHERE TABLE_SCHEMA='{}' AND TABLE_NAME='{}'").format(db, table_name), xcur)[0][0])
+    in_clause = ','.join(['"' + table_name + '"' for table_name in table_names])
+    return dict(qups(("SELECT TABLE_NAME, UPDATE_TIME FROM information_schema.tables "
+                      "WHERE TABLE_SCHEMA='{}' AND TABLE_NAME IN ({})").format(db, table_names), xcur))
 
 
 def get_last_location_and_bed_plus_fields(localconn, track_name):

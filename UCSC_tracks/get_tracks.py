@@ -82,6 +82,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
     
     local_db, localconn = ut.create_sqllite3_db(organism)
     last_updates = ut.get_last_local_updates(localconn)
+    remote_updates = ut.get_last_remote_updates(cur, organism, selected_tracks_having_tables)
     
     my_tracks = ut.fetch_tracks(xcur=cur, selection=selected_tracks)
     my_tracks = sorted(my_tracks, key=lambda row: (track_info[row[0]]['parentTrack'], row[0]))
@@ -112,8 +113,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
         bedlike_format = ut.is_bedlike_format(tr_type)
 
         # First, check if we need to update the table at all
-        if track_has_a_table:
-            update_date = ut.get_update_time(cur, organism, track_name)
+        update_date = remote_updates.get(track_name, None)
         if track_has_a_table and track_name in last_updates:
             if not args.update_metadata_only and last_updates[track_name] == update_date:
                 print('INFO ({}): [db {}] data for table "{}" is up to date.'.format(ut.print_time(),
