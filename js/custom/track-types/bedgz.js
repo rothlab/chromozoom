@@ -12,6 +12,8 @@ var RemoteTrack = require('./utils/RemoteTrack.js').RemoteTrack;
 // Intended to be loaded into CustomTrack.types.bedgz
 var BedGzFormat = _.extend({}, bigbed, {
   
+  magicBytes: null,
+  
   parse: function(lines) {
     var self = this,
       middleishPos = self.browserOpts.genomeSize / 2,

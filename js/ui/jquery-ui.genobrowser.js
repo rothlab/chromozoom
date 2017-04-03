@@ -69,13 +69,15 @@ module.exports = function($, _) {
       genomePicker: ['#genome', '#genome-picker', '#change-genome'],
       lineMode: '#line-mode',
       linking: ['#linking', '#link-picker'],
+      warnings: ['#warnings'],
       overlay: ['#overlay', '#overlay-message'],
       lineFixDuration: 500,
       reticOpacity: 0.8,
       verticalDragDeadZone: 12,
       maxNtRequest: 50000,
       bounceMargin: 0.2,
-      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie', '#chrom-sizes-dialog', '#custom-genome-dialog', '#binaries-warning-dialog'],
+      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie', '#chrom-sizes-dialog', 
+                '#custom-genome-dialog', '#binaries-warning-dialog', '#warnings-dialog'],
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
       trackDescURL: 'http://genome.ucsc.edu/cgi-bin/hgTrackUi',
       bpppFormat: function(bppp) { return bppp.toExponential(2).replace(/(\+|-)(\d)$/, '$10$2'); },
@@ -325,7 +327,7 @@ module.exports = function($, _) {
 
       $ul.append('<li class="divider"/>');
       $a = $('<a class="clickable"/>').attr('href', o.dialogs[4]).appendTo($('<li class="choice"/>').appendTo($ul));
-      $('<span class="name"/>').text('See more genomes\u2026').appendTo($a);
+      $('<span class="name"/>').text('Load other genomes\u2026').appendTo($a);
       $('<span class="long-desc"/>').text('from UCSC, GenBank and IGB').appendTo($a);
       $ul.append('<li class="divider"/>');
       $a = $('<a class="clickable"/>').attr('href', o.dialogs[5]).appendTo($('<li class="choice"/>').appendTo($ul));
@@ -435,7 +437,6 @@ module.exports = function($, _) {
         $elem = self.element,
         o = self.options,
         fileInputHTML = '<input type="file" name="customFile"/>',
-        urlInputHTML = '<input type="url" name="customUrl" class="url"/><input type="button" name="customUrlGet" value="go!"/>',
         $toggleBtn = $(o.trackPicker[2]).button(),
         $picker = $(o.trackPicker[3]).hide(),
         $ul = $('<ul class="choices"/>').prependTo($picker),
@@ -444,7 +445,7 @@ module.exports = function($, _) {
         $overlayMessage = $(o.overlay[1]),
         $urlInput, $urlGet, $div, $b, $reset;
 
-      function browserOpts() {
+      function browserOpts(context) {
         var nextDirectives = _.extend({}, self._nextDirectives),
           pos = nextDirectives.position && self.normalizePos(nextDirectives.position, true);
         pos = pos ? pos.pos : self.pos;
@@ -455,7 +456,8 @@ module.exports = function($, _) {
           pos: pos,
           chrLengths: o.chrLengths,
           genomeSize: o.genomeSize,
-          ajaxDir: o.ajaxDir
+          ajaxDir: o.ajaxDir,
+          context: context
         };
       }
 
@@ -465,30 +467,40 @@ module.exports = function($, _) {
         loaded: []
       };
 
-      function customTrackError(e) {
+      self._initWarningsDialog();
+      function customTrackError(err) {
         $picker.find('.spinner').hide();
-        var msg = e.message.replace(/^Uncaught Error: /, '');
-        window.alert('Sorry, an error occurred while adding this custom track file:\n\n' + msg);
-        // TODO: replace this with something more friendly.
+        self.showWarning(err.message.replace(/^Uncaught \w+: /, ''), err);
         replaceFileInput();
       }
 
       function closePicker() { $picker.slideUp(100); }
 
       function handleFileSelect(e) {
-        var reader = new FileReader(),
+        var formatchecker = new FileReader(),
+          reader = new FileReader(),
           $add = $(e.target).closest('.form-line'),
           $spinner = $add.find('.spinner').show();
         if (e.target.files.length) {
-          reader.onload = (function(f) {
+          formatchecker.onload = (function(f) {
             return function(ev) {
-              CustomTracks.parseAsync(ev.target.result, browserOpts(), function(tracks) {
-                $spinner.hide();
-                self._addCustomTracks(f.name, tracks);
-              });
+              var info = CustomTracks.guessFormat(ev.target.result);
+              if (info.binary) {
+                format = info.format ? (", " + info.format + ",") : "";
+                customTrackError({message: "Looks like you tried to load a binary format" + format + " from disk. " +
+                    "Binary files must be loaded from a URL.", context: f.name});
+                return;
+              }
+              reader.onload = function(eve) {
+                CustomTracks.parseAsync(eve.target.result, browserOpts(f.name), function(tracks) {
+                  $spinner.hide();
+                  self._addCustomTracks(f.name, tracks);
+                });
+              };
+              reader.readAsText(f);
             };
           })(e.target.files[0]);
-          reader.readAsText(e.target.files[0]);
+          formatchecker.readAsArrayBuffer(e.target.files[0].slice(0, 128))
         }
         replaceFileInput();
       }
@@ -508,15 +520,60 @@ module.exports = function($, _) {
           $picker.find('[name=customFile]').change(handleFileSelect);
         });
       }
-
-      function handlePastedData(e) {
-        var $add = $(e.target).closest('.form-line'),
-          $spinner = $add.find('.spinner').show();
-        CustomTracks.parseAsync($add.find('textarea').val(), browserOpts(), function(tracks) {
+      
+      function parsePastedData(pastedData, $spinner) {
+        CustomTracks.parseAsync(pastedData, browserOpts("pasted data"), function(tracks) {
           $spinner.hide();
           self._addCustomTracks(_.uniqueId('pasted_data_'), tracks);
           $add.find('textarea').val('');
         });
+      }
+      function loadPastedUrls(pastedUrls, $spinner) {
+        var urls = _.compact(_.map(pastedUrls.split("\n"), function(line) { return $.trim(line); })),
+          numUrls = urls.length;
+        
+        var updateProgress = (function() {
+          var progress = _.map(_.range(numUrls), function() { return 0; });
+          return function (which, loaded, total) {
+            var $progress = $overlayMessage.find('.ui-progressbar');
+            if (!$progress.length) { $progress = $('<div/>').appendTo($overlayMessage).progressbar(); }
+            progress[which] = loaded/total * 100 / numUrls;
+            $progress.progressbar('value', _.reduce(progress, function(memo, n) { return memo + n; }, 0));
+          }
+        })();
+        
+        var hideOverlay = _.after(numUrls, function() { 
+          $spinner.hide();
+          $overlay.add($overlayMessage).fadeOut();
+        });
+        
+        _.each(urls, function(url, i) {
+          self._customTrackUrls.requested = _.without(self._customTrackUrls.requested, url);
+          self._customTrackUrls.processing = _.union(self._customTrackUrls.processing, [url]);
+          $.ajax(url, {
+            success: function(data) {
+              CustomTracks.parseAsync(data, browserOpts(url), function(tracks) {
+                self._customTrackUrls.loaded = _.union(self._customTrackUrls.loaded, [url]);
+                self._addCustomTracks(basename(url), tracks, url);
+                hideOverlay();
+              });
+            },
+            progress: _.partial(updateProgress, i),
+            error: function() {
+              hideOverlay();
+              customTrackError({message: "No valid custom track data was found at this URL.", context: url});
+            }
+          });
+        });
+      }
+      function handlePastedData(e) {
+        var $add = $(e.target).closest('.form-line'),
+          $spinner = $add.find('.spinner').show(),
+          $textarea = $add.find('textarea'),
+          pastedData = $.trim($textarea.val());
+        if ((/^https?:\/\//).test(pastedData)) { loadPastedUrls(pastedData, $spinner); }
+        else { parsePastedData(pastedData, $spinner); }
+        $textarea.val('');
       }
       function pasteAreaFocus(e) {
         var $this = $(this), height = $this.height();
@@ -527,41 +584,6 @@ module.exports = function($, _) {
       $add.find('[name=customPasteAdd]').click(handlePastedData);
       $add.find('textarea').focus(pasteAreaFocus).blur(pasteAreaBlur);
       $add = $add.nextAll('.form-line').first();
-
-      function handleUrlSelect(e) {
-        var $add = $(e.target).closest('.form-line'),
-          $spinner = $add.find('.spinner'),
-          $url = $add.find('[name=customUrl]'),
-          url = $.trim($url.val());
-        if (!url.length) { return; }
-        $spinner.show();
-        self._customTrackUrls.requested = _.without(self._customTrackUrls.requested, url);
-        self._customTrackUrls.processing = _.union(self._customTrackUrls.processing, [url]);
-        $.ajax(url, {
-          success: function(data) {
-            CustomTracks.parseAsync(data, browserOpts(), function(tracks) {
-              $spinner.hide();
-              $url.val('');
-              self._customTrackUrls.loaded = _.union(self._customTrackUrls.loaded, [url]);
-              self._addCustomTracks(basename(url), tracks, url);
-              $overlay.add($overlayMessage).fadeOut();
-            });
-          },
-          progress: function(loaded, total) {
-            var $progress = $overlayMessage.find('.ui-progressbar');
-            if (!$progress.length) { $progress = $('<div/>').appendTo($overlayMessage).progressbar(); }
-            $progress.progressbar('value', loaded/total * 100);
-          },
-          error: function() {
-            $overlay.hide();
-            $overlayMessage.hide();
-            customTrackError({message: "No valid custom track data was found at this URL."});
-          }
-        });
-      }
-      $add.find('label').html(urlInputHTML);
-      $add.find('[name=customUrlGet]').click(handleUrlSelect);
-      $add.find('[name=customUrl]').bind('keydown', function(e) { if (e.which==13) { handleUrlSelect(e); } });
 
       // Redefine the CustomTracks error handler so the user can see parse errors for their custom track(s).
       CustomTracks.error = customTrackError;
@@ -1087,9 +1109,7 @@ module.exports = function($, _) {
 
       function customGenomeError(e) {
         $genomeDialog.find('.spinner').hide();
-        var msg = e.message.replace(/^Uncaught Error: /, '');
-        window.alert('Sorry, an error occurred while adding this custom genome file:\n\n' + msg);
-        // TODO: replace this with something more friendly.
+        self.showWarning(err.message.replace(/^Uncaught \w+: /, ''), err);
         replaceFileInput();
       }
 
@@ -1184,6 +1204,14 @@ module.exports = function($, _) {
       $add.find('[name=genomeUrl]').bind('keydown', function(e) { if (e.which==13) { handleUrlSelect(e); } });
     },
 
+    _initWarningsDialog: function() {
+      var self = this,
+        o = self.options,
+        $warningsButton = $(o.warnings[0]).button().hide();
+      self.$warningsDialog = $(o.dialogs[7]).closest('.ui-dialog');
+      $warningsButton.click(function() { self.$warningsDialog.trigger('open'); });
+    },
+
     _initFromParams: function(params, suppressRepeat) {
       var self = this,
         o = self.options,
@@ -1193,8 +1221,8 @@ module.exports = function($, _) {
         $customPicker = $(o.trackPicker[3]),
         $genomeDialog = $(o.dialogs[5]).closest('.ui-dialog'),
         $chromSizesDialog = $(o.dialogs[4]).closest('.ui-dialog'),
-        $trackUrlInput = $customPicker.find('[name=customUrl]'),
-        $trackUrlGet = $customPicker.find('[name=customUrlGet]'),
+        $trackUrlInput = $customPicker.find('[name=customPaste]'),
+        $trackUrlGet = $customPicker.find('[name=customPasteAdd]'),
         $genomeUrlInput = $genomeDialog.find('[name=genomeUrl]'),
         $genomeUrlGet = $genomeDialog.find('[name=genomeUrlGet]'),
         remoteGenomeSettings = {
@@ -2371,7 +2399,7 @@ module.exports = function($, _) {
         value, delta, deltaMode;
 
       // You can scroll the track pickers, select boxes, and textareas as usual
-      if ($(e.target).closest('.picker,select,textarea').length) { return; }
+      if ($(e.target).closest('.picker,select,textarea,.ui-dialog').length) { return; }
 
       self.$lines.genoline('stopThrow');                                // Stop any current inertial throwing animation
       if (_.isUndefined(self._wheelDelta)) { self._wheelDelta = 0; }
@@ -2724,6 +2752,30 @@ module.exports = function($, _) {
         $a.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       });
       if ($genome.find('.choice.genome-choice').length === 0) { $li.hide(); }
+    },
+    
+    // Shows the dialog with warnings.
+    showWarning: function(message, error) {
+      var self = this,
+        o = self.options,
+        $warningsButton = $(o.warnings[0]),
+        $messages = self.$warningsDialog.find('.messages > ol'),
+        $oldMessages = $messages.children('li'),
+        $li = $.mk('li').html(message),
+        lineno = (error.lineno ? 'line ' + error.lineno + ' of ' : ''),
+        context = error.context && ('In ' + lineno + error.context + ':');
+        
+      $oldMessages.addClass('old');
+      if (context) {
+        if (error.line) { $.mk('div').addClass('line mono').text(error.line).prependTo($li); }
+        $.mk('div').addClass('context').text(context).prependTo($li);
+      }
+      $.mk('div').addClass('num').text(($oldMessages.length + 1) + '.').prependTo($li);
+      $li.appendTo($messages);
+      self.$trackPicker.add(self.$customTracks).trigger('close');
+      self.$warningsDialog.trigger('open');
+      self.$warningsDialog.find('.messages').scrollTop($messages.get(0).scrollHeight);
+      $warningsButton.fadeIn(400).fadeOut(400).fadeIn(400).fadeOut(400).fadeIn(400);
     }
 
   });

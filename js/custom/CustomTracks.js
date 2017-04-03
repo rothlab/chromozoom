@@ -9,6 +9,15 @@ module.exports = (function(global){
   // The class that represents a singular custom track object
   var CustomTrack = require('./CustomTrack.js')(global);
 
+  function TrackParseError(message, browserOpts, lineno, line) {
+    this.name = 'TrackParseError';
+    this.message = message;
+    this.context = browserOpts.context;
+    this.lineno = lineno;
+    this.line = line.slice(0, 200);
+  }
+  TrackParseError.prototype = new Error;  
+
   // ========================================================================
   // = CustomTracks, the module that is exported to the global environment. =
   // ========================================================================
@@ -38,18 +47,22 @@ module.exports = (function(global){
           } else if (/^browser\s+/.test(line)) {
             // browser lines
             m = line.match(/^browser\s+(\w+)\s+(\S*)/);
-            if (!m) { throw new Error("Could not parse browser line found at line " + (lineno + 1)); }
+            if (!m) { throw new TrackParseError("Could not parse browser line", browserOpts, lineno + 1, line); }
             customTracks.browser[m[1]] = m[2];
           } else if (/^track\s+/i.test(line)) {
             if (track) { pushTrack(); }
             opts = parseDeclarationLine(line, (/^track\s+/i));
-            if (!opts) { throw new Error("Could not parse track line found at line " + (lineno + 1)); }
+            if (!opts) { throw new TrackParseError("Could not parse track line", browserOpts, lineno + 1, line); }
             if (parentOpts && _.isObject(parentOpts)) { opts = _.extend({}, parentOpts, opts); }
             opts.lineNum = lineno + 1;
             track = new CustomTrack(opts, browserOpts);
             data = [];
           } else if (/\S/.test(line)) {
-            if (!track) { throw new Error("Found data on line "+(lineno+1)+" but no preceding track definition"); }
+            if (!track) { 
+              throw new TrackParseError("Plaintext track formats require a track definition line. For an example, " +
+                  "see <a href=\"http://useast.ensembl.org/info/website/upload/bed.html#tracklines\">" +
+                  "this page from Ensembl.</a>", browserOpts, lineno + 1, line); 
+            }
             data.push(line);
           }
         });
@@ -128,7 +141,23 @@ module.exports = (function(global){
           return self._tracks[t.id];
         });
       });
+    },
+    
+    guessFormat: function(firstChunk) {
+      if (_.isUndefined(Uint8Array) || _.isUndefined(Uint32Array)) { return {}; }
+      var chunkAsBytes = new Uint8Array(firstChunk),
+        chunkAsUint32s = new Uint32Array(firstChunk),
+        info = {
+          binary: _.some(chunkAsBytes, function(i) { 
+            return (i < 32 && i != 9 && i != 10 && i != 13) || i > 127; 
+          })
+        };      
+      info.format = _.findKey(CustomTrack.types, function(spec, format) {
+        return !!spec.magicBytes && _.contains(spec.magicBytes, chunkAsUint32s[0]);
+      });
+      return info;
     }
+    
   };
 
   global.CustomTracks = CustomTracks;

@@ -50,11 +50,11 @@ global.addEventListener('message', function(e) {
     callback = function(r) { global.postMessage({id: data.id, ret: JSON.stringify(r || null)}); },
     ret;
 
-  if (CustomTrackWorker._throwErrors || true) {  // FIXME
+  if (CustomTrackWorker._throwErrors) {
     ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback));
   } else {
     try { ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback)); } 
-    catch (err) { global.postMessage({id: data.id, error: JSON.stringify({message: err.message})}); }
+    catch (err) { global.postMessage({id: data.id, error: JSON.stringify(err)}); }
   }
   
   if (!_.isUndefined(ret)) { callback(ret); }

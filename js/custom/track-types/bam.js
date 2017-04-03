@@ -43,6 +43,9 @@ var BamFormat = {
     expectedInsertSizePercentiles: [0.005, 0.995]
   },
   
+  // Magic bytes that identify this format
+  magicBytes: [0x1f8b0804],
+  
   // The FLAG column for BAM/SAM is a combination of bitwise flags
   flags: {
     isReadPaired: 0x1,

@@ -327,7 +327,7 @@ body {
   font-size: 0.8em;
   float: left;
   white-space: nowrap;
-  overflow: scroll;
+  overflow: auto;
   margin-bottom: 3px;
 }
 
@@ -452,16 +452,19 @@ body {
 #line-mode {
   float: left;
   margin-left: 1.2em;
-  font-size: 0.6em;
 }
+#for-line-mode-multi { margin-right: -0.6em; }
 #navbar .ui-button { height: 21px; }
 .ui-button.smaller .ui-button-text { font-size: 70%; font-weight: normal; }
 #navbar .ui-button-text { line-height: 21px; padding: 0 6px; }
 #navbar .ui-button img { vertical-align: top; }
 #navbar.narrow .ui-button .wide { display: none; }
 
-#linking.ui-button { font-size: 0.7em; }
+#line-mode .ui-button, #linking.ui-button, #warnings.ui-button { font-size: 10px; }
 #linking img { padding: 2px 0 3px 0; border: none; }
+
+#warnings { color: rgb(180, 0, 0); }
+#warnings.ui-button .zondicon { margin-top: 0; }
 
 #link-picker {
   display: none;
@@ -482,7 +485,7 @@ body {
   position: absolute;
   padding: 0.2em 0;
   left: 0;
-  width: 1000px;
+  min-width: 1100px;
   top: 0;
   bottom: 1px;
 }
@@ -1542,6 +1545,58 @@ body.row-resizing * {
 #custom-genome-dialog input[type="file"], #custom-genome-dialog input[type="button"] {
   font-size: 1em;
 }
+
+#warnings-dialog-cont {
+  min-height: 220px;
+  width: 440px;
+  margin-left: -200px;
+}
+#warnings-dialog .intro {
+  font-weight: bold;
+  margin-top: 1em;
+}
+#warnings-dialog .zondicon {
+  height: 20px;
+  width: 20px;
+  vertical-align: bottom;
+  margin-bottom: -2px;
+}
+#warnings-dialog .messages {
+  height: 120px;
+  overflow: auto;
+}
+#warnings-dialog .messages-fade {
+  position: absolute;
+  width: 400px;
+  height: 30px;
+  z-index: 1;
+  background: -moz-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%);
+  background: -webkit-linear-gradient(top, rgba(255,255,255,1) 0%,rgba(255,255,255,0) 100%);
+  background: linear-gradient(to bottom, rgba(255,255,255,1) 0%,rgba(255,255,255,0) 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#ffffff', endColorstr='#00ffffff',GradientType=0 );
+}
+#warnings-dialog ol { padding-left: 1.6em; list-style-type: none; position: relative; }
+#warnings-dialog .messages li { margin: 1em 0; }
+#warnings-dialog .messages .num { position: absolute; left: 0; }
+#warnings-dialog .messages .context {
+  display: block;
+  font-style: italic;
+  color: #777;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#warnings-dialog .messages .line {
+  display: block;
+  margin: 4px 0;
+  padding: 0.5em;
+  border: 1px solid #ddd;
+  background: #f0f0f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#warnings-dialog .messages .old { opacity: 0.5; }
 
 /* ============== */
 /* = tipTip CSS = */

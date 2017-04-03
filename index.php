@@ -51,7 +51,6 @@
                 <input type="button" name="customPasteAdd" value="add"/>
               </label>
             </div>
-            <div class="form-line"><div class="spinner"></div><strong>add URL: </strong><label></label></div>
             <div class="help-line">
               <a target="_blank" href="http://genome.ucsc.edu/FAQ/FAQformat.html#format1">BED</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bedgraph.html">bedGraph</a>,
@@ -83,7 +82,7 @@
         <div class="control-seg last">
           <div id="line-mode">
             <input type="radio" id="line-mode-multi" name="linemode" value="multi" />
-            <label for="line-mode-multi">
+            <label id="for-line-mode-multi" for="line-mode-multi">
               <img src="css/multi-line.png" alt="multi" /><span class="wide"> multi</span>
             </label>
             <input type="radio" id="line-mode-single" name="linemode" checked="checked" value="single" />
@@ -102,6 +101,7 @@
               <strong>open region in: </strong><label><a name="ucsc" href="#" target="_blank">the UCSC Genome Browser</a></label>
             </div>
           </div>
+          <a id="warnings"><img src="css/alert-circled.svg" alt="alert" class="zondicon"/></a>
         </div>
       </div>
     </div>
@@ -482,6 +482,7 @@ chr3 2000000</textarea>
         </div>
       </div>
       <![endif]-->
+        
       <?php if (count($MISSING_BINARIES) > 0): ?>
       <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" tabindex="-1" role="dialog" id="binaries-warning-dialog-cont">
         <div id="binaries-warning-dialog" class="ui-dialog-content ui-widget-content">
@@ -506,6 +507,18 @@ chr3 2000000</textarea>
         </div>
       </div>
       <?php endif; ?>
+      
+      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" tabindex="-1" role="dialog" aria-labelledby="ui-dialog-title-intro-dialog" id="warnings-dialog-cont">
+        <div id="warnings-dialog" class="ui-dialog-content ui-widget-content">
+          <div class="intro"><img src="css/alert-circled.svg" alt="alert" class="zondicon"/>
+            Errors were encountered while loading data</div>
+          <div class="messages-fade"></div>
+          <div class="messages"><ol></ol></div>
+        </div>
+        <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
+          <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Close</button>
+        </div>
+      </div>
       
     </div>
     

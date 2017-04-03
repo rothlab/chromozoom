@@ -18,6 +18,9 @@ var BigBedFormat = {
     // Above what tile width (in nts) do we avoid fetching data altogether? (0 means guess this from the index's summary stats)
     maxFetchWindow: 0
   }),
+  
+  // Magic bytes that identify this format
+  magicBytes: [0x8789F2EB, 0xEBF28987],
 
   init: function() {
     if (!this.opts.bigDataUrl) {

@@ -36,17 +36,26 @@ function valid_content_type($content_type) {
 
 if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
 
-// First check if this is actually a bigBed, bigWig, or vcfTabix file
+// First check if this is actually a bigBed or bigWig file
 // If the corresponding tool returns a exit code of 0, we guess that it is, and proxy back
 // a barebones track definition line with a bigDataUrl equal to this URL.
 $FORMAT_BINS = array(
-  "bigbed" => escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigBedInfo'),
-  "bigwig" => escapeshellarg(dirname(dirname(__FILE__)) . '/bin/bigWigInfo')
+  "bigbed" => escapeshellarg(BASEDIR . '/bin/bigBedInfo'),
+  "bigwig" => escapeshellarg(BASEDIR . '/bin/bigWigInfo')
 );
 foreach ($FORMAT_BINS as $type=>$FORMAT_BIN) {
   $output = array();
   exec("$FORMAT_BIN " . escapeshellarg($_GET['url']), $output, $exit_code);
   if ($exit_code === 0) { bigformat_track_def($_GET['url'], $type); }
+}
+// If the URL ends in one of these known suffixes, we guess it's the corresponding big format and
+// again provide the barebones track definition line.
+$FORMAT_MATCHERS = array(
+  "bam" => '/\\.bam$/',
+  "vcftabix" => '/\\.vcf\\.gz$/'
+);
+foreach ($FORMAT_MATCHERS as $type=>$FORMAT_MATCHER) {
+  if (preg_match($FORMAT_MATCHER, $_GET['url'])) { bigformat_track_def($_GET['url'], $type); }
 }
 
 // Not nearly as efficient, but in a PHP environment without curl, it's better than nothing.

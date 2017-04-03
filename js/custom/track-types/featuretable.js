@@ -28,6 +28,7 @@ var FeatureTableFormat = {
     this.type('bed').initOpts.call(this);
     this.opts.collapseByGene = this.isOn(this.opts.collapseByGene);
     this.featureTypeCounts = {};
+    this.renderSequenceCallbacks = {};
   },
   
   // parses one feature key + location/qualifiers row from the feature table

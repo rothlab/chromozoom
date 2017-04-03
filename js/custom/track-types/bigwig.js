@@ -19,6 +19,9 @@ var BigWigFormat = {
     windowingFunction: 'maximum',
     smoothingWindow: 'off'
   },
+  
+  // Magic bytes that identify this format
+  magicBytes: [0x888FFC26, 0x26FC8F88],
 
   init: function() {
     if (!this.opts.bigDataUrl) {
