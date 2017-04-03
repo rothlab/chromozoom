@@ -155,8 +155,9 @@ def get_last_remote_updates(xcur, db, table_names):
     Fetches table update times
     """
     in_clause = ','.join(['"' + table_name + '"' for table_name in table_names])
-    return dict(qups(("SELECT TABLE_NAME, UPDATE_TIME FROM information_schema.tables "
-                      "WHERE TABLE_SCHEMA='{}' AND TABLE_NAME IN ({})").format(db, in_clause), xcur))
+    result = qups(("SELECT TABLE_NAME, UPDATE_TIME FROM information_schema.tables "
+                   "WHERE TABLE_SCHEMA='{}' AND TABLE_NAME IN ({})").format(db, in_clause), xcur)
+    return dict([(row[0], str(row[1])) for row in result])
 
 
 def get_last_location_and_bed_plus_fields(localconn, track_name):
