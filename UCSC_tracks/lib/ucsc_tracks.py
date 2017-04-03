@@ -928,7 +928,7 @@ def translate_settings(xcur, organism, table_name, parent_track, is_composite_tr
             if key in old_settings:
                 pieces = re.split(r'\s+', old_settings[key])
                 new_settings['tagging'][pieces[0]] = {"desc": pieces[1]}
-                new_settings['tagging'][pieces[0]]["vals"] = dict([keyval.split("=") for keyval in pieces[2:]])
+                new_settings['tagging'][pieces[0]]["vals"] = dict([keyval.split("=", 1) for keyval in pieces[2:]])
     
     # special exception for knownGene
     if table_name == 'knownGene': new_settings['itemRgb'] = 'on'
