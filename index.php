@@ -45,7 +45,7 @@
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/wiggle.html">WIG</a>
               files can be loaded from your hard disk.
             </div>
-            <div class="form-line"><div class="spinner"></div><strong class="fullwidth">paste data or URLs</strong>
+            <div class="form-line"><div class="spinner"></div><strong class="fullwidth">paste URLs or data</strong>
               <label>
                 <textarea class="paste" name="customPaste" rows="1" cols="30"></textarea>
                 <input type="button" name="customPasteAdd" value="add"/>
@@ -59,7 +59,7 @@
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigBed.html">bigBed</a>,
               <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/bigWig.html">bigWig</a>,
               and <a target="_blank" href="http://genome.ucsc.edu/goldenPath/help/vcf.html">VCFTabix</a><br/>
-              are currently supported, using UCSC's specifications.<br/>
+              are currently supported, using the UCSC specifications.<br/>
               For more details, please see the <a target="_blank" href="docs/#custom-tracks">User Guide.</a>
             </div>
           </div>
