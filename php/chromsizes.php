@@ -14,40 +14,40 @@ $response = array();
 
 $ucsc_config = ucsc_config();
 $tmp_dir = $ucsc_config['tmp_dir'];
-$all_genomes_url = $ucsc_config['data_urls']['all_genomes'];
+$mysql_authoritative = $ucsc_config['browser_mysql']['authoritative'];
 $chrom_info_url = $ucsc_config['data_urls']['chrom_info'];
-$prefix = parse_url(preg_replace('/%s.*$/', '', $chrom_info_url), PHP_URL_PATH);
-$big_zips = $ucsc_config['data_urls']['big_zips'];
 $track_db_path = $ucsc_config['ucsc_cached_track_db'];
 $chrom_info_file = $ucsc_config['ucsc_cached_chrom_sizes'];
 $cytoband_bed_path = $ucsc_config['ucsc_cached_track_cytoband'];
 
+// Returns basic info for all UCSC genomes based on the public MySQL database
+// Results are cached for 1 week since this data is required for every chromozoom page request
 function getAllGenomes() {
-  global $all_genomes_url, $prefix, $big_zips, $tmp_dir;
+  global $mysql_authoritative, $tmp_dir;
+  
   $cache_file = "$tmp_dir/all-genomes.cached.json";
   if (@is_readable($cache_file) && time() - filemtime($cache_file) < 7 * 24 * 60 * 60) {
     return json_decode(file_get_contents("$tmp_dir/all-genomes.cached.json"), TRUE);
   }
   
-  $genomes = array();
-  $dom = new DOMDocument;
-  @$dom->loadHTML(file_get_contents($all_genomes_url));
-  $xpath = new DOMXPath($dom);
-  $node_list = $xpath->query("//a[starts-with(@href,'$prefix')][contains(@href,'$big_zips')]");
-
-  foreach($node_list as $node) {
-    $genome = array();
-    $genome['name'] = preg_replace('/\/.*$/', '', substr($node->attributes->getNamedItem('href')->nodeValue, strlen($prefix)));
-    $sibling_table = $xpath->query("./ancestor::table[1]/preceding-sibling::table[1]", $node);
-    if ($sibling_table->length == 1) {
-      $genome['species'] = preg_replace('/^[^\x21-\x7E]+|\\s+genome\\s+$/i', '', $sibling_table->item(0)->textContent);
-    }
-    $desc_nodes = $xpath->query("./ancestor::ul[1]/preceding-sibling::p[1]", $node);
-    if ($desc_nodes->length == 1) {
-      $genome['assemblyDate'] = preg_replace('/\\s+\\(\\w+(,\\s+\\w+)?\\):?$|/', '', trim($desc_nodes->item(0)->textContent));
-    }
-    $genomes[] = $genome;
+  $conn = mysqli_connect($mysql_authoritative, 'genome', '', 'hgcentral');
+  if ($conn === false) { return array( "error" => "Could not connect to UCSC's MySQL server"); }
+  $query = 'SELECT name, description, organism, scientificName FROM dbDb WHERE active = 1 ORDER BY orderKey ASC';
+  $result = mysqli_query($conn, $query);
+  if ($result === false) { 
+    return array( "error" => "Error while querying UCSC's MySQL server: " . mysqli_error($conn)); 
   }
+  
+  $genomes = array();
+  
+  while ($row = mysqli_fetch_assoc($result)) {
+    $genomes[] = array(
+      "name" => $row['name'],
+      "species" => $row['scientificName'],
+      "assemblyDate" => $row['description']
+    );
+  }
+  
   @file_put_contents($cache_file, json_encode($genomes));
   return $genomes;
 }

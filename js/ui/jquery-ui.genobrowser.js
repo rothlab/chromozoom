@@ -470,7 +470,7 @@ module.exports = function($, _) {
       self._initWarningsDialog();
       function customTrackError(err) {
         $picker.find('.spinner').hide();
-        self.showWarning(err.message.replace(/^Uncaught \w+: /, ''), err);
+        err.message && self.showWarning(err.message.replace(/^Uncaught \w+: /, ''), err);
         replaceFileInput();
       }
 
@@ -1281,7 +1281,7 @@ module.exports = function($, _) {
           } else { // customGenomeSource == 'igb'
             remoteParams = { url: customGenomePieces.slice(2).join(':'), limit: customGenomePieces[1] };
           }
-
+          
           $.ajax(o.ajaxDir + remote.url, {
             data: remoteParams,
             dataType: 'json',
