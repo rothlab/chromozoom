@@ -16,9 +16,11 @@ $INFO_ONLY = FALSE;
 if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
 passthru_basic_auth_for_GET_param('url');
 if (!($tmp_dir = ensure_tmp_dir_exists())) { forbidden(); }
-if (isset($_GET['info'])) { $INFO_ONLY = TRUE; } 
-$ranges = array_filter((array) $_GET['range'], 'valid_range');
-if (!isset($_GET['range']) || !count($ranges)) { forbidden(); }
+if (isset($_GET['info'])) { $INFO_ONLY = TRUE; }
+
+$REQ = $_SERVER['REQUEST_METHOD'] == 'POST' ? $_POST : $_GET;
+$ranges = array_filter(explode(' ', $REQ['range']), 'valid_range');
+if (!isset($REQ['range']) || !count($ranges)) { forbidden(); }
 
 // currently unused; bam.js does all summary statistics on its end. See below NOTE for some more thoughts on this
 //

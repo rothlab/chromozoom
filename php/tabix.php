@@ -21,8 +21,9 @@ if (isset($_GET['info'])) {
   $INFO_ONLY = TRUE;
   if (preg_match('#^\\d+$#', $_GET['info'])) { $NUM_FIELDS = min(max(intval($_GET['info']), 3), 12); }
 }
-$ranges = array_filter((array) $_GET['range'], 'valid_range');
-if (!isset($_GET['range']) || !count($ranges)) { forbidden(); }
+$REQ = $_SERVER['REQUEST_METHOD'] == 'POST' ? $_POST : $_GET;
+$ranges = array_filter(explode(' ', $REQ['range']), 'valid_range');
+if (!isset($REQ['range']) || !count($ranges)) { forbidden(); }
 
 $TABIX = escapeshellarg(dirname(dirname(__FILE__)) . '/bin/tabix');
 

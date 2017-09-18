@@ -70,7 +70,8 @@ var BigWigFormat = {
       width = precalc.width,
       // Note: bigWig tools expect regions in 0-based, right-OPEN coordinates
       // (even though wiggle files use 1-based coordinates)
-      chrRange = self.chrRange(start, end, true);
+      range = self.chrRange(start, end, true).join(' '),
+      ajaxParams = $.param({url: self.opts.bigDataUrl, width: width, winFunc: self.opts.windowingFunction});
   
     function success(data) {
       var drawSpec = self.type('wiggle_0').initDrawSpec.call(self, precalc),
@@ -82,8 +83,9 @@ var BigWigFormat = {
       callback(drawSpec);
     }
   
-    $.ajax(self.ajaxDir() + 'bigwig.php', {
-      data: {range: chrRange, url: self.opts.bigDataUrl, width: width, winFunc: self.opts.windowingFunction},
+    $.ajax(self.ajaxDir() + 'bigwig.php?' + ajaxParams, {
+      type: range.length > 500 ? 'POST' : 'GET',
+      data: { range: range },
       success: success
     });
   },

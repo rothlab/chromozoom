@@ -38,14 +38,15 @@ var BigBedFormat = {
     var self = this,
       middleishPos = self.browserOpts.genomeSize / 2,
       cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
-      ajaxUrl = self.ajaxDir() + 'bigbed.php',
+      ajaxUrl = self.ajaxDir() + 'bigbed.php?' + $.param({url: self.opts.bigDataUrl, density: 'pack'}),
       remote;
     
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
       // Note: bigBed tools expect regions in 0-based, right-OPEN coordinates.
-      range = self.chrRange(start, end, true);
+      range = self.chrRange(start, end, true).join(' ');
       $.ajax(ajaxUrl, {
-        data: {range: range, url: self.opts.bigDataUrl, density: 'pack'},
+        type: range.length > 500 ? 'POST' : 'GET',
+        data: { range: range },
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
           var intervals = _.map(lines, function(l) { 
@@ -108,7 +109,8 @@ var BigBedFormat = {
       data = self.data,
       bppp = (end - start) / width,
       // Note: bigBed tools expect regions in 0-based, right-OPEN coordinates.
-      range = this.chrRange(start, end, true);
+      range = this.chrRange(start, end, true).join(' '),
+      url;
     
     function lineNum(d, setTo) {
       var key = bppp + '_' + density;
@@ -135,8 +137,11 @@ var BigBedFormat = {
       callback({tooMany: true});
     } else {
       if (density == 'dense') {
-        $.ajax(self.ajaxDir() + 'bigbed.php', {
-          data: {range: range, url: self.opts.bigDataUrl, width: width, density: density},
+        url = self.ajaxDir() + 'bigbed.php?' + $.param({url: self.opts.bigDataUrl, width: width, density: density});
+        console.log(range.length);
+        $.ajax(url, {
+          type: range.length > 500 ? 'POST' : 'GET',
+          data: { range: range },
           success: parseDenseData
         });
       } else {

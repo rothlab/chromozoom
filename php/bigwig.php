@@ -18,8 +18,9 @@ if (!($tmp_dir = ensure_tmp_dir_exists())) { forbidden(); }
 
 $SUMMARY = !isset($_GET['info']);
 if ($SUMMARY) {
-  if (!isset($_GET['range'])) { forbidden(); } 
-  else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
+  $REQ = $_SERVER['REQUEST_METHOD'] == 'POST' ? $_POST : $_GET;
+  if (!isset($REQ['range'])) { forbidden(); } 
+  else { $ranges = array_filter(explode(' ', $REQ['range']), 'valid_range'); }
   if (!count($ranges)) { forbidden(); }
   if (!isset($_GET['width'])) { forbidden(); }
   $WIDTH = max(min(intval($_GET['width']), 5000), 1);

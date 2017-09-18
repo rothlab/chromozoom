@@ -18,14 +18,15 @@ var BedGzFormat = _.extend({}, bigbed, {
     var self = this,
       middleishPos = self.browserOpts.genomeSize / 2,
       cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
-      ajaxUrl = self.ajaxDir() + 'tabix.php',
+      ajaxUrl = self.ajaxDir() + 'tabix.php?' + $.param({url: self.opts.bigDataUrl, density: 'pack'}),
       remote;
     
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
       // Note: tabix, like samtools, expects regions in 1-based, right-closed coordinates.
-      range = self.chrRange(start, end);
+      range = self.chrRange(start, end).join(' ');
       $.ajax(ajaxUrl, {
-        data: {range: range, url: self.opts.bigDataUrl, density: 'pack'},
+        type: range.length > 500 ? 'POST' : 'GET',
+        data: { range: range },
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
           var intervals = _.map(lines, function(l) { 
@@ -57,7 +58,7 @@ var BedGzFormat = _.extend({}, bigbed, {
     var self = this,
       ajaxUrl = self.ajaxDir() + 'tabix.php',
       sampleWindow = 100000,
-      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + sampleWindow)),
+      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + sampleWindow)).join(' '),
       remote = self.data.remote;
    
     $.ajax(ajaxUrl, {

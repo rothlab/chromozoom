@@ -77,13 +77,13 @@ var VcfTabixFormat = {
     var self = this,
       middleishPos = self.browserOpts.genomeSize / 2,
       cache = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}),
-      ajaxUrl = self.ajaxDir() + 'tabix.php',
+      ajaxUrl = self.ajaxDir() + 'tabix.php?' + $.param({url: self.opts.bigDataUrl}),
       remote;
 
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
       var o = self.opts,
         // Note: tabix expects regions in 1-based, right-closed coordinates.
-        range = self.chrRange(start, end);
+        range = self.chrRange(start, end).join(' ');
       // Convert automatically between Ensembl style 1, 2, 3, X <--> UCSC style chr1, chr2, chr3, chrX as configured/autodetected
       // Note that chrM is NOT equivalent to MT https://www.biostars.org/p/120042/#120058
       switch (o.convertChrScheme == "auto" ? self.data.info.convertChrScheme : o.convertChrScheme) {
@@ -91,7 +91,8 @@ var VcfTabixFormat = {
         case 'ucsc_ensembl': range = _.map(range, function(r) { return r.replace(/^(\d\d?|X):/, 'chr$1:'); }); break;
       }
       $.ajax(ajaxUrl, {
-        data: {range: range, url: self.opts.bigDataUrl},
+        type: range.length > 500 ? 'POST' : 'GET',
+        data: { range: range },
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
           var intervals = _.map(lines, function(l) { 
@@ -118,7 +119,7 @@ var VcfTabixFormat = {
     var self = this,
       ajaxUrl = self.ajaxDir() + 'tabix.php',
       sampleWindow = 100000,
-      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + sampleWindow)),
+      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + sampleWindow)).join(' '),
       remote = self.data.remote;
     
     $.ajax(ajaxUrl, {

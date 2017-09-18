@@ -17,11 +17,12 @@ if (!validate_URL_in_GET_param('url', TRUE)) { forbidden(); }
 passthru_basic_auth_for_GET_param('url');
 if (!($tmp_dir = ensure_tmp_dir_exists())) { forbidden(); }
 
-if (!isset($_GET['range'])) { 
+$REQ = $_SERVER['REQUEST_METHOD'] == 'POST' ? $_POST : $_GET;
+if (!isset($REQ['range'])) { 
   if (isset($_GET['search'])) { $SEARCH = $_GET['search']; }
   else { $INFO_ONLY = TRUE; }
-} else { $ranges = array_filter((array) $_GET['range'], 'valid_range'); }
-if (isset($_GET['range']) && !count($ranges)) { forbidden(); }
+} else { $ranges = array_filter(explode(' ', $REQ['range']), 'valid_range'); }
+if (isset($REQ['range']) && !count($ranges)) { forbidden(); }
 $SUMMARY = isset($_GET['density']) && $_GET['density']=='dense';
 if ($SUMMARY) {
   if (!isset($_GET['width'])) { forbidden(); }

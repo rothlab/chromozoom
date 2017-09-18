@@ -105,12 +105,12 @@ var BamFormat = {
       middleishPos = self.browserOpts.genomeSize / 2,
       cache = new PairedIntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'}, 
           {startKey: 'templateStart', endKey: 'templateEnd', pairedLengthKey: 'tlen', pairingKey: 'qname'}),
-      ajaxUrl = self.ajaxDir() + 'bam.php',
+      ajaxUrl = self.ajaxDir() + 'bam.php?' + $.param({url: self.opts.bigDataUrl}),
       remote;
     
     remote = new RemoteTrack(cache, function(start, end, storeIntervals) {
       // Note: samtools expects regions in 1-based, right-closed coordinates.
-      range = self.chrRange(start, end);
+      range = self.chrRange(start, end).join(' ');
       // Convert automatically between Ensembl style 1, 2, 3, X <--> UCSC style chr1, chr2, chr3, chrX as configured/autodetected
       // Note that chrM is NOT equivalent to MT https://www.biostars.org/p/120042/#120058
       switch (o.convertChrScheme == "auto" ? self.data.info.convertChrScheme : o.convertChrScheme) {
@@ -118,7 +118,8 @@ var BamFormat = {
         case 'ucsc_ensembl': range = _.map(range, function(r) { return r.replace(/^(\d\d?|X):/, 'chr$1:'); }); break;
       }
       $.ajax(ajaxUrl, {
-        data: {range: range, url: self.opts.bigDataUrl},
+        type: range.length > 500 ? 'POST' : 'GET',
+        data: { range: range },
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
           
@@ -152,7 +153,7 @@ var BamFormat = {
       remote = self.data.remote,
       // Like IGV, we simply use the current browser position to start pulling reads for BAM statistics.
       // It might be worth considering whether a broader search is more reliable for chromozoom's purposes
-      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + 10000));
+      infoChrRange = self.chrRange(Math.round(self.browserOpts.pos), Math.round(self.browserOpts.pos + 10000)).join(' ');
     
     // Get general info on the BAM (e.g. `samtools idxstats`), use mapped reads per reference sequence
     // to estimate maxFetchWindow and optimalFetchWindow, and setup binning on the RemoteTrack.
