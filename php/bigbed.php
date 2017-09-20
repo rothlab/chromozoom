@@ -94,13 +94,15 @@ if ($INFO_ONLY) {
   if (strtolower($SEARCH) != $SEARCH && strtoupper($SEARCH) != $SEARCH) {
     $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg($SEARCH) . $cmd_suffix);
     $out2 = "";
+    $out3 = "";
   } else {
-    // Otherwise, search for both cases.
+    // Otherwise, search for uppercase, lowercase, and title case versions
     $out = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(strtolower($SEARCH)) . $cmd_suffix);
     $out2 = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(strtoupper($SEARCH)) . $cmd_suffix);
+    $out3 = shell_exec("$BIGBED_BIN " . escapeshellarg($_GET['url']) . " " . escapeshellarg(ucwords($SEARCH)) . $cmd_suffix);
   }
   // Dedupe results and send them back to the user.
-  echo implode("\n", array_unique(explode("\n", "$out$out2")));
+  echo implode("\n", array_unique(explode("\n", "$out$out2$out3")));
 
 } else {
   
