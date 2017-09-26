@@ -76,8 +76,8 @@ module.exports = function($, _) {
       verticalDragDeadZone: 12,
       maxNtRequest: 50000,
       bounceMargin: 0.2,
-      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie', '#chrom-sizes-dialog', 
-                '#custom-genome-dialog', '#binaries-warning-dialog', '#warnings-dialog'],
+      dialogs: ['#custom-dialog', '#quickstart', '#about', '#old-msie', '#genomes-dialog',
+                ['#search-dbs-tab', '#open-file-url-tab'], '#binaries-warning-dialog', '#warnings-dialog'],
       ucscURL: 'http://genome.ucsc.edu/cgi-bin/hgTracks',
       trackDescURL: 'http://genome.ucsc.edu/cgi-bin/hgTrackUi',
       bpppFormat: function(bppp) { return bppp.toExponential(2).replace(/(\+|-)(\d)$/, '$10$2'); },
@@ -326,21 +326,22 @@ module.exports = function($, _) {
         $a;
 
       $ul.append('<li class="divider"/>');
-      $a = $('<a class="clickable"/>').attr('href', o.dialogs[4]).appendTo($('<li class="choice"/>').appendTo($ul));
-      $('<span class="name"/>').text('Load other genomes\u2026').appendTo($a);
+      $a = $('<a class="clickable"/>').attr('href', o.dialogs[5][0]).appendTo($('<li class="choice"/>').appendTo($ul));
+      $('<span class="name"/>').text('Load more genomes\u2026').appendTo($a);
       $('<span class="long-desc"/>').text('from UCSC, GenBank and IGB').appendTo($a);
       $ul.append('<li class="divider"/>');
-      $a = $('<a class="clickable"/>').attr('href', o.dialogs[5]).appendTo($('<li class="choice"/>').appendTo($ul));
-      $('<span class="name"/>').text('Load from file or URL\u2026').appendTo($a);
+      $a = $('<a class="clickable"/>').attr('href', o.dialogs[5][1]).appendTo($('<li class="choice"/>').appendTo($ul));
+      $('<span class="name"/>').text('Open file or URL\u2026').appendTo($a);
       $('<span class="long-desc"/>').text('in GenBank or FASTA format').appendTo($a);
 
-      $genome.find('.clickable').hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
+      $genome.find('.clickable').hover(function() { $(this).addClass('hover'); }, 
+                                       function() { $(this).removeClass('hover'); });
       self._updateGenomePicker();
 
       self._createPicker($toggleBtn, $genomePicker);
 
       // Setup the dialogs that appear upon clicking footerbar links
-      _.each(o.dialogs, function(id) {
+      _.each(_.flatten(o.dialogs), function(id) {
         var $dialog = $(id).closest('.ui-dialog');
         function openDialog() {
           $('.ui-dialog').hide();
@@ -349,13 +350,16 @@ module.exports = function($, _) {
           $dialog.css('top', Math.max(($elem.parent().innerHeight() - $dialog.outerHeight()) * 0.5, 30));
         }
         $dialog.bind('open.genobrowser', openDialog);
-        $foot.find('a[href='+id+']').click(function() { $dialog.trigger('open.genobrowser'); });
+        $foot.find('a[href='+id+']').click(function() { 
+          $dialog.trigger('open.genobrowser');
+          if ($(id).hasClass('ui-tabs-panel')) { $dialog.find('.ui-tabs-nav a[href="'+id+'"]').click(); }
+        });
         $dialog.find('.ui-dialog-buttonpane button').button().not('.dont-close').click(function() {
           $dialog.fadeOut();
         });
       });
 
-      self._initCustomGenomeDialogs();
+      self._initCustomGenomeDialog();
 
       // Show the quickstart screen if the user has never been here before and the viewport is big enough to show it
       if ($.cookie('db')===null && $(window).width() > 600 && $(window).height() > 420) {
@@ -412,7 +416,7 @@ module.exports = function($, _) {
       if (o.searchableTracks) {
         $search = $('<input type="search"/>').appendTo($searchBar);
         searchDebounced = _.debounce(function() { self._searchTracks($search.val()); }, 200);
-        $search.bind('keyup click', function(e) {
+        $search.bind('keyup search', function(e) {
           var typeMore = $search.val().length > 0 && $search.val().length < 3,
             typeMoreToLoadMoreTracks = o.custom && o.custom.canSearchTracks && typeMore;
           $searchBar.toggleClass('type-more', typeMoreToLoadMoreTracks);
@@ -786,7 +790,7 @@ module.exports = function($, _) {
         }
         pinchWidth = Math.abs(getPageX(oe, oe.touches[0].identifier) - getPageX(oe, oe.touches[1].identifier));
         if (prevPinchWidth) {
-          var delta = (pinchWidth / prevPinchWidth - 1) * 50,
+          var delta = (pinchWidth / prevPinchWidth - 1) * 100,
             // TODO: delta could probably be tweaked to proviude perfect positional zooming
             fakeEvent = {target: touchTarget, originalEvent: {srcElement: touchTarget, pageX: center}};
           // Simulate the equivalent mousewheel event
@@ -893,200 +897,245 @@ module.exports = function($, _) {
       $dialog.addClass('initialized');
     },
 
-    _initChromSizesDialog: function() {
+    _initCustomGenomeFromDatabase: function(handlePastedData, updateSaveBtnState) {
       var self = this,
         o = self.options,
-        $chromSizesDialog = $(o.dialogs[4]).closest('.ui-dialog');
+        $genomeDialog = $(o.dialogs[4]).closest('.ui-dialog'),
+        $chromSizesTabs = $genomeDialog.find('.tabs'),
+        $genomeList = $genomeDialog.find('.genome-list'),
+        $addIgbSource = $genomeDialog.find('.add-choice'),
+        $filterGenomes = $genomeDialog.find('[name=filterGenomes]');
 
+      // Cache all IGB Quickload directory data, by URL
       self._igbQuickloadData = self._igbQuickloadData || {};
 
-      function filterGenomeList(e) {
-        var searchTerms = _.map($(this).val().split(/\s+/), function(t) { return t.toLowerCase(); }),
-          $list = $(e.data.list);
-        searchTerms = _.reject(searchTerms, function(t) { return t === ''; });
-        $list.children('option').each(function() {
-          var v = $(this).text().toLowerCase(),
-            termsFound = _.reduce(searchTerms, function(memo, t){ return memo + (v.indexOf(t) !== -1 ? 1 : 0); }, 0);
-          if (searchTerms.length === 0 || termsFound == searchTerms.length) { $(this).removeClass('hidden'); }
-          else { $(this).addClass('hidden'); }
-        });
-        $list.scrollTop(0).val($list.children('option:not(.hidden)').eq(0).val()).change();
+      function hoverClasses($clickables) {
+        return $clickables.hover(function() { $(this).addClass('hover'); }, function() { $(this).removeClass('hover'); });
       }
 
-      function loadedChromSizes(data, $panel) {
-        $chromSizesDialog.find('.contigs-loading').stop().fadeOut();
-        if (data.error) {
-          $panel.find('.skipped-num').text(data.skipped);
-          $panel.find('.ui-state-error').fadeIn().children('.contig-load-error').show();
-        } else {
-          $chromSizesDialog.find('[name=chromsizes]').val(data.chromsizes);
-          $chromSizesDialog.find('[name=name]').val(data.db);
-          $chromSizesDialog.data('genomeMetadata', data);
-          $chromSizesDialog.find('[name=save]').button('enable').addClass('glowing');
-          if (data.skipped) {
-            $panel.find('.skipped-num').text(data.skipped);
-            $panel.find('.ui-state-error').fadeIn().children('.skipped-warning').show();
-          }
-        }
+      function makeGenomeListLi(kind, db, name, longDesc, source) {
+        var $li = hoverClasses($('<li class="choice clickable ' + kind.toLowerCase() + '"/>')),
+          $h3 = $('<h3 class="name"/>').text(name).appendTo($li),
+          $p = $('<p class="long-desc"/>').text(longDesc).appendTo($li);
+        $h3.append('<span class="source-tag">'+kind+'</span>');
+        return $li.data('db', db).data('source', source || kind.toLowerCase());
       }
-
-      $chromSizesDialog.bind('open.genobrowser', function() {
-        var $genomeList = $chromSizesDialog.find('[name=ucscGenome]'),
-          $igbDirs = $chromSizesDialog.find('[name=igbDirs]'),
-          $igbList = $chromSizesDialog.find('[name=igbGenome]'),
-          $newIgbDir = $chromSizesDialog.find('[name=newIgbDir]'),
-          $loadIgbBtn = $chromSizesDialog.find('[name=loadIgbDir]'),
-          $cancelLoadIgbBtn = $chromSizesDialog.find('[name=cancelLoadIgbDir]');
-        $chromSizesDialog.find('[name=filterUcscGenome]').select();
-        $(o.genomePicker[1]).trigger('close.genobrowser');
-        if ($chromSizesDialog.hasClass('initialized')) { return; }
-
-        // the following only runs once, to initialize this dialog's UI
-        $chromSizesDialog.find('.accordion').accordion({heightStyle: 'content'});
-        $chromSizesDialog.find('[name=save]').button('disable');
-
-        // loads the initial lists of available genomes from UCSC & IGB Quickload directories
+      
+      function makeGenomeSourceLi(url, checked) {
+        var $li = $('<li class="choice"/>'),
+          $label = hoverClasses($('<label class="clickable"/>')).appendTo($li),
+          $chk = $('<input type="checkbox" name="source"/>').val(url).attr('checked', !!checked).appendTo($label),
+          $tag = $('<span class="source-tag">IGB</span>').appendTo($label),
+          $span = $('<span class="secondary"/>').text(url.replace(/^https?:\/\//, '')).appendTo($label);
+        return $li;
+      }
+                                                      
+      function loadGenomesFromUCSC() {
+        // On first load, load UCSC genomes
         $.ajax(o.ajaxDir+'chromsizes.php', {
           dataType: 'json',
           success: function(data) {
-            $genomeList.empty().removeClass('loading');
+            $genomeList.find('.ucsc').remove();
+            $genomeList.removeClass('loading');
             _.each(data, function(v) {
-              var $option = $('<option/>').text(v.species + ' (' + v.name + ') ' + v.assemblyDate);
-              $option.val(v.name).data('metadata', v).appendTo($genomeList);
+              var $li = makeGenomeListLi('UCSC', v.db, v.species, v.assemblyDate);
+              if (v.otherKeywords) { 
+                $('<span class="hidden other-keywords"/>').text(v.otherKeywords).appendTo($li); 
+              }
+              $li.data('metadata', v).appendTo($genomeList);
             });
           }
         });
+      }
+
+      function loadDefaultIGBSources() {
         $.ajax(o.ajaxDir+'igb.php', {
           dataType: 'json',
           success: function(data) {
-            var firstDir;
-            $igbDirs.children().eq(0).remove();
-            _.each(data, function(v, k) {
-              firstDir = firstDir || k;
-              $('<option/>').text(k).val(k).insertBefore($igbDirs.children().last());
-              self._igbQuickloadData[k] = v;
+            var firstDir = true;
+            _.each(data, function(genomes, dir) {
+              makeGenomeSourceLi(dir, firstDir).insertBefore($addIgbSource);
+              self._igbQuickloadData[dir] = genomes;
+              
+              if (_.keys(genomes).length) {
+                _.each(genomes, function(v, k) {
+                  var $li = makeGenomeListLi('IGB', dir + '/' + k, k, v, dir);
+                  $li.toggleClass('hidden', !firstDir).appendTo($genomeList);
+                });
+              }
+              firstDir = false;
             });
-            $igbDirs.val(firstDir).change();
           }
         });
+      }
+      
+      function addNewIGBSource() {
+        var url = prompt('Please enter the URL of the IGB Quickload site', 'http://igbquickload.org/quickload/');
+        if (url === null) { return; } else if (!(/^https?:\/\//).test(url)) { url = 'http://' + url; }
+        url = url.replace(/\/+$/, '');
 
-        // implements filtering by keyword
-        $chromSizesDialog.find('[name=filterUcscGenome]').bind('keyup change', {list: $genomeList}, filterGenomeList);
-        $chromSizesDialog.find('[name=filterIgbGenome]').bind('keyup change', {list: $igbList}, filterGenomeList);
-
-        // load the chrom sizes data when selecting a UCSC genome
-        $genomeList.bind('change', function() {
-          var db = $(this).val(),
-            $ucscOptions = $chromSizesDialog.find('.ucsc-options');
-          if (!db) { return; }
-          $chromSizesDialog.find('[name=save]').button('disable').removeClass('glowing');
-          $chromSizesDialog.find('.contigs-loading').show();
-          $ucscOptions.find('.ui-state-error, .contig-load-error, .skipped-warning').hide();
-          $.ajax(o.ajaxDir+'chromsizes.php', {
-            data: { db: db, limit: $chromSizesDialog.find('[name=limit]').val() },
-            dataType: 'json',
-            success: function(data) { loadedChromSizes(data, $ucscOptions); }
+        function populateList(url) {
+          _.each(self._igbQuickloadData[url], function(v, k) {
+            makeGenomeListLi('IGB', url + '/' + k, k, v, url).appendTo($genomeList);
           });
+        }
+
+        if (self._igbQuickloadData[url]) { populateList(url); }
+        else {
+          $.ajax(o.ajaxDir+'igb.php', {
+            data: { url: url, limit: $chromSizesLimit.val() },
+            dataType: 'json',
+            success: function(data) {
+              _.extend(self._igbQuickloadData, data);
+              makeGenomeSourceLi(url, true).insertBefore($addIgbSource);
+              populateList(url);
+            }
+          });
+        }
+      }
+      
+      function ensureSelectedChoiceVisible() {
+        var $selectedVisibleChoice = $genomeList.find('.choice.focus:not(.hidden)'),
+          oldScrollTop = $genomeList.scrollTop(),
+          padTop = 10, padBottom = 25,
+          bottomLimit = $genomeList.outerHeight() - $selectedVisibleChoice.outerHeight();
+        if ($selectedVisibleChoice.length === 0) {
+          $genomeList.scrollTop(0).children('.choice:not(.hidden)').eq(0).click();
+        } else {
+          var newScrollTop = $selectedVisibleChoice.offset().top - $genomeList.offset().top + oldScrollTop - padTop;
+          newScrollTop = Math.max(newScrollTop - bottomLimit + padBottom, Math.min(oldScrollTop, newScrollTop)); 
+          $genomeList.scrollTop(newScrollTop);
+        }
+      }
+      
+      function filterGenomeList(e) {
+        var searchTerms = _.map($filterGenomes.val().split(/\s+/), function(t) { return t.toLowerCase(); }),
+            sources = $genomeDialog.find('[name=source]:checked').map(function() { return $(this).val(); }).get();
+        searchTerms = _.reject(searchTerms, function(t) { return t === ''; });
+        $genomeList.children('.choice').each(function() {
+          var v = $(this).text().toLowerCase(),
+            source = $(this).data('source'),
+            termsFound = _.reduce(searchTerms, function(memo, t){ return memo + (v.indexOf(t) !== -1 ? 1 : 0); }, 0),
+            visible = (searchTerms.length === 0 || termsFound == searchTerms.length) && _.contains(sources, source);
+          $(this).toggleClass('hidden', !visible);
         });
-        $chromSizesDialog.find('[name=limit]').change(function() { $genomeList.change(); });
+        ensureSelectedChoiceVisible();
+      }
+      
+      function filterGenomesKeydown(e) {
+        var method = e.which == 40 ? 'nextAll' : (e.which == 38 ? 'prevAll' : false);
+        if (e.which == 13) { $genomeDialog.find('[name=save]').click(); }
+        else if (method) {
+          $genomeList.find('.choice.focus')[method]('.choice:not(.hidden)').eq(0).click();
+          ensureSelectedChoiceVisible();
+          return false;
+        }
+      }
+      
+      function genomeListChoiceClicked(e) {
+        var $choice = $(e.target).closest('.choice').addClass('focus'),
+          db = $choice.data('db'),
+          metadata = $choice.data('metadata') || {},
+          sourceType = $choice.hasClass('ucsc') ? 'ucsc' : 'igb',
+          ajaxUrl = sourceType === 'ucsc' ? o.ajaxDir+'chromsizes.php' : o.ajaxDir+'igb.php',
+          params = sourceType === 'ucsc' ? { db: db } : { url: db };
+        $(this).find('.choice').not($choice).removeClass('focus');
+        if (!db) { return; }
+        $genomeDialog.find('.contigs-loading').addClass('active').show();
+        $genomeDialog.find('.ui-state-error, .contig-load-error, .skipped-warning').hide();
+        updateSaveBtnState();
+        $.ajax(ajaxUrl, {
+          data: _.extend({ limit: $genomeDialog.find('[name=limit]').val() }, params),
+          dataType: 'json',
+          success: function(data) { loadedChromSizes(_.extend({}, metadata, data), sourceType); }
+        });
+        $genomeDialog.find('[name=filterGenomes]').focus();
+      }
+
+      function loadedChromSizes(data, sourceType) {
+        $genomeDialog.find('.contigs-loading').removeClass('active').stop().fadeOut();
+        if (data.error) {
+          $genomeDialog.find('.skipped-num').text(data.skipped);
+          $genomeDialog.find('[name=chromsizes]').val('');
+          $genomeDialog.find('.ui-state-error').fadeIn().children('.contig-load-error').show();
+        } else {
+          $genomeDialog.find('[name=chromsizes]').val(data.chromsizes);
+          $genomeDialog.find('[name=name]').val(data.db);
+          $genomeDialog.data('genomeMetadata', data);
+          $genomeDialog.data('genomeSourceType', sourceType);
+          if (data.skipped) {
+            $genomeDialog.find('.skipped-num').text(data.skipped);
+            $genomeDialog.find('.ui-state-error').fadeIn().children('.skipped-warning').show();
+          }
+        }
+        updateSaveBtnState();
+      }
+
+      $genomeDialog.bind('open.genobrowser', function() {
+        var $sourceList = $genomeDialog.find('.source-list'),
+          $chromSizesLimit = $genomeDialog.find('[name=limit]'),
+          $newIgbDir = $genomeDialog.find('.add-choice button');
+        $(o.genomePicker[1]).trigger('close.genobrowser');
+        updateSaveBtnState();
+        if ($genomeDialog.hasClass('initialized')) { return; }
+
+        // the following only runs once, to initialize this dialog's UI
+        $genomeDialog.find('button').button();
+        hoverClasses($genomeDialog.find('.clickable'));
+        $genomeDialog.find('.ui-state-error, .contig-load-error, .skipped-warning').hide();
+        updateSaveBtnState();
+
+        // loads the initial lists of available genomes from UCSC & IGB Quickload directories
+        loadGenomesFromUCSC();
+        loadDefaultIGBSources();
+
+        // implements filtering by keyword and by source
+        $filterGenomes.bind('keyup change search', filterGenomeList); 
+        $filterGenomes.bind('keydown', filterGenomesKeydown)
+        $sourceList.bind('change', function(e) { $(e.target).is(':checkbox') && filterGenomeList(e); });
+
+        // load the chrom sizes data when selecting a UCSC or IGB genome
+        $genomeList.bind('click change', genomeListChoiceClicked);
+        $chromSizesLimit.change(function() { $genomeList.trigger('change'); });
 
         // load the contents.txt of an IGB Quickload directory when selecting its URL
-        $igbDirs.bind('change', function() {
-          var url = $(this).val();
-          if ($chromSizesDialog.find('.igb-dirs').is(':hidden')) { $cancelLoadIgbBtn.click(); }
+        $newIgbDir.click(addNewIGBSource);
 
-          // Show the add URL input box
-          if (url === '') {
-            $chromSizesDialog.find('.igb-dirs').slideUp(function() {
-              $chromSizesDialog.find('.add-igb-dir').slideDown();
-            });
-            return;
-          }
-
-          function populateList(url) {
-            $igbList.empty().removeClass('loading');
-            _.each(self._igbQuickloadData[url], function(v, k) {
-              $('<option/>').text(v).val(url + '/' + k).appendTo($igbList);
-            });
-          }
-
-          if (self._igbQuickloadData[url]) { populateList(url); }
-          else {
-            $igbList.empty().append('<option>loading...</option>').addClass('loading');
-            $.ajax(o.ajaxDir+'igb.php', {
-              data: { url: url, limit: $chromSizesDialog.find('[name=igblimit]').val() },
-              dataType: 'json',
-              success: function(data) {
-                _.extend(self._igbQuickloadData, data);
-                populateList(url);
-              }
-            });
-          }
-        });
-
-        // UI for adding IGB Quickload directories
-        $loadIgbBtn.click(function() {
-          var url = $newIgbDir.val().replace(/\/$/, '');
-          $('<option/>').text(url).val(url).insertBefore($igbDirs.children().last());
-          $igbDirs.val(url).change();
-        });
-        $cancelLoadIgbBtn.click(function() {
-          $newIgbDir.val('');
-          $chromSizesDialog.find('.add-igb-dir').slideUp(function() {
-            $chromSizesDialog.find('.igb-dirs').slideDown();
-          });
-        });
-
-        // TODO: load an IGB Quickload genome's data when selecting it from the list
-        $igbList.bind('change', function() {
-          var url = $(this).val(),
-            $igbOptions = $chromSizesDialog.find('.igb-options');
-          if (!url) { return; }
-          $chromSizesDialog.find('[name=save]').button('disable').removeClass('glowing');
-          $chromSizesDialog.find('.contigs-loading').show();
-          $igbOptions.find('.ui-state-error, .contig-load-error, .skipped-warning').hide();
-          $.ajax(o.ajaxDir+'igb.php', {
-            data: { url: url, limit: $chromSizesDialog.find('[name=igblimit]').val() },
-            dataType: 'json',
-            success: function(data) { loadedChromSizes(data, $igbOptions); }
-          });
-        });
-
-        $chromSizesDialog.addClass('initialized');
+        $genomeDialog.addClass('initialized');
       });
-      $chromSizesDialog.find('[name=chromsizes]').one('focus', function() {
+      
+      $genomeDialog.find('[name=chromsizes]').one('focus', function() {
         var $this = $(this).removeClass('placeholder');
-        $chromSizesDialog.find('[name=save]').button('enable');
+        updateSaveBtnState();
         _.defer(function() { $this.select(); });
       });
-      $chromSizesDialog.find('[name=save]').click(function(e, chose) {
+      
+      $genomeDialog.find('[name=save]').click(function(e, sourceType) {
         var metadata = { format: 'chromsizes' },
-          remoteMetadata = $chromSizesDialog.data('genomeMetadata'),
-          activeAccordion = $chromSizesDialog.find('.ui-accordion').accordion('option', 'active'),
-          choseWhatSource = ['ucsc', 'igb', 'chromsizes'],
+          remoteMetadata = $genomeDialog.data('genomeMetadata'),
+          activeTab = $chromSizesTabs.tabs('option', 'selected'),
+          sourceTypesForTabs = [$genomeDialog.data('genomeSourceType'), 'pasted-data', 'chromsizes'],
           origMetadata, $origOption, genome, chromSizes;
-        chose = chose || choseWhatSource[activeAccordion];
-        if (chose == 'ucsc' || chose == 'igb') {
-          // This is an unaltered set of chromosome sizes pulled from UCSC
+        sourceType = sourceType || sourceTypesForTabs[activeTab];
+        if (sourceType == 'pasted-data') {
+          return handlePastedData();
+        } else if (sourceType == 'ucsc' || sourceType == 'igb') {
+          // This is an unaltered set of chromosome sizes pulled from UCSC or an IGB Quickload directory
           chromSizes = remoteMetadata.chromsizes;
           metadata.name = remoteMetadata.db;
-          _.each(['tracks', 'moreTracks', 'categories', 'cytoBandIdeo'], function(k) {
+          _.each(['tracks', 'moreTracks', 'categories', 'cytoBandIdeo', 'species', 'assemblyDate'], function(k) {
             metadata[k] = remoteMetadata[k];
           });
           origMetadata = remoteMetadata;
-          if (chose == 'ucsc') {
-            $origOption = $chromSizesDialog.find('[name=ucscGenome] > option[value='+metadata.name+']');
-            if (!remoteMetadata.species) { origMetadata = $origOption.data('metadata'); }
+          if (sourceType == 'ucsc') {
             metadata.ucsc = metadata.name + ':' + remoteMetadata.limit;
           } else {
-            // TODO: find some way to get the other metadata/custom track data from annots.xml into metadata
+            metadata.species = metadata.species || metadata.name;
             metadata.igb = remoteMetadata.limit + ':' + metadata.name;
           }
-          metadata.species = origMetadata.species;
-          metadata.assemblyDate = origMetadata.assemblyDate;
         } else {
-          chromSizes = $chromSizesDialog.find('[name=chromsizes]').val();
-          metadata.name = $chromSizesDialog.find('[name=name]').val();
+          chromSizes = $genomeDialog.find('[name=chromsizes]').val();
+          metadata.name = $genomeDialog.find('[name=name]').val();
         }
         CustomGenomes.parseAsync(chromSizes, metadata, function(genome) {
           self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
@@ -1094,23 +1143,32 @@ module.exports = function($, _) {
       });
     },
 
-    _initCustomGenomeDialogs: function() {
+    // This initializes everything on the "Open file or URL" tab of the custom genomes dialog
+    // and then kicks off to _initCustomGenomeFromDatabase above to setup the other tabs
+    _initCustomGenomeDialog: function() {
       var self = this,
         o = self.options,
-        $genomeDialog = $(o.dialogs[5]).closest('.ui-dialog'),
+        $genomeDialog = $(o.dialogs[4]).closest('.ui-dialog'),
+        $chromSizesTabs = $genomeDialog.find('.tabs'),
+        $pasteGenomeData = $genomeDialog.find('[name=customGenomePaste]'),
         $add = $genomeDialog.find('.form-line').first(),
         $overlay = $(o.overlay[0]),
         $overlayMessage = $(o.overlay[1]),
-        fileInputHTML = '<input type="file" name="genomeFile"/>',
-        urlInputHTML = '<input type="url" name="genomeUrl" class="url"/>' +
-                       '<input type="button" name="genomeUrlGet" value="load"/>';
-
-      self._initChromSizesDialog();
+        fileInputHTML = '<input type="file" name="genomeFile"/>';
 
       function customGenomeError(e) {
         $genomeDialog.find('.spinner').hide();
         self.showWarning(err.message.replace(/^Uncaught \w+: /, ''), err);
         replaceFileInput();
+      }
+      
+      function customGenomeParse(data, metadata, $spinner, callback) {
+        CustomGenomes.parseAsync(data, metadata, function(genome) {
+          self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
+          $spinner.hide();
+          $genomeDialog.fadeOut();
+          _.isFunction(callback) && callback();
+        });
       }
 
       function handleFileSelect(e) {
@@ -1123,26 +1181,21 @@ module.exports = function($, _) {
 
         if (e.target.files.length) {
           reader.onload = (function(f) {
-            var metadata = { file: f.name },
-              genome;
-            return function(ev) {
-              CustomGenomes.parseAsync(ev.target.result, metadata, function(genome) {
-                self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
-                $spinner.hide();
-                $genomeDialog.fadeOut();
-              });
-            };
+            var metadata = { file: f.name };
+            return function(ev) { customGenomeParse(ev.target.result, metadata, $spinner); };
           })(e.target.files[0]);
           reader.readAsText(e.target.files[0]);
         }
         replaceFileInput();
       }
+      
       function replaceFileInput() {
         _.defer(function() {
           $genomeDialog.find('[name=genomeFile]').replaceWith(fileInputHTML);
           $genomeDialog.find('[name=genomeFile]').change(handleFileSelect);
         });
       }
+      
       if (window.File && window.FileReader && window.FileList) {
         $add.find('label').html(fileInputHTML);
         $add.find('[name=genomeFile]').change(handleFileSelect);
@@ -1153,55 +1206,60 @@ module.exports = function($, _) {
         $add = $genomeDialog.find('.form-line').first();
       }
 
-      function handlePastedData(e) {
-        var $add = $(e.target).closest('.form-line'),
-          $spinner = $add.find('.spinner').show();
+      function handlePastedData() {
+        var $add = $pasteGenomeData.closest('.form-line'),
+          $spinner = $add.find('.spinner').show(),
+          data = $.trim($pasteGenomeData.val()),
+          clearTextarea = function() { $pasteGenomeData.val(''); },
+          url = data;
         $overlay.show();
         $overlayMessage.show().text('Loading custom genome...');
-        CustomGenomes.parseAsync($add.find('textarea').val(), { file: "_pasted_data" }, function(genome) {
-          self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
-          $spinner.hide();
-          $genomeDialog.fadeOut();
-          $add.find('textarea').val('');
-        });
+        if ((/^https?:\/\/.*$/).test(url)) {
+          $.ajax(url, {
+            dataType: "text",
+            success: function(data) {
+              customGenomeParse(data, {url: url}, $spinner, clearTextarea);
+            },
+            progress: function(loaded, total) {
+              var $progress = $overlayMessage.find('.ui-progressbar');
+              if (!$progress.length) { $progress = $('<div/>').appendTo($overlayMessage).progressbar(); }
+              $progress.progressbar('value', loaded/total * 100);
+            },
+            error: function() {
+              $overlay.hide();
+              $overlayMessage.hide();
+              customGenomeError({message: "No valid custom track data was found at this URL."});
+            }
+          });
+        } else {
+          customGenomeParse(data, { file: "_pasted_data" }, $spinner, clearTextarea);
+        }
       }
-      $add.find('[name=customGenomePasteAdd]').click(handlePastedData);
-      $add = $add.nextAll('.form-line').first();
-
-      function handleUrlSelect(e) {
-        var $add = $(e.target).closest('.form-line'),
-          $spinner = $add.find('.spinner'),
-          $url = $add.find('[name=genomeUrl]'),
-          url = $.trim($url.val());
-        if (!url.length) { return; }
-        $spinner.show();
-        $overlay.show();
-        $overlayMessage.show().text('Loading custom genome...');
-        $.ajax(url, {
-          dataType: "text",
-          success: function(data) {
-            CustomGenomes.parseAsync(data, {url: url}, function(genome) {
-              self._setOptions(genome.options({ width: self.lineWidth() * self.$lines.length }));
-              $spinner.hide();
-              $url.val('');
-              $genomeDialog.fadeOut();
-            });
-          },
-          progress: function(loaded, total) {
-            var $progress = $overlayMessage.find('.ui-progressbar');
-            if (!$progress.length) { $progress = $('<div/>').appendTo($overlayMessage).progressbar(); }
-            $progress.progressbar('value', loaded/total * 100);
-          },
-          error: function() {
-            $overlay.hide();
-            $overlayMessage.hide();
-            customGenomeError({message: "No valid custom track data was found at this URL."});
-          }
-        });
+      
+      function updateSaveBtnState() {
+        var activeTab = $chromSizesTabs.tabs('option', 'selected'),
+          $chromsizes = $genomeDialog.find('[name=chromsizes]'),
+          $saveBtn = $genomeDialog.find('[name=save]').button('disable').removeClass('glowing');
+                  
+        if (activeTab === 1) {
+          // Pasted data; we don't worry about the <input type="file"> as it loads automatically onchange
+          if ($.trim($pasteGenomeData.val()).length === 0) { return; }
+        } else {
+          if (activeTab === 0) { // "From a database" tab
+            _.defer(function() { $genomeDialog.find('[name=filterGenomes]').focus(); });
+            if ($genomeDialog.find('.contigs-loading').hasClass('active')) { return; }
+            if ($genomeDialog.find('.genome-list .choice.focus:not(.hidden)').length === 0) { return; }
+          } else if ($chromsizes.hasClass('placeholder')) { return; } // "Specify contig sizes" tab
+          // Neither of these tabs can load anything if there is no chromsizes data entered/crossloaded
+          if ($.trim($chromsizes.val()).length == 0) { return; }
+        }
+        $saveBtn.button('enable').addClass('glowing');
       }
-      $add.find('label').html(urlInputHTML);
-      $add.find('[name=genomeUrlGet]').click(handleUrlSelect);
-      $add.find('[name=genomeUrl]').bind('keydown', function(e) { if (e.which==13) { handleUrlSelect(e); } });
+      $pasteGenomeData.bind('keyup change', function(e) { _.defer(updateSaveBtnState); });
+      $chromSizesTabs.tabs({ select: function(e) { _.defer(updateSaveBtnState); } });
+      
+      // This initializes the other two tabs, about loading genomes from other sources (UCSC, IGB, etc)
+      self._initCustomGenomeFromDatabase(handlePastedData, updateSaveBtnState);
     },
 
     _initWarningsDialog: function() {
@@ -1219,8 +1277,7 @@ module.exports = function($, _) {
         $overlay = $(o.overlay[0]),
         $overlayMessage = $(o.overlay[1]),
         $customPicker = $(o.trackPicker[3]),
-        $genomeDialog = $(o.dialogs[5]).closest('.ui-dialog'),
-        $chromSizesDialog = $(o.dialogs[4]).closest('.ui-dialog'),
+        $genomeDialog = $(o.dialogs[4]).closest('.ui-dialog'),
         $trackUrlInput = $customPicker.find('[name=customPaste]'),
         $trackUrlGet = $customPicker.find('[name=customPasteAdd]'),
         $genomeUrlInput = $genomeDialog.find('[name=genomeUrl]'),
@@ -1289,8 +1346,8 @@ module.exports = function($, _) {
               if (data.error) {
                 $overlayMessage.text('Error loading genome data ' + remote.messageText);
               } else {
-                $chromSizesDialog.data('genomeMetadata', data);
-                $chromSizesDialog.find('[name=save]').trigger('click', [customGenomeSource]);
+                $genomeDialog.data('genomeMetadata', data);
+                $genomeDialog.find('[name=save]').trigger('click', [customGenomeSource]);
                 self._nextDirectives = params;
               }
             }
@@ -1298,10 +1355,10 @@ module.exports = function($, _) {
           return;
         } else if ((/^custom[:|]/).test(params.db)) {   // It's a custom chrom.sizes
           chromSizes = params.db.replace(/^[^|]+\|/, '').replace(/:/g, "\t").replace(/\|/g, "\n");
-          $chromSizesDialog.find('[name=chromsizes]').val(chromSizes);
+          $genomeDialog.find('[name=chromsizes]').val(chromSizes);
           customGenomeName = (params.db[6] == ':') ? params.db.substring(7).replace(/\|.*/, '') : '';
-          $chromSizesDialog.find('[name=name]').val(customGenomeName);
-          $chromSizesDialog.find('[name=save]').trigger('click', ['chromsizes']);
+          $genomeDialog.find('[name=name]').val(customGenomeName);
+          $genomeDialog.find('[name=save]').trigger('click', ['chromsizes']);
           self._nextDirectives = params;
           return;
         }
@@ -2731,13 +2788,11 @@ module.exports = function($, _) {
         o = self.options,
         $genome = $(o.genomePicker[0]),
         $title = $genome.find('.title'),
-        speciesParenthetical = o.species.match(/\((.+)\)/),
         $li = $genome.find('li.divider').eq(0).show();
 
       self._defaultTitle = self._defaultTitle || window.document.title;
       window.document.title = o.species + ' - ' + self._defaultTitle;
       $title.text(o.species.replace(/\s+\(.*$/, '')).attr('title', o.species);
-      if (speciesParenthetical) { $('<em class="parenth" />').text(', ' + speciesParenthetical[1]).appendTo($title); }
       $genome.find('.description').text(o.assemblyDate || '(' + o.genome.replace(/\|.*$/, '') + ')');
 
       // Fill the genome picker with available configured genomes

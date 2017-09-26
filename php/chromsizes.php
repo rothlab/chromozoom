@@ -5,7 +5,7 @@
 
 header("Content-type: application/json");
 header("Cache-control: max-age=172800, public, must-revalidate");
-header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800));
+header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + 172800)); // 2 days
 
 require_once("../lib/setup.php");
 require_once("../lib/ucsc_tracks.php");
@@ -32,7 +32,7 @@ function getAllGenomes() {
   
   $conn = mysqli_connect($mysql_authoritative, 'genome', '', 'hgcentral');
   if ($conn === false) { return array( "error" => "Could not connect to UCSC's MySQL server"); }
-  $query = 'SELECT name, description, organism, scientificName FROM dbDb WHERE active = 1 ORDER BY orderKey ASC';
+  $query = 'SELECT name, genome, description, organism, scientificName FROM dbDb WHERE active = 1 ORDER BY orderKey ASC';
   $result = mysqli_query($conn, $query);
   if ($result === false) { 
     return array( "error" => "Error while querying UCSC's MySQL server: " . mysqli_error($conn)); 
@@ -42,7 +42,8 @@ function getAllGenomes() {
   
   while ($row = mysqli_fetch_assoc($result)) {
     $genomes[] = array(
-      "name" => $row['name'],
+      "db" => $row['name'],
+      "otherKeywords" => $row['genome'],
       "species" => $row['scientificName'],
       "assemblyDate" => $row['description']
     );
@@ -88,7 +89,7 @@ if (isset($_GET['db'])) {
   
     if (isset($_GET['meta'])) {
       foreach (getAllGenomes() as $genome) {
-        if ($genome['name'] == $db) { 
+        if ($genome['db'] == $db) { 
           $response['species'] = $genome['species'];
           $response['assemblyDate'] = $genome['assemblyDate']; 
           break;

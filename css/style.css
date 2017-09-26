@@ -87,14 +87,14 @@ body {
 .picker {
   background: white;
 }
-.picker .search-bar {
+.search-bar {
   position: relative;
 }
-.picker .search-bar input {
+.search-bar input {
   width: 100%;
   margin: 0;
 }
-.picker .search-bar input.search {
+.search-bar input.search {
   padding-left: 24px;
   padding-right: 5px;
   font-size: 13px;
@@ -114,7 +114,7 @@ body {
   height: 12px;
   background: url('magnifying-glass.png');
 }
-.picker .search-bar.type-more::after {
+.search-bar.type-more::after {
   content: "...keep typing to load more tracks...";
   position: absolute;
   left: 60px;
@@ -136,15 +136,15 @@ body {
 }
 /* The following is a valiant attempt to keep auto-hiding scrollbars in Webkit for OSX >10.7 in check */
 /* http://stackoverflow.com/questions/7855590/how-can-i-prevent-scroll-bars-from-being-hidden-for-trackpad-users-in-webkit */
-.picker ul.choices::-webkit-scrollbar, select::-webkit-scrollbar {
-    -webkit-appearance: none;
-    width: 11px;
-    height: 11px;
+ul.choices::-webkit-scrollbar, select::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
 }
-.picker ul.choices::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
-    border-radius: 8px;
-    border: 2px solid white; /* should match background, can't be transparent */
-    background-color: rgba(0, 0, 0, .5);
+ul.choices::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  border: 2px solid white; /* should match background, can't be transparent */
+  background-color: rgba(0, 0, 0, .5);
 }
 .category-header {
   background: #999;
@@ -183,11 +183,11 @@ body {
   -webkit-transform: rotate(-90deg);
   transform: rotate(-90deg);
 }
+.choice .clickable { display: block; padding: 0.3em 6px; }
+.choice .clickable.hover, .choice.clickable.hover { background: #f3f6fa; }
 .picker .choice { clear: both; position: relative; }
 .picker .choice * { cursor: pointer; }
 .picker .choice a.clickable { text-decoration: none; }
-.picker .choice .clickable { display: block; padding: 0.3em 6px; }
-.picker .choice .clickable.hover { background: #f3f6fa; }
 .picker .choice input { margin: 0 0 0 3px; position: relative; top: -2px; }
 .picker .choice .chk { float: left; width: 20px; }
 .picker .choice.loading > .clickable > .chk {
@@ -270,7 +270,7 @@ body {
   margin: 0.2em 0.5em 0 0;
   width: 20%;
 }
-.picker .form-line strong.fullwidth {
+.picker .form-line strong.fullwidth, .ui-dialog .form-line strong.fullwidth {
   float: none;
   display: block;
   text-align: left;
@@ -382,7 +382,7 @@ body {
 }
 #loc-picker .choice .name .alt-name::before { content: "("; }
 #loc-picker .choice .name .alt-name::after { content: ")"; }
-#loc-picker .choice.focus {
+.choice.focus, .clickable.choice.focus {
   outline: none;
   color: white;
   border-top-color: #1292DB !important;
@@ -1445,79 +1445,139 @@ body.row-resizing * {
   font-weight: bold;
 }
 
-#chrom-sizes-dialog-cont {
-  margin-left: -250px;
-  width: 500px;
+#genomes-dialog-cont {
+  margin-left: -280px;
+  width: 560px;
   overflow: visible;
 }
-#chrom-sizes-dialog { overflow: visible; height: 268px; }
-#chrom-sizes-dialog textarea { width: 99%; height: 90px; }
-#chrom-sizes-dialog select option.hidden { display: none; }
-#chrom-sizes-dialog .placeholder { color: #ccc; }
-#chrom-sizes-dialog .accordion {
-  height: 260px;
+#genomes-dialog {
+  padding: .5em .5em;
 }
-#chrom-sizes-dialog .accordion p {
-  margin: 0 0 0.5em;
-}
-#chrom-sizes-dialog .accordion h3 {
-  padding: 7px 10px 5px 25px;
-}
-#chrom-sizes-dialog .ui-accordion-content {
+#genomes-dialog h2 { margin: 0.4em 0.8em 0.8em; }
+#genomes-dialog .tabs {
+  height: 300px;
   border: none;
-  padding: 10px 5px;
-  margin-top: -1px;
+  overflow: hidden;
 }
-#chrom-sizes-dialog .loading {
-  color: #777;
-  font-style: italic;
-  background: url(loading-sm.gif) no-repeat top 1px right 1px;
+#genomes-dialog .ui-tabs-nav {
+  border-radius: 4px 4px 0 0;
+  margin: 0;
+  padding: 0.2em 0em 0 1em;
 }
-#chrom-sizes-dialog .genome-list, #chrom-sizes-dialog .input-med {
-  width: 300px;
+#genomes-dialog .ui-tabs-nav .ui-state-default {
+  font-size: 1.1em;
+  font-weight: normal;
 }
-#chrom-sizes-dialog .genome-list, #chrom-sizes-dialog .second-col {
+#genomes-dialog .ui-tabs-panel {
+  padding: 1em 0.4em;
+}
+#genomes-dialog .ui-tabs-selected {
+  background: white;
+}
+#genomes-dialog .col {
   float: left;
+  width: 260px;
 }
-#chrom-sizes-dialog .second-col {
-  width: 150px;
-  margin-left: 10px;
+#genomes-dialog .full-width {
+  width: 100%;
 }
-#chrom-sizes-dialog .igb-dirs, #chrom-sizes-dialog .add-igb-dir {
-  margin-bottom: 2px;
+#genomes-dialog .second-col {
+  width: 255px;
+  margin-left: 15px;
+  border-left: 1px solid #eee;
 }
-#chrom-sizes-dialog .igb-dirs select {
-  width: 95%;
-  font-size: 130%;
+#genomes-dialog .choices {
+  margin: 0;
+  padding: 0.3em 0;
+  list-style-type: none;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 1.2em;
 }
-#chrom-sizes-dialog .add-igb-dir {
-  display: none;
+#genomes-dialog .clickable { cursor: pointer; }
+#genomes-dialog .genome-list .choice { 
+  padding: 0.3em 6px 0.3em 24px;
+  position: relative;
 }
-#chrom-sizes-dialog .add-igb-dir .url {
-  width: 60%;
+#genomes-dialog .genome-list .choice .name { padding-right: 1.5em; }
+#genomes-dialog .genome-list .hidden { display: none; }
+#genomes-dialog .source-tag {
+  color: white;
+  border-radius: 0.5em;
+  font-size: 0.6em;
+  padding: 0.3em 0.45em;
+  background-color: #aaa;
 }
-#chrom-sizes-dialog .ui-state-error {
-  display: none;
-  padding: 3px;
-  margin-top: 10px;
+#genomes-dialog .ucsc .source-tag { background-color: #eaca92; }
+#genomes-dialog .genbank .source-tag { background-color: #369; }
+#genomes-dialog .genome-list .source-tag { 
+  position: absolute;
+  right: 5px;
+  top: 3px;
+  z-index: 1;
 }
-#chrom-sizes-dialog-cont .contigs-loading {
+
+#genomes-dialog .source-list-title { 
+  padding-left: 30px;
+  margin-top: 0.5em;
+  color: #777;
+  display: block;
+}
+#genomes-dialog .source-list {
+  max-height: 185px;
+}
+#genomes-dialog .source-list .secondary { 
+  font-size: 0.7em;
+  color: #777;
+  font-weight: normal;
+  word-wrap: break-word;
+}
+#genomes-dialog .source-list label {
+  position: relative;
+  padding-left: 30px;
+  line-height: 1em;
+}
+#genomes-dialog .source-list input {
+  position: absolute;
+  left: 7px;
+}
+#genomes-dialog .source-list .source-tag { margin-right: 0.5em; }
+#genomes-dialog .source-list button {
+  font-weight: normal;
+}
+#genomes-dialog .limit {
+  padding: 1em 0 0 1em;
+}
+
+#chrom-sizes-tab.ui-tabs-panel { padding: 1em; }
+#chrom-sizes-tab p { margin-top: 0; }
+#genomes-dialog textarea { width: 99%; height: 120px; }
+#chrom-sizes-tab textarea { height: 180px; }
+
+#genomes-dialog-cont .ui-dialog-buttonpane { position: relative; }
+#genomes-dialog-cont .contigs-loading {
   display: none;
   font-size: 1.2em;
   font-style: italic;
   color: #777;
   margin: .7em .4em .4em .4em;
 }
-#chrom-sizes-dialog-cont .contigs-loading img {
+#genomes-dialog-cont .contigs-loading img {
   padding: 3px 0 0 3px;
-  vertical-align: bottom;
+  vertical-align: bottom
+}
+#genomes-dialog-cont .ui-state-error {
+  margin: 0.8em 0.5em;
+  padding: 0.2em 1em 0.2em 0.5em;
+  position: absolute;
+  left: 0;
+  border: none;
+  background: none;
+}
+#genomes-dialog input[type="file"] {
+  font-size: 1em;
 }
 
-#custom-genome-dialog-cont {
-  margin-left: -250px;
-  width: 500px;
-  overflow: visible;
-}
 .ui-dialog .form-line strong {
   float: left;
   text-align: right;
@@ -1530,20 +1590,6 @@ body.row-resizing * {
   color: #999;
   text-align: center;
   clear: both;
-}
-#custom-genome-dialog-cont .url {
-  width: 85%;
-}
-
-#custom-genome-dialog label {
-  width: 72%;
-  text-align: left;
-}
-#custom-genome-dialog textarea.paste {
-  float: left;
-}
-#custom-genome-dialog input[type="file"], #custom-genome-dialog input[type="button"] {
-  font-size: 1em;
 }
 
 #warnings-dialog-cont {

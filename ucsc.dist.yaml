@@ -56,6 +56,16 @@ igb_dirs:
     #- 'https://pakt01.u.hpc.mssm.edu/igb/'
     - 'https://vanbah01.u.hpc.mssm.edu/igb'
 
+# URLs and settings for NCBI eutils
+ncbi: 
+    eutils_url: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/'
+    search_query: 'esearch.fcgi?db=%s&term=%s&sort=relevance'
+    summary_query: 'esummary.fcgi?db=%s&id=%s'
+    fetch_query: 'efetch.fcgi?db=%s&id=%s&retmode=text&rettype=gb'
+    query_suffix: '&tool=chromozoom&email='
+    admin_email: 'theodore.pak@icahn.mssm.edu'
+    genbank_content_length: 'http://getentry.ddbj.nig.ac.jp/getentry/na/%s/?filetype=txt'
+
 # We can scrape UCSC track data into a cache that can be served alongside chromosome layout data pulled directly from UCSC
 ucsc_cached_track_db: 'UCSC_tracks/data/%s/tracks.db'
 ucsc_cached_chrom_sizes: 'UCSC_tracks/data/%s/build/chrom.sizes.txt'

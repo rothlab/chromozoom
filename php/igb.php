@@ -71,6 +71,14 @@ function getQuickloadDirContents($url, &$response) {
   }
 }
 
+function getGenomeDescription($url) {
+  $temp = array();
+  $dir_url = dirname($url);
+  $genome_name = basename($url);
+  getQuickloadDirContents($dir_url, $temp);
+  return isset($temp[$dir_url][$genome_name]) ? $temp[$dir_url][$genome_name] : NULL;
+}
+
 # IGB requires certain file extensions for various formats, which makes our job easier.
 # See https://wiki.transvar.org/display/igbman/File+Formats
 function guessTrackFormat($url) {
@@ -166,8 +174,9 @@ if (isset($_GET['url'])) {
       $response['skipped'] = $top_chroms['skipped'];
       $response['mem'] = memory_get_usage();
       $response['chromsizes'] = implode("\n", array_map("implodeOnTabs", $top_chroms['rows']));
+      // TODO: Handle species and assemblyDate more nicely, particularly for igbquickload.org?
+      $response['species'] = @getGenomeDescription($url);
       
-      // TODO: $response['species'], $response['assemblyDate']
       $response['tracks'] = getAnnotsAsTracks("$url/annots.xml");
     }
   } elseif ($url_type == 'dir') {

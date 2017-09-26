@@ -138,7 +138,6 @@ var BigBedFormat = {
     } else {
       if (density == 'dense') {
         url = self.ajaxDir() + 'bigbed.php?' + $.param({url: self.opts.bigDataUrl, width: width, density: density});
-        console.log(range.length);
         $.ajax(url, {
           type: range.length > 500 ? 'POST' : 'GET',
           data: { range: range },

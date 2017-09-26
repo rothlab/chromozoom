@@ -115,7 +115,7 @@ var GenBankFormat = {
   
   parseSequence: function(contigData) {
     if (contigData.orig.origin) {
-      return contigData.orig.origin.replace(/^origin.*|\n[ 0-9]{10}| /ig, '');
+      return contigData.orig.origin.replace(/^origin.*|\n[ 0-9]{10}|\s+/ig, '');
     } else {
       return Array(contigData.length).join('n');
     }

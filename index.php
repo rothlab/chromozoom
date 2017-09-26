@@ -24,6 +24,8 @@
 <body>
   <div id="wrapper">
     
+    <!-- Navbar area (top light grey bar) -->
+    
     <div id="navbar" class="shadow">
       <div id="controls">
         <div class="control-seg">
@@ -73,7 +75,7 @@
           <label id="zoom-label" for="zoom">zoom</label>
           <a id="zoom-out">&ndash;</a>
         </div>
-        <div class="control-seg">
+        <div class="control-seg"> 
           <div id="zoom-cont" class="ui-widget ui-widget-content ui-corner-all"><div id="zoom"></div></div>
         </div>
         <div class="control-seg">
@@ -106,10 +108,14 @@
       </div>
     </div>
     
+    <!-- Browser area (textured dark grey area containing brower lines and tracks) -->
+    
     <div id="browser">
       <div id="overlay" class="ui-widget-overlay"></div>
       <div id="overlay-message"></div>
     </div>
+    
+    <!-- Footer area (black area at bottom of viewport with links and genome picker) -->
     
     <div id="footerbar" class="shadow">
       <div id="logo">
@@ -133,6 +139,8 @@
       <a href="#old-msie" style="display: none"></a>
       <a href="#binaries-warning" style="display: none"></a>
     </div>
+    
+    <!-- UI for all of the dialogs used by chromozoom -->
     
     <div id="dialogs">
       
@@ -326,20 +334,48 @@
         </div>
       </div>
       
-      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="chrom-sizes-dialog-cont">
-        <div id="chrom-sizes-dialog" class="ui-dialog-content ui-widget-content">
-          <div class="accordion">
-            <h3>Load a genome from UCSC</h3>
-            <div>
-              <div>
-                <input type="search" name="filterUcscGenome" value="" class="input-med" placeholder="Filter by keyword" />
+      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="genomes-dialog-cont">
+        <div id="genomes-dialog" class="ui-dialog-content ui-widget-content">
+          <h2>Load another genome</h2>
+          <div class="tabs">
+            <ul>
+              <li><a href="#search-dbs-tab">From a database</a></li>
+              <li><a href="#open-file-url-tab">Open file or URL</a></li>
+              <li><a href="#chrom-sizes-tab">Specify contig sizes</a></li>
+            </ul>
+            <div id="search-dbs-tab">
+              <div class="col">
+                <div class="search-bar">
+                  <input type="search" name="filterGenomes" value="" class="search full-width" 
+                      placeholder="Search for genomes by keyword" />
+                  <span class="search-icon" />
+                </div>
+                <ul class="genome-list choices loading">
+                </ul>
               </div>
-              <select name="ucscGenome" size="8" class="genome-list loading">
-                <option>loading...</option>
-              </select>
-              <div class="ucsc-options second-col">
+              <div class="col second-col">
+                <label class="source-list-title">Databases</label>
+                <ul class="source-list choices">
+                  <li class="choice">
+                    <label class="clickable ucsc">
+                      <input type="checkbox" checked name="source" value="ucsc"/>
+                      <span class="source-tag">UCSC</span>
+                    </label>
+                  </li>
+                  <li class="choice">
+                    <label class="clickable genbank">
+                      <input type="checkbox" checked name="source" value="genbank"/>
+                      <span class="source-tag">GenBank</span><span class="secondary">(use the search box)</span>
+                    </label>
+                  </li>
+                  <li class="choice add-choice">
+                    <label>
+                      <button class="ui-state-default ui-corner-all loading">Add IGB Quickload site</button>
+                    </label>
+                  </li>
+                </ul>
                 <div class="limit">
-                  Load the
+                  Fetch
                     <select name="limit">
                       <option>50</option>
                       <option selected="selected">100</option>
@@ -347,65 +383,27 @@
                     </select>
                   largest contigs
                 </div>
-                <div class="ui-state-error ui-corner-all">
-                  <span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
-                  <span class="contig-load-error">
-                    <strong>Error:</strong> Could not load chrom sizes from UCSC, sorry!
-                  </span>
-                  <span class="skipped-warning">
-                    <strong>Warning:</strong>
-                    <span class="skipped-num"></span> contigs were too small to be loaded
-                  </span>
-                </div>
               </div>
             </div>
-            <h3>Load an IGB Quickload directory</h3>
-            <div>
-              <div class="igb-dirs">
-                <select name="igbDirs">
-                  <option></option>
-                  <option value="">Add a new Quickload URL...</option>
-                </select>
+            <div id="open-file-url-tab">
+              <div class="help-line">
+                <a target="_blank" href="http://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html">GenBank</a> and
+                <a target="_blank" href="http://en.wikipedia.org/wiki/FASTA_format">FASTA</a>
+                files are supported; EMBL is coming soon.
               </div>
-              <div class="add-igb-dir">
-                <label>
-                  add URL:
-                  <input type="url" name="newIgbDir" class="url" value=""/>
-                  <input type="button" name="loadIgbDir" value="load"/>
-                  <input type="button" name="cancelLoadIgbDir" value="Cancel"/>
-                </label>
-              </div>
-              <div>
-                <input type="search" name="filterIgbGenome" value="" class="input-med" placeholder="Filter by keyword" />
-              </div>
-              <select name="igbGenome" size="7" class="genome-list loading">
-                <option>loading...</option>
-              </select>
-              <div class="igb-options second-col">
-                <div class="limit">
-                  Load the
-                    <select name="igblimit">
-                      <option>50</option>
-                      <option selected="selected">100</option>
-                      <option>500</option>
-                    </select>
-                  largest contigs
+              <div class="form-line">
+                <div class="spinner"></div><strong>add file</strong><label></label>
+                <div class="help-line indented">
+                  Files are read locally, not sent to the server.
                 </div>
-                <div class="ui-state-error ui-corner-all">
-                  <span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
-                  <span class="contig-load-error">
-                    <strong>Error:</strong> Could not load this genome, sorry!
-                  </span>
-                  <span class="skipped-warning">
-                    <strong>Warning:</strong>
-                    <span class="skipped-num"></span> contigs were too small to be loaded
-                  </span>
-                </div>
+              </div>
+              <div class="form-line"><div class="spinner"></div>
+              <strong class="fullwidth">paste URL or data</strong>
+                <textarea class="paste" name="customGenomePaste" rows="3" cols="30"></textarea>
               </div>
             </div>
-            <h3>Or, enter chromosome layout</h3>
-            <div>
-              <p>One chromosome per line, followed by whitespace, then the size in bp.</p>
+            <div id="chrom-sizes-tab">
+              <p>One contig name per line, followed by spaces or tab, then the size in bp.</p>
               <textarea class="placeholder" name="chromsizes" rows="7" cols="80">chr1 1000000
 chr2 350000
 chr3 2000000</textarea>
@@ -414,46 +412,20 @@ chr3 2000000</textarea>
             </div>
           </div>
         </div>
-        
+  
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
-          <div class="left contigs-loading"><img src="css/loading-sm.gif" alt="loading"/><span> Loading contigs&hellip;</span></div>
-          <button type="button" class="ui-state-default ui-corner-all right" name="save">Set chromosomes</button>
-          <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
-        </div>
-      </div>
-
-      <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="custom-genome-dialog-cont">
-        <div id="custom-genome-dialog" class="ui-dialog-content ui-widget-content">
-          <div class="help-line">
-            <!--<a target="_blank" href="ftp://ftp.ebi.ac.uk/pub/databases/embl/doc/usrman.txt">EMBL</a>,
-            <a target="_blank" href="http://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html">GenBank</a>,
-            and <a target="_blank" href="http://en.wikipedia.org/wiki/FASTA_format">FASTA</a>
-            are currently supported.<br/>
-            For more details, please see the <a target="_blank" href="docs/#custom-genomes">User Guide.</a>-->
-            <a target="_blank" href="http://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html">GenBank</a> and
-            <a target="_blank" href="http://en.wikipedia.org/wiki/FASTA_format">FASTA</a>
-            files are supported; EMBL is coming soon.
+          <div class="left contigs-loading"><img src="css/loading-sm.gif" alt="loading"/><span> Fetching contigs&hellip;</span></div>
+          <div class="ui-state-error ui-corner-all">
+            <span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
+            <span class="contig-load-error">
+              <strong>Error:</strong> Could not load this genome, sorry!
+            </span>
+            <span class="skipped-warning">
+              <strong>Warning:</strong>
+              <span class="skipped-num"></span> additional contigs not fetched
+            </span>
           </div>
-          <div class="form-line">
-            <div class="spinner"></div><strong>load file: </strong><label></label>
-            <div class="help-line indented">
-              Files are read locally, not sent to the server.
-            </div>
-          </div>
-          <div class="form-line"><div class="spinner"></div><strong>paste:</strong>
-            <label>
-              <textarea class="paste" name="customGenomePaste" rows="3" cols="30"></textarea>
-              <input type="button" name="customGenomePasteAdd" value="Load"/>
-            </label>
-            <div class="help-line indented">
-              Pasted data are not sent to the server.
-            </div>
-          </div>
-          <div class="form-line">
-            <div class="spinner"></div><strong>load URL: </strong><label></label>
-          </div>
-        </div>
-        <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
+          <button type="button" class="ui-state-default ui-corner-all right" name="save">Load</button>
           <button type="button" class="ui-state-default ui-corner-all right ui-priority-secondary">Cancel</button>
         </div>
       </div>
@@ -468,13 +440,12 @@ chr3 2000000</textarea>
             ChromoZoom runs well only on Internet Explorer <strong>11</strong>.
           </p>
           <p>
-            On Windows 7, you can <a href="https://www.microsoft.com/en-us/download/Internet-Explorer-11-for-Windows-7-details.aspx">
-            download an installer from Microsoft</a> or run Windows Update to upgrade your browser.
+            On Windows 7 or later, you can run Windows Update to upgrade Internet Explorer.
           </p>
           <p>
             If you are using an older version of Windows, we suggest that you try
             <a href="http://getfirefox.com">Mozilla Firefox</a> or <a href="http://www.google.com/chrome">Google Chrome</a>,
-            both of which are free and supported by ChromoZoom!
+            both of which are free and supported by ChromoZoom.
           </p>
         </div>
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
