@@ -2831,12 +2831,14 @@ module.exports = function($, _) {
         o = self.options,
         $genome = $(o.genomePicker[0]),
         $title = $genome.find('.title'),
+        $desc = $genome.find('.description'),
         $li = $genome.find('li.divider').eq(0).show();
 
       self._defaultTitle = self._defaultTitle || window.document.title;
       window.document.title = o.species + ' - ' + self._defaultTitle;
       $title.text(o.species.replace(/\s+\(.*$/, '')).attr('title', o.species);
-      $genome.find('.description').text(o.assemblyDate || '(' + o.genome.replace(/\|.*$/, '') + ')');
+      $desc.text(o.assemblyDate || '(' + o.genome.replace(/\|.*$/, '') + ')');
+      $desc.attr('title', o.assemblyDate);
 
       // Fill the genome picker with available configured genomes
       $genome.find('.choice.genome-choice').remove();

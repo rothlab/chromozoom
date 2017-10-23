@@ -214,7 +214,10 @@ var GenBankFormat = {
     self.format().createTracksFromFeatures();
     
     o.species = firstContig.source ? firstContig.source[0].organism.split("\n")[0] : 'Custom Genome';
-    if (firstContig.date) { o.assemblyDate = firstContig.date; }
+    if (firstContig.definition) { 
+      o.assemblyDate = firstContig.definition.replace(new RegExp(o.species, 'ig'), '').replace(/^[\s,;-]+|[\s.]+$/g, '');
+    }
+    if (firstContig.date) { o.assemblyDate += ' (' + firstContig.date + ')'; }
   }
   
 };
