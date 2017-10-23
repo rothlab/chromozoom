@@ -81,7 +81,7 @@ var BedFormat = {
   // Could perhaps use feature.extra.exonFrames, if it is given (as in bigGenePred) and >=0 for the block.
   calcExonFrames: function(feature, lineno) {
     var inCds = false,
-      nextExonFrame, lastBlock;
+      error, nextExonFrame, lastBlock;
     error = _.find(feature.blocks, function(block) {
       block.exonFrame = null;
       if (lastBlock && block.start < lastBlock.end) { return true; }
@@ -218,7 +218,7 @@ var BedFormat = {
     var codons = [],
       bppp = (end - start) / width,
       translator = GeneticCode(this.opts.translTable),
-      seqPadding = this.expectedSequencePadding || 0;
+      seqPadding = Math.min(this.expectedSequencePadding || 0, start - 1); // can't pad beyond start of genome!
     
     // Retrieves a subsequence from the provided sequence, but using 1-based right-open genomic coordinates.
     // Returns an empty string if the range is out of bounds of the provided data.
@@ -233,11 +233,12 @@ var BedFormat = {
         thickStart = d.thickStart !== null ? d.thickStart : d.start,
         thickEnd = d.thickEnd !== null ? d.thickEnd : d.end,
         blocks = d.blocks !== null ? d.blocks : [{start: d.start, end: d.end, exonFrame: 0}],
-        block, prevBlock, nextBlock, codon, pInt, jStart, cdsEnd, jEnd, translation;
+        block, prevBlock, nextBlock, codon, pInt, jStart, cdsStart, cdsEnd, jEnd, translation;
       
       _.each(blocks, function(block) { block.partialCodons = block.partialCodons || [null, null]; });
+      if (d.qualifiers && d.qualifiers.transl_table) { translator = GeneticCode(d.qualifiers.transl_table[0]); }
       
-      // Iterate over blocks in this interval to find codons in view, and create a drawable object for each./
+      // Iterate over blocks in this interval to find codons in view, and create a drawable object for each.
       // Note: The following partial codon resolution algorithm fails on blocks smaller than 1 codon.
       for (var i = 0; i < blocks.length; i++) {
         block = blocks[i];
@@ -245,8 +246,9 @@ var BedFormat = {
         nextBlock = blocks[i + 1] || null;
         
         if (block.exonFrame === null) { continue; }
-        
-        jStart = Math.max(block.start, thickStart) - block.exonFrame;
+
+        cdsStart = Math.max(block.start, thickStart);
+        jStart = cdsStart - block.exonFrame;
         cdsEnd = Math.min(block.end, thickEnd);
         jEnd = Math.min(cdsEnd - 2, end);
         
@@ -273,6 +275,11 @@ var BedFormat = {
           codon = getSequence(j, j + 3);
           translation = translator(codon, revComp);
           if (!translation) { continue; }
+          // If this is the first codon of the coding sequence, promote alternate start codons to a true start codon
+          if (translation.special === "m" && 
+              ((i === 0 && j === cdsStart && !revComp) || (nextBlock === null && j === cdsEnd - 3 && revComp))) {
+            translation = {aa: "M", special: "M"};
+          }
           pInt = calcPixInterval({start: j, end: j + 3});
           codons.push({ln: ln, pInt: pInt, partial: false, transl: translation});
         }

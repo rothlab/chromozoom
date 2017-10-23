@@ -524,8 +524,8 @@ ul.choices::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
   position: absolute;
   left: 50%;
   top: 45%;
-  margin-left: -200px;
-  width: 450px;
+  margin-left: -250px;
+  width: 500px;
   text-align: center;
   text-shadow: 0px 0px 5px #000000;
   filter: dropshadow(color=#000000, offx=0, offy=0);

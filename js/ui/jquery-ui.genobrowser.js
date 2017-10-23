@@ -904,7 +904,8 @@ module.exports = function($, _) {
         $chromSizesTabs = $genomeDialog.find('.tabs'),
         $genomeList = $genomeDialog.find('.genome-list'),
         $addIgbSource = $genomeDialog.find('.add-choice'),
-        $filterGenomes = $genomeDialog.find('[name=filterGenomes]');
+        $filterGenomes = $genomeDialog.find('[name=filterGenomes]'),
+        _lastGenBankSearch = null;
 
       // Cache all IGB Quickload directory data, by URL
       self._igbQuickloadData = self._igbQuickloadData || {};
@@ -937,12 +938,12 @@ module.exports = function($, _) {
           success: function(data) {
             $genomeList.find('.ucsc').remove();
             $genomeList.removeClass('loading');
-            _.each(data, function(v) {
+            _.each(data.reverse(), function(v) {
               var $li = makeGenomeListLi('UCSC', v.db, v.species, v.assemblyDate);
               if (v.otherKeywords) { 
                 $('<span class="hidden other-keywords"/>').text(v.otherKeywords).appendTo($li); 
               }
-              $li.data('metadata', v).appendTo($genomeList);
+              $li.data('metadata', v).prependTo($genomeList);
             });
           }
         });
@@ -994,13 +995,40 @@ module.exports = function($, _) {
         }
       }
       
+      function loadGenomesFromGenBank(search) {
+        if (search === _lastGenBankSearch) { return; }
+        _lastGenBankSearch = search;
+        
+        // TODO: loading indicator, and indicator that user needs to type more to get GenBank results
+        if (search.length <= 2) { $genomeList.find('.choice.genbank').remove(); return; }
+        
+        // FIXME: must check and ignore success callbacks that arrive after another search was initiated
+        $.ajax(o.ajaxDir+'ncbi.php', {
+          data: { search: search },
+          dataType: 'json',
+          success: _.partial(function(search, data) {
+            var prevSelectedGenBank = $genomeList.find('.choice.genbank.focus:not(.hidden)').data('db');
+            if (search !== _lastGenBankSearch) { return; }
+            $genomeList.find('.choice.genbank').remove();
+            _.each(data.nucleotide, function(v, k) {
+              makeGenomeListLi('GenBank', 'nucleotide:' + v.uid, v.accession, v.title, 'genbank').appendTo($genomeList);
+            });
+            filterGenomeList(true);
+            if (prevSelectedGenBank) { $genomeList.find('.choice.genbank:not(.hidden)'); }
+          }, search)
+        });
+      }
+      
       function ensureSelectedChoiceVisible() {
         var $selectedVisibleChoice = $genomeList.find('.choice.focus:not(.hidden)'),
-          oldScrollTop = $genomeList.scrollTop(),
-          padTop = 10, padBottom = 25,
-          bottomLimit = $genomeList.outerHeight() - $selectedVisibleChoice.outerHeight();
+            oldScrollTop = $genomeList.scrollTop(),
+            padTop = 10,
+            padBottom = 25,
+            bottomLimit = $genomeList.outerHeight() - $selectedVisibleChoice.outerHeight(),
+            $firstVisibleChoice = $genomeList.scrollTop(0).children('.choice:not(.hidden)');
         if ($selectedVisibleChoice.length === 0) {
-          $genomeList.scrollTop(0).children('.choice:not(.hidden)').eq(0).click();
+          if ($firstVisibleChoice.length > 0) { $firstVisibleChoice.eq(0).click(); }
+          else { updateSaveBtnState(); }
         } else {
           var newScrollTop = $selectedVisibleChoice.offset().top - $genomeList.offset().top + oldScrollTop - padTop;
           newScrollTop = Math.max(newScrollTop - bottomLimit + padBottom, Math.min(oldScrollTop, newScrollTop)); 
@@ -1008,7 +1036,7 @@ module.exports = function($, _) {
         }
       }
       
-      function filterGenomeList(e) {
+      function filterGenomeList(dontLoadGenBank) {
         var searchTerms = _.map($filterGenomes.val().split(/\s+/), function(t) { return t.toLowerCase(); }),
             sources = $genomeDialog.find('[name=source]:checked').map(function() { return $(this).val(); }).get();
         searchTerms = _.reject(searchTerms, function(t) { return t === ''; });
@@ -1020,6 +1048,7 @@ module.exports = function($, _) {
           $(this).toggleClass('hidden', !visible);
         });
         ensureSelectedChoiceVisible();
+        if (dontLoadGenBank !== true && _.contains(sources, 'genbank')) { loadGenomesFromGenBank(searchTerms.join(' ')); }
       }
       
       function filterGenomesKeydown(e) {
@@ -1034,20 +1063,24 @@ module.exports = function($, _) {
       
       function genomeListChoiceClicked(e) {
         var $choice = $(e.target).closest('.choice').addClass('focus'),
-          db = $choice.data('db'),
-          metadata = $choice.data('metadata') || {},
-          sourceType = $choice.hasClass('ucsc') ? 'ucsc' : 'igb',
-          ajaxUrl = sourceType === 'ucsc' ? o.ajaxDir+'chromsizes.php' : o.ajaxDir+'igb.php',
-          params = sourceType === 'ucsc' ? { db: db } : { url: db };
+            db = $choice.data('db'),
+            metadata = $choice.data('metadata') || {},
+            sourceType = $choice.hasClass('ucsc') ? 'ucsc' : ($choice.hasClass('igb') ? 'igb' : 'genbank'),
+            ajaxUrl = sourceType === 'ucsc' ? o.ajaxDir+'chromsizes.php' : o.ajaxDir+'igb.php',
+            params = sourceType === 'ucsc' ? { db: db } : { url: db };
         $(this).find('.choice').not($choice).removeClass('focus');
         if (!db) { return; }
+        if (sourceType === 'genbank') { loadedChromSizes({db: db}, sourceType); return; }
         $genomeDialog.find('.contigs-loading').addClass('active').show();
         $genomeDialog.find('.ui-state-error, .contig-load-error, .skipped-warning').hide();
         updateSaveBtnState();
         $.ajax(ajaxUrl, {
           data: _.extend({ limit: $genomeDialog.find('[name=limit]').val() }, params),
           dataType: 'json',
-          success: function(data) { loadedChromSizes(_.extend({}, metadata, data), sourceType); }
+          success: _.partial(function($choice, data) {
+            if (!$choice.hasClass('focus')) { return; }
+            loadedChromSizes(_.extend({}, metadata, data), sourceType); 
+          }, $choice)
         });
         $genomeDialog.find('[name=filterGenomes]').focus();
       }
@@ -1059,7 +1092,7 @@ module.exports = function($, _) {
           $genomeDialog.find('[name=chromsizes]').val('');
           $genomeDialog.find('.ui-state-error').fadeIn().children('.contig-load-error').show();
         } else {
-          $genomeDialog.find('[name=chromsizes]').val(data.chromsizes);
+          if (data.chromsizes) { $genomeDialog.find('[name=chromsizes]').val(data.chromsizes); }
           $genomeDialog.find('[name=name]').val(data.db);
           $genomeDialog.data('genomeMetadata', data);
           $genomeDialog.data('genomeSourceType', sourceType);
@@ -1090,9 +1123,9 @@ module.exports = function($, _) {
         loadDefaultIGBSources();
 
         // implements filtering by keyword and by source
-        $filterGenomes.bind('keyup change search', filterGenomeList); 
+        $filterGenomes.bind('keyup change search', function(e) { filterGenomeList(); }); 
         $filterGenomes.bind('keydown', filterGenomesKeydown)
-        $sourceList.bind('change', function(e) { $(e.target).is(':checkbox') && filterGenomeList(e); });
+        $sourceList.bind('change', function(e) { $(e.target).is(':checkbox') && filterGenomeList(); });
 
         // load the chrom sizes data when selecting a UCSC or IGB genome
         $genomeList.bind('click change', genomeListChoiceClicked);
@@ -1115,10 +1148,14 @@ module.exports = function($, _) {
           remoteMetadata = $genomeDialog.data('genomeMetadata'),
           activeTab = $chromSizesTabs.tabs('option', 'selected'),
           sourceTypesForTabs = [$genomeDialog.data('genomeSourceType'), 'pasted-data', 'chromsizes'],
-          origMetadata, $origOption, genome, chromSizes;
+          origMetadata, chromSizes, parts, translatedUrl;
         sourceType = sourceType || sourceTypesForTabs[activeTab];
         if (sourceType == 'pasted-data') {
           return handlePastedData();
+        } else if (sourceType == 'genbank') {
+          parts = remoteMetadata.db.split(':');
+          translatedUrl = o.ajaxDir + 'ncbi.php?db=' + parts[0] + '&uid=' + parts[1];
+          return handlePastedData({url: translatedUrl, message: ' from GenBank', meta: {ncbi: remoteMetadata.db}});
         } else if (sourceType == 'ucsc' || sourceType == 'igb') {
           // This is an unaltered set of chromosome sizes pulled from UCSC or an IGB Quickload directory
           chromSizes = remoteMetadata.chromsizes;
@@ -1206,19 +1243,20 @@ module.exports = function($, _) {
         $add = $genomeDialog.find('.form-line').first();
       }
 
-      function handlePastedData() {
+      function handlePastedData(databaseLink) {
         var $add = $pasteGenomeData.closest('.form-line'),
           $spinner = $add.find('.spinner').show(),
-          data = $.trim($pasteGenomeData.val()),
+          pastedData = $.trim($pasteGenomeData.val()),
           clearTextarea = function() { $pasteGenomeData.val(''); },
-          url = data;
+          url = databaseLink ? databaseLink.url : pastedData,
+          fromMessage = (databaseLink ? (databaseLink.message || '') : '');
         $overlay.show();
-        $overlayMessage.show().text('Loading custom genome...');
-        if ((/^https?:\/\/.*$/).test(url)) {
+        $overlayMessage.show().text('Loading custom genome' + fromMessage + '...');
+        if ((databaseLink && databaseLink.url) || (/^https?:\/\/.*$/).test(pastedData)) {
           $.ajax(url, {
             dataType: "text",
             success: function(data) {
-              customGenomeParse(data, {url: url}, $spinner, clearTextarea);
+              customGenomeParse(data, databaseLink ? databaseLink.meta : {url: url}, $spinner, clearTextarea);
             },
             progress: function(loaded, total) {
               var $progress = $overlayMessage.find('.ui-progressbar');
@@ -1232,7 +1270,7 @@ module.exports = function($, _) {
             }
           });
         } else {
-          customGenomeParse(data, { file: "_pasted_data" }, $spinner, clearTextarea);
+          customGenomeParse(pastedData, { file: "_pasted_data" }, $spinner, clearTextarea);
         }
       }
       
@@ -1247,8 +1285,9 @@ module.exports = function($, _) {
         } else {
           if (activeTab === 0) { // "From a database" tab
             _.defer(function() { $genomeDialog.find('[name=filterGenomes]').focus(); });
-            if ($genomeDialog.find('.contigs-loading').hasClass('active')) { return; }
-            if ($genomeDialog.find('.genome-list .choice.focus:not(.hidden)').length === 0) { return; }
+            $genomeDialog.find('.genome-list .choice.hidden').removeClass('focus');
+            if ($genomeDialog.find('.contigs-loading').hasClass('active')) { return; } // Contigs still loading
+            if ($genomeDialog.find('.genome-list .choice.focus:not(.hidden)').length === 0) { return; } // Nothing selected
           } else if ($chromsizes.hasClass('placeholder')) { return; } // "Specify contig sizes" tab
           // Neither of these tabs can load anything if there is no chromsizes data entered/crossloaded
           if ($.trim($chromsizes.val()).length == 0) { return; }
@@ -1280,8 +1319,7 @@ module.exports = function($, _) {
         $genomeDialog = $(o.dialogs[4]).closest('.ui-dialog'),
         $trackUrlInput = $customPicker.find('[name=customPaste]'),
         $trackUrlGet = $customPicker.find('[name=customPasteAdd]'),
-        $genomeUrlInput = $genomeDialog.find('[name=genomeUrl]'),
-        $genomeUrlGet = $genomeDialog.find('[name=genomeUrlGet]'),
+        $genomeUrlInput = $genomeDialog.find('[name=customGenomePaste]'),
         remoteGenomeSettings = {
           ucsc: { url: 'chromsizes.php', messageText: 'from UCSC' },
           igb: { url: 'igb.php', messageText: 'via IGB Quickload' }
@@ -1321,7 +1359,12 @@ module.exports = function($, _) {
         
         if (customGenomeSource == 'url') {   // It's a URL to a full genome file
           $genomeUrlInput.val(customGenomePieces.slice(1).join(':'));
-          $genomeUrlGet.click();
+          $genomeDialog.find('[name=save]').trigger('click', ['pasted-data']);
+          self._nextDirectives = params;
+          return;
+        } else if (customGenomeSource == 'ncbi') {  // It's a genome to crossload from GenBank
+          $genomeDialog.data('genomeMetadata', {db: customGenomePieces.slice(1).join(':')});
+          $genomeDialog.find('[name=save]').trigger('click', ['genbank']);
           self._nextDirectives = params;
           return;
         } else if (remote) {
@@ -1335,9 +1378,9 @@ module.exports = function($, _) {
               limit: customGenomePieces[2],
               meta: 1
             };
-          } else { // customGenomeSource == 'igb'
+          } else if (customGenomeSource == 'igb') {
             remoteParams = { url: customGenomePieces.slice(2).join(':'), limit: customGenomePieces[1] };
-          }
+          } else { throw "Unrecognized custom genome source " + customGenomeSource; }
           
           $.ajax(o.ajaxDir + remote.url, {
             data: remoteParams,

@@ -21,7 +21,20 @@ var FeatureTableFormat = {
     offset: 0,
     url: '',
     htmlUrl: '',
-    drawLimit: {squish: null, pack: null}
+    drawLimit: {squish: null, pack: null},
+    // Should we try to draw codons?
+    // If the following is set to "given", we use the genome sequence and BED blocks to draw codons
+    baseColorUseCds: null,
+    // bppp value under which codons are drawn
+    drawCodonsUnder: 1,
+    // which genetic code to use, see https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi
+    translTable: 1,
+    // don't draw a codon letter if the codon is narrower than this, in px
+    minCodonLetterWidth: 9,
+    // how much sequence context do we need to draw codons? (we need sequence spanning most introns)
+    // 90% of human introns are <11,000 bp in length (Sakharkar et al. 2004).
+    // https://www.researchgate.net/publication/8491627_Distributions_of_exons_and_introns_in_the_human_genome
+    mostIntronsBelow: 15000
   },
   
   init: function() {
@@ -42,7 +55,7 @@ var FeatureTableFormat = {
       keyColumnWidth = this.opts.keyColumnWidth,
       qualifier = null,
       fullLocation = [],
-      collapseKeyQualifiers = ['locus_tag', 'gene', 'db_xref'],
+      collapseKeyQualifiers = ['locus_tag', 'gene', 'db_xref', 'protein_id', 'product'],
       qualifiersThatAreNames = ['gene', 'locus_tag', 'db_xref'],
       RNATypes = ['rrna', 'trna'],
       alsoTryForRNATypes = ['product'],
@@ -51,7 +64,7 @@ var FeatureTableFormat = {
     chrPos = this.browserOpts.chrPos[chrom];
     startLineNo = startLineNo || 0;
     if (_.isUndefined(chrPos)) {
-      this.warn("Invalid chromosome at line " + (lineno + 1 + this.opts.lineNum));
+      this.warn("Invalid chromosome at line " + (startLineNo + 1 + this.opts.lineNum));
       return null;
     }
     
@@ -126,7 +139,6 @@ var FeatureTableFormat = {
         }
       });
     }
-    if (feature.name == 'Q') { console.log(feature); }
     
     return feature;
   },
@@ -179,6 +191,8 @@ var FeatureTableFormat = {
       });
     });
     
+    // Save exon frames, which helps in drawing stripes + letters later.
+    this.type('bed').calcExonFrames.call(this, mergeInto, (this.opts.lineNum + 1));
     return mergeInto;
   },
 
@@ -191,6 +205,7 @@ var FeatureTableFormat = {
       chrom = null,
       lastEntryStart = null,
       featuresByCollapseKey = {},
+      uncollapsibleFeatures = [],
       feature;
     
     function collectLastEntry(lineno) {
@@ -198,8 +213,12 @@ var FeatureTableFormat = {
         feature = self.type().parseEntry.call(self, chrom, lines.slice(lastEntryStart, lineno), lastEntryStart);
         if (feature) { 
           if (o.collapseByGene) {
-            featuresByCollapseKey[feature._collapseKey] = featuresByCollapseKey[feature._collapseKey] || [];
-            featuresByCollapseKey[feature._collapseKey].push(feature);
+            if (_.isUndefined(feature._collapseKey)) {
+              uncollapsibleFeatures.push([feature]); 
+            } else {
+              featuresByCollapseKey[feature._collapseKey] = featuresByCollapseKey[feature._collapseKey] || [];
+              featuresByCollapseKey[feature._collapseKey].push(feature);
+            }
           } else { data.add(feature); }
         }
       }
@@ -220,7 +239,7 @@ var FeatureTableFormat = {
     if (chrom !== null) { collectLastEntry(lines.length); }
     
     if (o.collapseByGene) {
-      _.each(featuresByCollapseKey, function(features, gene) {
+      _.each(_.values(featuresByCollapseKey).concat(uncollapsibleFeatures), function(features) {
         data.add(self.type().collapseFeatures.call(self, features));
       });
     }
@@ -257,9 +276,9 @@ var FeatureTableFormat = {
   
   drawSpec: function() { return this.type('bed').drawSpec.apply(this, arguments); },
   
-  render: function(canvas, start, end, density, callback) {
-    this.type('bed').render.call(this, canvas, start, end, density, callback);
-  },
+  render: function() { return this.type('bed').render.apply(this, arguments); },
+  
+  renderSequence: function() { return this.type('bed').renderSequence.apply(this, arguments); },
   
   loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
   

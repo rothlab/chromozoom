@@ -141,7 +141,7 @@ var GenBankFormat = {
         trackLines = [];
       if (self.data.trackLines[category].length > 0) {
         self.data.trackLines[category].unshift('track type="featureTable" name="' + label + 
-          '" collapseByGene="' + (category=="genes" ? 'on' : 'off') + '"\n');
+            '" collapseByGene="' + (category=="genes" ? 'on" baseColorUseCds="given' : 'off') + '"\n');
       }
       o.availTracks.push({
         fh: {},

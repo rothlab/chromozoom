@@ -336,7 +336,7 @@
       
       <div class="ui-dialog ui-widget ui-widget-content ui-corner-all big-shadow" id="genomes-dialog-cont">
         <div id="genomes-dialog" class="ui-dialog-content ui-widget-content">
-          <h2>Load another genome</h2>
+          <h2>Load another genome or sequence</h2>
           <div class="tabs">
             <ul>
               <li><a href="#search-dbs-tab">From a database</a></li>
@@ -347,7 +347,7 @@
               <div class="col">
                 <div class="search-bar">
                   <input type="search" name="filterGenomes" value="" class="search full-width" 
-                      placeholder="Search for genomes by keyword" />
+                      placeholder="Search by keyword or accession" />
                   <span class="search-icon" />
                 </div>
                 <ul class="genome-list choices loading">
