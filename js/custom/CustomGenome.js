@@ -138,8 +138,8 @@ CustomGenome.prototype.setBppps = function(windowOpts) {
   
   var o = this.opts,
     windowWidth = (windowOpts.width * 0.6) || 1000,
-    bppp = Math.round(o.genomeSize / windowWidth),
     lowestBppp = windowOpts.lowestBppp || 0.1,
+    bppp = Math.max(Math.round(o.genomeSize / windowWidth), lowestBppp * 3.3),
     longestContig = _.max(o.chrLengths),
     maxBppps = 100,
     bppps = [], i = 0, log;

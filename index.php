@@ -414,7 +414,9 @@ chr3 2000000</textarea>
         </div>
   
         <div class="ui-dialog-buttonpane ui-widget-content ui-helper-clearfix">
-          <div class="left contigs-loading"><img src="css/loading-sm.gif" alt="loading"/><span> Fetching contigs&hellip;</span></div>
+          <div class="loading-msg type-more"><img src="css/loading-sm.gif" alt="loading"/><span> Keep typing to search GenBank&hellip;</span></div>
+          <div class="loading-msg contigs-loading"><img src="css/loading-sm.gif" alt="loading"/><span> Fetching contigs&hellip;</span></div>
+          <div class="loading-msg genbank-loading"><img src="css/loading-sm.gif" alt="loading"/><span> Searching GenBank&hellip;</span></div>
           <div class="ui-state-error ui-corner-all">
             <span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
             <span class="contig-load-error">

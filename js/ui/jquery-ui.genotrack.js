@@ -1106,6 +1106,7 @@ $.widget('ui.genotrack', {
         _c: $.mk('canvas').canvasAttr(canvasAttrs).css('height', canvasHeight).appendTo($t),
         _d: showNtText && $.mk('div').addClass('nts').appendTo($t),
         _w: Math.ceil(o.tileWidth * bppp / zoom),
+        _l: bpPerTile,
         _self: self
       });
     }
@@ -1276,11 +1277,12 @@ $.widget('ui.genotrack', {
     if (!dna) { return; }
     var o = extraData._self.options,
       $d = extraData._d,
-      l = dna.length,
+      l = extraData._l,
       ppbp = o.tileWidth / l, // pixels per bp
       colors = {a:'255,0,0', t:'255,0,255', c:'0,0,255', g:'0,180,0', n:'100,100,100'},
       prevColor = null,
       canvas, height, ctx, nt, nextColor;
+    if (dna.length < l) { dna += Array(l - dna.length + 1).join(' '); }  
     if ($d) {
       var $svg = $.mk("http://www.w3.org/2000/svg", "svg").attr({
         version: "1.2",

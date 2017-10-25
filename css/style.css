@@ -1555,24 +1555,31 @@ body.row-resizing * {
 #chrom-sizes-tab textarea { height: 180px; }
 
 #genomes-dialog-cont .ui-dialog-buttonpane { position: relative; }
-#genomes-dialog-cont .contigs-loading {
+#genomes-dialog-cont .loading-msg {
   display: none;
+  position: absolute;
+  background: white;
+  left: 7px;
   font-size: 1.2em;
   font-style: italic;
   color: #777;
-  margin: .7em .4em .4em .4em;
+  min-width: 300px;
+  margin: .6em .4em .4em .4em;
+  text-align: left;
 }
-#genomes-dialog-cont .contigs-loading img {
-  padding: 3px 0 0 3px;
-  vertical-align: bottom
+#genomes-dialog-cont .loading-msg img {
+  padding: 3px 3px 0 0;
+  vertical-align: bottom;
 }
+#genomes-dialog-cont .type-more { font-size: 1em; color: #aaa; }
+#genomes-dialog-cont .type-more img { visibility: hidden; }
 #genomes-dialog-cont .ui-state-error {
   margin: 0.8em 0.5em;
   padding: 0.2em 1em 0.2em 0.5em;
   position: absolute;
   left: 0;
   border: none;
-  background: none;
+  background: white;
 }
 #genomes-dialog input[type="file"] {
   font-size: 1em;

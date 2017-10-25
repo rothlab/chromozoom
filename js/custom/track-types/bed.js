@@ -83,6 +83,7 @@ var BedFormat = {
     var inCds = false,
       error, nextExonFrame, lastBlock;
     error = _.find(feature.blocks, function(block) {
+      if (!_.isUndefined(block.exonFrame) && block.exonFrame !== null) { return; }
       block.exonFrame = null;
       if (lastBlock && block.start < lastBlock.end) { return true; }
       if (!inCds && feature.thickStart >= block.start && feature.thickStart < block.end) {

@@ -164,6 +164,9 @@ var FeatureTableFormat = {
     cds = _.find(features, function(feat) { return feat.type.toLowerCase() == "cds"; });
     
     _.each(exons, function(exonFeature) {
+      var exonFrame = null;
+      // FIXME: Use the exon frame pulled from the codon_start qualifier, if specified
+      if (exonFeature.qualifiers.codon_start) { exonFrame = parseInt10(exonFeature.qualifiers.codon_start[0]) - 1; }
       exonFeature.fullLocation.replace(/(\d+)\.\.[><]?(\d+)/g, function(fullMatch, start, end) {
         blocks.push({
           start: chrPos[exonFeature.chrom] + Math.min(start, end), 

@@ -1000,15 +1000,21 @@ module.exports = function($, _) {
         _lastGenBankSearch = search;
         
         // TODO: loading indicator, and indicator that user needs to type more to get GenBank results
-        if (search.length <= 2) { $genomeList.find('.choice.genbank').remove(); return; }
+        if (search.length <= 2) { 
+          if (search.length >= 1) { $genomeDialog.find('.type-more').addClass('active').show(); }
+          $genomeList.find('.choice.genbank').remove(); 
+          return;
+        }
         
-        // FIXME: must check and ignore success callbacks that arrive after another search was initiated
+        $genomeDialog.find('.type-more').removeClass('active').hide();
+        $genomeDialog.find('.genbank-loading').addClass('active').show();
         $.ajax(o.ajaxDir+'ncbi.php', {
           data: { search: search },
           dataType: 'json',
           success: _.partial(function(search, data) {
             var prevSelectedGenBank = $genomeList.find('.choice.genbank.focus:not(.hidden)').data('db');
             if (search !== _lastGenBankSearch) { return; }
+            $genomeDialog.find('.genbank-loading').removeClass('active').stop().fadeOut();
             $genomeList.find('.choice.genbank').remove();
             _.each(data.nucleotide, function(v, k) {
               makeGenomeListLi('GenBank', 'nucleotide:' + v.uid, v.accession, v.title, 'genbank').appendTo($genomeList);
@@ -1028,7 +1034,10 @@ module.exports = function($, _) {
             $firstVisibleChoice = $genomeList.scrollTop(0).children('.choice:not(.hidden)');
         if ($selectedVisibleChoice.length === 0) {
           if ($firstVisibleChoice.length > 0) { $firstVisibleChoice.eq(0).click(); }
-          else { updateSaveBtnState(); }
+          else { 
+            $genomeDialog.find('.contigs-loading,.ui-state-error').removeClass('active').hide();
+            updateSaveBtnState(); 
+          }
         } else {
           var newScrollTop = $selectedVisibleChoice.offset().top - $genomeList.offset().top + oldScrollTop - padTop;
           newScrollTop = Math.max(newScrollTop - bottomLimit + padBottom, Math.min(oldScrollTop, newScrollTop)); 
@@ -1099,6 +1108,8 @@ module.exports = function($, _) {
           if (data.skipped) {
             $genomeDialog.find('.skipped-num').text(data.skipped);
             $genomeDialog.find('.ui-state-error').fadeIn().children('.skipped-warning').show();
+          } else {
+            $genomeDialog.find('.ui-state-error').hide();
           }
         }
         updateSaveBtnState();

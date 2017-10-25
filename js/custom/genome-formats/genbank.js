@@ -125,11 +125,12 @@ var GenBankFormat = {
     var self = this,
       o = self.opts,
       categoryTuples = [
-        ["source", "Sources", "Regions annotated by source organism or specimen"], 
+        ["source", "Sources", "Regions annotated by source organism or specimen"],
         ["genes", "Gene annotations", "CDS and gene features"], 
         ["other", "Other annotations", "tRNAs and other features"]
       ],
-      categoryHeight = {source: 40, genes: 75, other: 75};
+      categoryHeight = {source: 40, genes: 75, other: 75},
+      categoryColor = {source: "200,200,200", genes: "12,12,120", other: "127,127,127"};
     
     // For the categories of features, create appropriate entries in o.availTracks, o.tracks, and o.trackDesc
     // Leave the actual data as arrays of lines that are attached as .customData to o.availTracks
@@ -141,6 +142,7 @@ var GenBankFormat = {
         trackLines = [];
       if (self.data.trackLines[category].length > 0) {
         self.data.trackLines[category].unshift('track type="featureTable" name="' + label + 
+            '" color="' + (categoryColor[category] || '0,0,0') +
             '" collapseByGene="' + (category=="genes" ? 'on" baseColorUseCds="given' : 'off') + '"\n');
       }
       o.availTracks.push({
