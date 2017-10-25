@@ -998,15 +998,14 @@ module.exports = function($, _) {
       function loadGenomesFromGenBank(search) {
         if (search === _lastGenBankSearch) { return; }
         _lastGenBankSearch = search;
+        $genomeDialog.find('.type-more').removeClass('active').hide();
         
-        // TODO: loading indicator, and indicator that user needs to type more to get GenBank results
         if (search.length <= 2) { 
           if (search.length >= 1) { $genomeDialog.find('.type-more').addClass('active').show(); }
           $genomeList.find('.choice.genbank').remove(); 
           return;
         }
         
-        $genomeDialog.find('.type-more').removeClass('active').hide();
         $genomeDialog.find('.genbank-loading').addClass('active').show();
         $.ajax(o.ajaxDir+'ncbi.php', {
           data: { search: search },
