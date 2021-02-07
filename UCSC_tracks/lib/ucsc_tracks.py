@@ -10,6 +10,7 @@ import json
 import fileinput
 import time
 import gzip
+import zlib
 from .autosql import AutoSqlDeclaration
 
 SCRIPT_DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,6 +29,7 @@ BEDLIKE_FORMATS = {
 # For some reason bedToBigBed fails to create an extraIndex for BED files above this
 # length, roughly 27GB. Therefore, it's best to disable extraIndex'es for such large BED files.
 MAX_INDEXABLE_BED_SIZE = 27000 * 1000000
+
 
 class TrackInfo(dict):
     def __init__(self, *args):
@@ -53,6 +55,17 @@ def print_time():
     :return: current time string
     """
     return time.strftime('%X %x')
+
+
+def crc32_file(file_name):
+    with open(file_name, 'rb') as fh:
+        hash = 0
+        while True:
+            s = fh.read(65536)
+            if not s:
+                break
+            hash = zlib.crc32(s, hash)
+        return "%08X" % (hash & 0xFFFFFFFF)
 
 
 def create_sqllite3_db(xorganism):
@@ -93,6 +106,9 @@ def get_downloads_base_url():
 
 def get_downloads_table_tsv():
     return open_ucsc_yaml()['data_urls']['table_tsv']
+
+def get_downloads_chrom_sizes():
+    return open_ucsc_yaml()['data_urls']['chrom_sizes']
     
 def get_wig_as_bigwig():
     return open_ucsc_yaml()['data_urls']['wig_as_bigwig']
@@ -401,8 +417,7 @@ def fetch_tracks(xcur, selection=None):
     Fetches track information from the specified UCSC database, which is in the trackDb table
     """
     if selection is not None:
-        if len(selection) == 0:
-            sys.exit("FATAL: No tracks were selected by your criteria. Check your use of -C, -S, -P, -t, and -s...")
+        if len(selection) == 0: return []
         # the trackDb table drops the "all_" prefix for certain tables, like all_mrna and all_est
         fixed_selection = [re.sub(r'^all_', '', element) for element in selection]
         in_clause = ','.join(['"' + element + '"' for element in fixed_selection])
@@ -544,8 +559,21 @@ def fetch_table_fields(xcur, table_name):
 
 def fix_bed_as_files(blocation, bed_type):
     """
-    Tries to fix Bed auto_sql if initial BigBed building failed
+    Tries to fix the BED and autoSql files if initial BigBed building failed.
+    
+    There are two fixes applied here:
+    1) Up to 9 initial fields in the autoSql are reset to default types and names used by the BED format.
+    2) The 5th column in the BED file, `score`, is clipped to an integer range of 0-1000.
     """
+    # TODO: Other fixes we should implement, based on errors that occur in hg38:
+    # - Data on chroms not in chrom.sizes.txt (usually on patched/fixed contigs). Could filter them out of the BED file.
+    # - BED fields longer than autoSql's 'string' allows (255 bytes). Could change autoSql to 'lstring' or truncate.
+    # - After fix #1 above, should check that the other (non-standard) fields don't have duplicate names.
+    # - For bigPsl, number of elements in oChromStarts not matching blockCount (usually for blockCount >1024)
+    
+    # Resets the initial fields in the autoSql that are supposed to conform to BED standards per the declared BED type
+    #    i.e. a BED type of 'bed 6 +' will have the first 6 fields reset to BED standard names and types
+    # This fixes bedToBigBed errors of the form "column #4 names do not match: Yours=[id]  BED Standard=[name]"
     def_types = ['string', 'uint', 'uint', 'string', 'uint', 'char[1]', 'uint', 'uint', 'uint']
     def_names = ['chrom', 'chromStart', 'chromEnd', 'name', 'score', 'strand', 'thickStart', 'thickEnd', 'reserved']
     bed_num = int(re.findall(r'\d+', bed_type)[0])
@@ -553,7 +581,6 @@ def fix_bed_as_files(blocation, bed_type):
     all_lines = open(as_file, 'r').read().split('\n')
     elements_lines = all_lines[3:][:bed_num]
 
-    # Set default names and types
     for dtype, dname, eline, lnum in zip(def_types, def_names, elements_lines, range(3, 16)):
         all_lines[lnum] = (dtype + ' ' + eline.split(maxsplit=1)[1])
 
@@ -564,7 +591,7 @@ def fix_bed_as_files(blocation, bed_type):
 
     open(as_file, 'w').write('\n'.join(all_lines))
 
-    # Repair maximum and minimum score
+    # Clip the 5th column in the BED file, `score`, to an integer range of 0-1000.
     if bed_num >= 5:
         for line in fileinput.input(blocation, inplace=True):
             line = line.strip().split('\t')
@@ -575,25 +602,33 @@ def fix_bed_as_files(blocation, bed_type):
             print('\t'.join(line))
 
 
-def fetch_table_tsv_gz(organism, table_name, gz_file, retries=3):
-    url = get_downloads_table_tsv() % (organism, table_name)
-    if cmd_exists('rsync'):
-        command = "rsync -avzP --timeout=30 '{}' '{}'".format(url, os.path.dirname(gz_file))
-    else:
-        url = re.sub(r'^rsync://', 'http://', url)
-        command = "curl '{}' --output '{}'".format(url, gz_file)
+def rsync_or_curl(from_urls, to_path, retries=3):
+    from_urls = [from_urls] if isinstance(from_urls, str) else from_urls
     
     returncode = None
-    retries = 3
     while returncode != 0 and retries > 0:
+        from_url = from_urls[0]
+        if len(from_urls) > 1: from_urls.pop(0)
+        
+        if cmd_exists('rsync') and from_url[0:8] == 'rsync://':
+            command = "rsync -avzP --no-R --no-implied-dirs --timeout=30 '{}' '{}'".format(from_url, to_path)
+        else:
+            http_url = re.sub(r'^rsync://', 'http://', from_url)
+            command = "curl '{}' --output '{}'".format(http_url, to_path)
+        
         try:
-            sbp.check_call(command, shell=True)
+            sbp.check_call(command, shell=True) 
             returncode = 0
         except sbp.CalledProcessError as err:
             returncode = err.returncode
             retries -= 1
     return returncode == 0
 
+
+def fetch_table_tsv_gz(organism, table_name, gz_file, retries=3):
+    url = get_downloads_table_tsv() % (organism, table_name)
+    return rsync_or_curl(url, gz_file, retries)
+    
 
 def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     """
@@ -606,9 +641,12 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     cut_bin_column = '| cut -f 2- ' if has_bin_column else ''
     has_genePred_fields = table_fields[-4:] == ['name2', 'cdsStartStat', 'cdsEndStat', 'exonFrames']
 
+    #TODO: If BED is built successfully, save crc32 of the gz_file into {}.txt.gz.crc32 
+    #      If this matches crc32 of the .txt.gz on future runs and the BED file already exists, can skip rebuilding it.
+
     if not fetch_table_tsv_gz(organism, table_name, gz_file):
         print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "{}".'.format(print_time(), organism, table_name))
-        return None
+        return (None, None)
     
     if bedlike_format == 'genePred':
         # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html which explains what we're doing here
@@ -663,20 +701,19 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     else:
         print('FAILED ({}): [db {}] "{}" {} conversion to BED not handled.'.format(print_time(), organism, table_name, 
                                                                                    bedlike_format))
-        return None
+        return (None, None)
     
     try:
         sbp.check_call(command, shell=True)
         if table_name == 'knownGene':
             location = augment_knownGene_bed_file(organism, location)
-        os.remove(gz_file)
         print('DONE ({}): [db {}] Fetched "{}" into a BED file'.format(print_time(), organism, table_name))
     except sbp.CalledProcessError:
         print('FAILED ({}): [db {}] Couldn\'t fetch "{}" as a BED file.'.format(print_time(), organism, table_name))
         print(command)
-        return None
+        return (None, None)
     
-    return location
+    return (location, gz_file)
 
 
 def get_first_item_from_bed(bed_location):
@@ -800,14 +837,13 @@ def extract_bed_plus_fields(track_type, as_location=None, as_string=None):
 
 def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None, no_id=False):
     """
-    Generates BigBed file. Make sure you have 'fetchChromSizes' and 'bedToBigBed' in your $PATH
+    Generates BigBed file. Make sure you have 'bedToBigBed' in your $PATH
     """
-    if not cmd_exists('fetchChromSizes'):
-        sys.exit("FATAL: must have fetchChromSizes installed on $PATH")
     if not cmd_exists('bedToBigBed'):
         sys.exit("FATAL: must have bedToBigBed installed on $PATH")
     
     bb_file = organism + '/bigBed/' + os.path.basename(bed_file)[:-4] + '.bb'
+    chrom_sizes_file = "./{0}/build/chrom.sizes.txt".format(organism)
     bed_file_size = os.path.getsize(bed_file)
     num_cols = re.search(r'\d+', bed_type)
     indexable_fields = ['name'] if int(num_cols.group(0) if num_cols else 0) >= 4 else []
@@ -815,11 +851,9 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None
     if bed_plus_fields is not None:
         indexable_fields += [field for field in bed_plus_fields if field in whitelist]
 
-    if not os.path.isfile("./{0}/build/chrom.sizes.txt".format(organism)):
-        command = 'fetchChromSizes "{0}" > "./{0}/build/chrom.sizes.txt" 2>/dev/null'.format(organism)
-        try:
-            sbp.check_call(command, shell=True)
-        except sbp.CalledProcessError:
+    if not os.path.isfile(chrom_sizes_file):
+        urls = list(map(lambda url: url % (organism, organism), get_downloads_chrom_sizes()))
+        if not rsync_or_curl(urls, chrom_sizes_file):
             print('FAILED: Couldn\'t fetch chromosome info')
             return None
 
@@ -834,7 +868,7 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None
         print('DONE ({}): Constructed "{}" BigBed file for organism "{}"'.format(print_time(), bb_file, organism))
     except sbp.CalledProcessError:
         print(('FAILED ({}): Couldn\'t construct "{}" BigBed file for organism "{}". '
-              'Used command: `{}`').format(print_time(), organism, bb_file, command))
+              'Used command: `{}`').format(print_time(), bb_file, organism, command))
         return None
 
     return bb_file

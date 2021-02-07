@@ -15,6 +15,7 @@ parser.add_argument('-n', '--dry_run', action='store_true', default=False,
                     help='Don\'t actually fetch any data, just list the tracks and what would be updated.')
 parser.add_argument('-N', '--update_metadata_only', action='store_true', default=False,
                     help='Don\'t fetch any track data, just update each track\'s metadata in the local database.')
+#FIXME: add a new argument to force ut.create_hierarchy() below to refetch the full track **hierarchy** (it sometimes changes)
 parser.add_argument('-g', '--org_prefix', action='store', type=str, default='',
                     help='Restrict scraping to organism database names matching this prefix.')
 parser.add_argument('-C', '--composite_tracks', action='store_true', default=False,
@@ -83,9 +84,11 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
     local_db, localconn = ut.create_sqllite3_db(organism)
     last_updates = ut.get_last_local_updates(localconn)
     remote_updates = ut.get_last_remote_updates(cur, organism, selected_tracks_having_tables)
-    
+
     my_tracks = ut.fetch_tracks(xcur=cur, selection=selected_tracks)
     my_tracks = sorted(my_tracks, key=lambda row: (track_info[row[0]]['parentTrack'], row[0]))
+    if len(my_tracks) == 0:
+        print("WARN: No tracks were selected by your criteria. Check your use of -C, -S, -P, -t, and -s...")
     
     if args.super_tracks is True:
         supertracks = ut.fetch_supertracks(xcur=cur, track_info=track_info)
@@ -164,7 +167,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
         # BED, genePred, rmsk, PSL, GVF, and narrowPeak processing - need to save and convert these to bigBed
         elif bedlike_format:
             if not args.update_metadata_only:
-                bed_location = ut.fetch_bed_table(cur, track_name, organism, bedlike_format)
+                bed_location, txt_gz_location = ut.fetch_bed_table(cur, track_name, organism, bedlike_format)
                 if bed_location is None:
                     continue
                 # An uncompressed copy of the cytoBandIdeo track is kept alongside tracks.db
@@ -180,6 +183,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
                 file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
 
                 # If bigBed building failed, try fixing the autosql file once and retrying once. Also, don't index `id`.
+                # TODO: Make this more robust, with multiple different fixes attempted, and not overwriting the original when fixing.
                 if file_location is None:
                     try:
                         ut.fix_bed_as_files(bed_location, bed_type)
@@ -193,6 +197,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             # Delete interim files for successful builds
             sample_item = ut.get_first_item_from_bigbed(file_location)
             if bed_location is not None: os.remove(bed_location)
+            if txt_gz_location is not None: os.remove(txt_gz_location)
             if as_location is not None and not as_location.startswith(os.path.join(script_directory, 'autosql')): 
                 os.remove(as_location)
             
@@ -209,7 +214,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
                 file_location, html_description, update_date, settings, local_settings, is_composite_or_super, sort)
         ut.save_to_local_database(organism, localconn, row_vals, children)
 
-    # ..ends the loop iterating over my_tracks.
+    # ... ends the loop iterating over my_tracks.
 
     # ===================================================================================================
     # = Finally, check the composite and super tracks and if they are empty, mark them as low priority. =
