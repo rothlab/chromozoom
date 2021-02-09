@@ -1,6 +1,6 @@
 import lib.ucsc_tracks as ut
 import pymysql.cursors
-import os
+import os, glob
 import argparse
 import time
 import sys
@@ -174,32 +174,26 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
                 if track_name == 'cytoBandIdeo':
                     copyfile(bed_location, './{}/cytoBandIdeo.bed'.format(organism))
             
-                as_location, bed_type = ut.get_as_and_bed_type_for_bedlike_format(bedlike_format)
+                as_location, bed_type = ut.get_as_and_bed_type_for_bedlike_format(bedlike_format, bed_location)
                 if as_location is None: # Generic BED tracks have autoSql specifying their fields on UCSC's MySQL server
                     as_location = ut.fetch_as_file(bed_location, cur, track_name)
                     bed_type = tr_type.replace(' ', '').rstrip('.')
-            
+                
                 bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_location=as_location)
                 file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
-
-                # If bigBed building failed, try fixing the autosql file once and retrying once. Also, don't index `id`.
-                # TODO: Make this more robust, with multiple different fixes attempted, and not overwriting the original when fixing.
+                
+                # If bigBed building failed, try fixing the autosql and BED files and retrying once. Also, don't index `id`.
                 if file_location is None:
-                    try:
-                        ut.fix_bed_as_files(bed_location, bed_type)
-                        file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, None, True)
-                    except:
-                        pass
-            
-            if file_location is None:
-                continue
+                    bed_type = ut.fix_bed_as_files(organism, bed_location, as_location, bed_type)
+                    file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, None, True)
+           
+            if file_location is None: continue
             
             # Delete interim files for successful builds
             sample_item = ut.get_first_item_from_bigbed(file_location)
             if bed_location is not None: os.remove(bed_location)
-            if txt_gz_location is not None: os.remove(txt_gz_location)
-            if as_location is not None and not as_location.startswith(os.path.join(script_directory, 'autosql')): 
-                os.remove(as_location)
+            if txt_gz_location is not None: [os.remove(f) for f in glob.glob(txt_gz_location + '*')]
+            if as_location is not None: os.remove(as_location)
             
         else:
             print('INFO ({}): [db {}] Unhandled track type "{}" for table "{}".'.format(ut.print_time(), organism,

@@ -11,6 +11,7 @@ import fileinput
 import time
 import gzip
 import zlib
+from shutil import copyfile
 from .autosql import AutoSqlDeclaration
 
 SCRIPT_DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -57,7 +58,7 @@ def print_time():
     return time.strftime('%X %x')
 
 
-def crc32_file(file_name):
+def crc32_of_file(file_name):
     with open(file_name, 'rb') as fh:
         hash = 0
         while True:
@@ -496,17 +497,20 @@ def is_bedlike_format(track_type):
     return track_type[0] if track_type[0] in BEDLIKE_FORMATS else False
 
 
-def get_as_and_bed_type_for_bedlike_format(track_type):
+def get_as_and_bed_type_for_bedlike_format(track_type, bed_location=None):
     """
     Is the given track type convertable to BED/bigBed? 
     If so, returns the location of the autoSql file for this type, and the BED subtype (bedN+N).
+    (If `bed_location` is given, also copies the autoSql file alongside it so it can be potentially modified).
     Otherwise, raises a KeyError.
     """
     track_type = re.split(r'\s+', track_type)
-    location, bed_subtype = BEDLIKE_FORMATS[track_type[0]]
-    if location is not None:
-        location = os.path.normpath(os.path.join(SCRIPT_DIRECTORY, location))
-    return location, bed_subtype
+    from_location, bed_subtype = BEDLIKE_FORMATS[track_type[0]]
+    if from_location is not None and bed_location is not None:
+        to_location = re.sub(r'\.bed$', '.as', bed_location)
+        copyfile(os.path.join(SCRIPT_DIRECTORY, from_location), to_location)
+        return to_location, bed_subtype
+    return from_location, bed_subtype
 
 
 def fetch_autosql_for_bigbed(bb_location):
@@ -531,17 +535,20 @@ def fetch_autosql_for_bigbed(bb_location):
 
 def fetch_as_file(bed_location, xcur, table_name):
     """
-    Creates an autoSql file and returns its location
+    Creates an autoSql file from UCSC's table metadata and returns its location.
+    Applies a few basic cleanup operations before the autoSql file is saved.
     """
     as_file = bed_location[:-4] + '.as'
     as_contents = qups('SELECT autoSqlDef FROM tableDescriptions WHERE tableName="{}";'.format(table_name),
-                      xcur)[0][0].decode('latin1')
-
-    # Column bin removal
+                      xcur)[0][0].decode('latin1').strip()
+    as_contents = re.sub(r'\n(\s*\n)+', '\n', as_contents) # Kill any whitespace-only lines
+    
+    # Remove any fields with the name 'bin'
     bin_rows = re.compile('[\t\s]*(short|uint|string|ushort)[\t\s]+bin;')
     if bin_rows.search(as_contents):
         as_contents = '\n'.join([line for line in as_contents.split('\n') if not bin_rows.match(line)])
 
+    # Change any deprecated itemRgb fields that use an unsigned integer
     old_colors = 'uint itemRgb;'
     if old_colors in as_contents:
         replace_line = '    uint reserved;     "Used as itemRgb as of 2004-11-22"'
@@ -557,49 +564,84 @@ def fetch_table_fields(xcur, table_name):
     return [val[0] for val in qups("SHOW columns FROM {}".format(table_name), xcur)]
 
 
-def fix_bed_as_files(blocation, bed_type):
+def get_chrom_sizes(organism):
+    """
+    Fetches the chrom.sizes file for a genome into a dictionary of chr => size.
+    """
+    chrom_sizes_file = "./{0}/build/chrom.sizes.txt".format(organism)
+    chrom_sizes = dict()
+    with open(chrom_sizes_file, 'r') as f:
+        for line in f.read().split('\n'):
+            fields = line.split()
+            if len(fields) == 2: chrom_sizes[fields[0]] = int(fields[1])
+    return chrom_sizes
+
+
+def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
     """
     Tries to fix the BED and autoSql files if initial BigBed building failed.
     
-    There are two fixes applied here:
+    There are several fixes applied here:
     1) Up to 9 initial fields in the autoSql are reset to default types and names used by the BED format.
-    2) The 5th column in the BED file, `score`, is clipped to an integer range of 0-1000.
+    2) The remaining fields are renamed so that there are no collisions with default names.
+    3) If the autoSql contains fields not in the (first line of the) BED file, these are trimmed.
+    4) BED data on invalid contigs (checked against chrom.sizes.txt) are filtered out of the BED file.
+    5) The 5th column in the BED file, `score`, is clipped to an integer range of 0-1000.
+    
+    Note that these fixes should be idempotent, i.e. there is no change if this process is run multiple times.
+
+    This function returns a normalized BED type "bedN+N" that reflects the actual number of fields in the BED file.
     """
     # TODO: Other fixes we should implement, based on errors that occur in hg38:
-    # - Data on chroms not in chrom.sizes.txt (usually on patched/fixed contigs). Could filter them out of the BED file.
     # - BED fields longer than autoSql's 'string' allows (255 bytes). Could change autoSql to 'lstring' or truncate.
-    # - After fix #1 above, should check that the other (non-standard) fields don't have duplicate names.
     # - For bigPsl, number of elements in oChromStarts not matching blockCount (usually for blockCount >1024)
-    
-    # Resets the initial fields in the autoSql that are supposed to conform to BED standards per the declared BED type
-    #    i.e. a BED type of 'bed 6 +' will have the first 6 fields reset to BED standard names and types
-    # This fixes bedToBigBed errors of the form "column #4 names do not match: Yours=[id]  BED Standard=[name]"
+
+    chrom_sizes = get_chrom_sizes(organism)
+
     def_types = ['string', 'uint', 'uint', 'string', 'uint', 'char[1]', 'uint', 'uint', 'uint']
     def_names = ['chrom', 'chromStart', 'chromEnd', 'name', 'score', 'strand', 'thickStart', 'thickEnd', 'reserved']
-    bed_num = int(re.findall(r'\d+', bed_type)[0])
-    as_file = blocation[:-4] + '.as'
-    all_lines = open(as_file, 'r').read().split('\n')
-    elements_lines = all_lines[3:][:bed_num]
+    bed_nums = tuple(map(int, re.findall(r'\d+', bed_type)))
+    field_count = None
 
-    for dtype, dname, eline, lnum in zip(def_types, def_names, elements_lines, range(3, 16)):
-        all_lines[lnum] = (dtype + ' ' + eline.split(maxsplit=1)[1])
+    for line in fileinput.input(bed_file, inplace=True):
+        fields = line.strip().split('\t')
+        if field_count is None: field_count = len(fields)
 
+        # Drop any BED data that doesn't map to a valid chr (contig name)
+        if fields[0] not in chrom_sizes: continue
+
+        # Clip the 5th column in the BED file if it is being used as the standard `score` field to the range of 0-1000.
+        if bed_nums[0] >= 5:
+            if int(fields[4]) > 1000: fields[4] = '1000'
+            if int(fields[4]) < 0: fields[4] = '0'
+        
+        #TODO: Tally up the max bytelength of each of the fields, if >255 can upconvert string -> lstring in the asql.
+
+        print('\t'.join(fields))
+
+    with open(asql_file, 'r') as f: asql_lines = re.sub(r'\n(\s*\n)+', '\n', f.read().strip()).split('\n')
+
+    # Resets the initial fields in the autoSql that are supposed to conform to BED standards per the declared BED type
+    #    i.e. a BED type of 'bed 6 +' will have the first 6 fields reset to BED standard names and types
+    # This fixes bedToBigBed errors of the form "column #4 names do not match: Yours=[id]  BED Standard=[name]" 
+    for dtype, dname, eline, lnum in zip(def_types, def_names, asql_lines[3:], range(3, len(asql_lines))):
+        default_field = lnum < bed_nums[0] + 3
+        if default_field: asql_lines[lnum] = (dtype + ' ' + eline.split(maxsplit=1)[1])
         lin1, lin2 = eline.split(';', maxsplit=1)
         lin1 = lin1.rsplit(maxsplit=1)
-        lin1[1] = dname
-        all_lines[lnum] = '; '.join([' '.join(lin1), lin2])
+        # When renaming fields, have to avoid collisions with non-default fields that are named the same
+        if default_field: lin1[1] = dname
+        elif lin1[1] in def_names[:bed_nums[0]]: lin[1] = lin[1] + '2'
+        asql_lines[lnum] = '; '.join([' '.join(lin1), lin2])
 
-    open(as_file, 'w').write('\n'.join(all_lines))
+    del asql_lines[3 + field_count : -1] # remove autoSQL fields that aren't in the BED file
+    open(asql_file, 'w').write('\n'.join(asql_lines))
 
-    # Clip the 5th column in the BED file, `score`, to an integer range of 0-1000.
-    if bed_num >= 5:
-        for line in fileinput.input(blocation, inplace=True):
-            line = line.strip().split('\t')
-            if int(line[4]) > 1000:
-                line[4] = '1000'
-            if int(line[4]) < 0:
-                line[4] = '0'
-            print('\t'.join(line))
+    bed_nums = (bed_nums[0], field_count - bed_nums[0]) if field_count > bed_nums[0] else (bed_nums[0],)
+    new_bed_type = "bed" + "+".join(map(str, bed_nums))
+    print('INFO ({}): [db {}] Fixed AS/BED files for {} ({} -> {})'.format(
+            print_time(), organism, bed_file, bed_type, new_bed_type))
+    return new_bed_type
 
 
 def rsync_or_curl(from_urls, to_path, retries=3):
@@ -632,22 +674,32 @@ def fetch_table_tsv_gz(organism, table_name, gz_file, retries=3):
 
 def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     """
-    Uses mySQL query to fetch columns from bed file
+    Fetches a table from UCSC as a gzipped TSV file, then converts this to a BED file.
+    Certain BED-like formats require additional postprocessing to become the best possible BED file.
     """
     gz_file = './{}/build/{}.txt.gz'.format(organism, table_name)
+    crc32_file = gz_file + '.crc32'
+    prev_crc32 = None
     location = './{}/build/{}.bed'.format(organism, table_name)
     table_fields = fetch_table_fields(xcur, table_name)
     has_bin_column = table_fields[0] == 'bin'
     cut_bin_column = '| cut -f 2- ' if has_bin_column else ''
     has_genePred_fields = table_fields[-4:] == ['name2', 'cdsStartStat', 'cdsEndStat', 'exonFrames']
 
-    #TODO: If BED is built successfully, save crc32 of the gz_file into {}.txt.gz.crc32 
-    #      If this matches crc32 of the .txt.gz on future runs and the BED file already exists, can skip rebuilding it.
-
+    # Download the table in gzipped TSV format to gz_file (using rsync to enable fast resuming)
     if not fetch_table_tsv_gz(organism, table_name, gz_file):
         print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "{}".'.format(print_time(), organism, table_name))
         return (None, None)
-    
+
+    # If the BED was previously built successfully, and the CRC32 of the gz_file hasn't changed,
+    # we can skip rebuilding the BED file and just return what we already have.
+    if os.path.isfile(crc32_file):
+        with open(crc32_file, 'r') as f: prev_crc32 = f.read().strip()
+    if os.path.isfile(location) and prev_crc32 and crc32_of_file(gz_file) == prev_crc32:
+        return (location, gz_file)
+    if os.path.isfile(crc32_file): os.unlink(crc32_file)
+
+    # Otherwise, start building the BED file from the gz_file, which depends on the BED subformat.
     if bedlike_format == 'genePred':
         # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html which explains what we're doing here
         awk_script = """
@@ -708,6 +760,7 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
         if table_name == 'knownGene':
             location = augment_knownGene_bed_file(organism, location)
         print('DONE ({}): [db {}] Fetched "{}" into a BED file'.format(print_time(), organism, table_name))
+        with open(crc32_file, 'w') as f: f.write(crc32_of_file(gz_file))
     except sbp.CalledProcessError:
         print('FAILED ({}): [db {}] Couldn\'t fetch "{}" as a BED file.'.format(print_time(), organism, table_name))
         print(command)
@@ -828,7 +881,7 @@ def extract_bed_plus_fields(track_type, as_location=None, as_string=None):
     try:
         as_parsed = AutoSqlDeclaration(as_string)
     except:
-        print('WARNING ({}): Can\'t parse autoSql file: {}.'.format(print_time(), as_location or as_string))
+        print('WARNING ({}): Can\'t parse autoSql file: {}'.format(print_time(), as_location or as_string))
         return None
     
     field_names = list(as_parsed.field_comments.keys())
@@ -837,10 +890,10 @@ def extract_bed_plus_fields(track_type, as_location=None, as_string=None):
 
 def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None, no_id=False):
     """
-    Generates BigBed file. Make sure you have 'bedToBigBed' in your $PATH
+    Generates BigBed file. Make sure you have 'bedToBigBed' and 'bigBedInfo' in your $PATH
     """
-    if not cmd_exists('bedToBigBed'):
-        sys.exit("FATAL: must have bedToBigBed installed on $PATH")
+    if not cmd_exists('bedToBigBed') or not cmd_exists('bigBedInfo'):
+        sys.exit("FATAL: must have bedToBigBed and bigBedInfo installed on $PATH")
     
     bb_file = organism + '/bigBed/' + os.path.basename(bed_file)[:-4] + '.bb'
     chrom_sizes_file = "./{0}/build/chrom.sizes.txt".format(organism)
@@ -865,10 +918,12 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None
                '"{4}"').format(organism, bed_type, as_file, bed_file, bb_file, extra_index)
     try:
         sbp.check_call(command, shell=True)
+        sbp.check_call('bigBedInfo "{0}" 2>&1 >/dev/null'.format(bb_file), shell=True)
         print('DONE ({}): Constructed "{}" BigBed file for organism "{}"'.format(print_time(), bb_file, organism))
     except sbp.CalledProcessError:
-        print(('FAILED ({}): Couldn\'t construct "{}" BigBed file for organism "{}". '
-              'Used command: `{}`').format(print_time(), bb_file, organism, command))
+        print('FAILED ({}): Couldn\'t construct "{}" BigBed file for organism "{}". '.format(print_time(), bb_file, organism))
+        print('DEBUG: Used command: `{}`'.format(command))
+        if os.path.isfile(bb_file): os.remove(bb_file) # Unlinks any incompletely generated files
         return None
 
     return bb_file
@@ -910,6 +965,7 @@ def find_bw_location_for_wig(organism, track_name):
     
     if not url_exists(file_location):
         # Admittedly this hack was built entirely for phastCons100Way in hg19. Not sure if worth it.
+        # FIXME: For http://hgdownload.cse.ucsc.edu/goldenPath/hg19/phyloP100way/ need to search for *.bw link on index page.
         first_digit = re.search('\\d', track_name)
         if first_digit is not None:
             inverted_name = track_name[first_digit.start():] + '.' + track_name[0:first_digit.start()]
