@@ -65,7 +65,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
     log.info('EXTRACTING TRACK HIERARCHY!')
     track_meta = ut.create_hierarchy(organism, table_source)
     if not track_meta:
-        log.warning('No tables for {} found. Omitting.'.format(ut.print_time(), organism))
+        log.warning('No tables for organism %s found, skipping...', organism)
         continue
 
     # Try connecting to the UCSC MySQL database for this organism
@@ -96,7 +96,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
     my_tracks = ut.fetch_tracks(xcur=cur, selection=selected_tracks)
     my_tracks = sorted(my_tracks, key=lambda row: (track_info[row[0]]['parentTrack'], row[0]))
     if len(my_tracks) == 0:
-        print("WARN: No tracks were selected by your criteria. Check your use of -C, -S, -P, -t, and -s...")
+        log.warning("No tracks were selected by your criteria. Check your use of -C, -S, -P, -t, and -s...")
     
     if args.super_tracks is True:
         supertracks = ut.fetch_supertracks(xcur=cur, track_info=track_info)
@@ -111,7 +111,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
     
     for track_name, tr_type, group, short_label, long_label, html_description, settings, url, sort, children in my_tracks:
         parent_track = track_info[track_name]['parentTrack']
-        print('INFO ({}): [db {}] Checking table "{}" (track {}).'.format(ut.print_time(), organism, track_name, parent_track))
+        log.debug('[db %s] Checking table "%s" (track %s)', organism, track_name, parent_track)
         
         file_location, bed_location, as_location = (None, None, None)
         bed_plus_fields = None
@@ -127,14 +127,13 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
         update_date = remote_updates.get(track_name, None)
         if track_has_a_table and track_name in last_updates:
             if not args.update_metadata_only and last_updates[track_name] == update_date:
-                print('INFO ({}): [db {}] data for table "{}" is up to date.'.format(ut.print_time(),
-                        organism, track_name))
+                log.info('[db %s] data for table "%s" is up to date', organism, track_name)
                 continue
             else:
-                print('INFO ({}): [db {}] Need to update table "{}".'.format(ut.print_time(), organism, track_name))
+                log.debug('[db %s] Need to update metadata for table "%s"', organism, track_name)
         else:
             track_noun = "supertrack" if is_super_track else ("composite track" if is_composite_or_super else "table")
-            print('INFO ({}): [db {}] Need to fetch {} "{}".'.format(ut.print_time(), organism, track_noun, track_name))
+            log.debug('[db %s] Need to fetch %s "%s"', organism, track_noun, track_name)
         if track_name in last_updates and not args.dry_run:
             file_location, bed_plus_fields = ut.get_last_location_and_bed_plus_fields(localconn, track_name)
         
@@ -151,8 +150,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             if file_location[0][0] is None:
                 file_location = ut.qups("SELECT fileName FROM {}".format(track_name), cur)
             if len(file_location) > 1:
-                print('WARNING ({}): [db {}] Multiple files are associated with "{}" "({})" file.'
-                      .format(ut.print_time(), organism, track_name, tr_type))
+                log.warning('[db %s] Multiple files are associated with "%s" (%s).', organism, track_name, tr_type)
             file_location = file_location[0][0]
             
             if not re.match(r'^https?://', file_location):
@@ -162,15 +160,13 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
                 as_string = ut.fetch_autosql_for_bigbed(file_location)
                 if as_string is not None:
                     bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_string=as_string)
-            print('DONE ({}): [db {}] Fetched remote location for "{}" "{}" file.'.format(ut.print_time(),
-                    organism, track_name, tr_type))
+            log.info('[db %s] DONE: Fetched remote location for "%s" (%s) file', organism, track_name, tr_type)
 
         # wig - these tracks are sometimes accessible as bigWig files, so if we can find that, we simply link to its URL
         elif tr_type.startswith('wig '):
             file_location = ut.find_bw_location_for_wig(organism, track_name)
             if file_location is None: continue
-            print('DONE ({}): [db {}] Fetched remote location for "{}" "wig" file, as bigWig.'.format(ut.print_time(),
-                    organism, track_name))
+            log.info('[db %s] DONE: Fetched remote location for "%s" (wig) file, as bigWig.', organism, track_name)
 
         # BED, genePred, rmsk, PSL, GVF, and narrowPeak processing - need to save and convert these to bigBed
         elif bedlike_format:
@@ -204,8 +200,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             if as_location is not None: os.remove(as_location)
             
         else:
-            print('INFO ({}): [db {}] Unhandled track type "{}" for table "{}".'.format(ut.print_time(), organism,
-                                                                                        tr_type, track_name))
+            log.info('[db %s] Unhandled track type "%s" for table "%s"', organism, tr_type, track_name)
             continue
 
         # Everything went OK! If we've reached this point, it's safe to save track data to the local database.
