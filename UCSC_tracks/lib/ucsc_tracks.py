@@ -12,6 +12,7 @@ import time
 import gzip
 import zlib
 from shutil import copyfile
+import logging as log
 from .autosql import AutoSqlDeclaration
 
 SCRIPT_DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -47,7 +48,8 @@ def open_ucsc_yaml():
         with open(os.path.join(os.path.dirname(__file__), '../../ucsc.yaml'), 'r') as handle:
             config_yaml = yaml.load(handle)
     except (ImportError, FileNotFoundError) as e:
-        sys.exit('FATAL: could not read ../ucsc.yaml.')
+        log.critical('Could not read ../ucsc.yaml. Exiting.')
+        sys.exit(64)
     return config_yaml
     
 
@@ -150,7 +152,7 @@ def connect_to_ucsc_mysql(host, db):
         conn = pymysql.connect(host=host, user='genome', database=db)
         return conn.cursor()
     except pymysql.err.InternalError:
-        print('WARNING ({}): No MySQL tables found for "{}". Omitting.'.format(print_time(), organism))
+        log.warning('No MySQL tables found for "%s". Skipping...', organism)
         return None
 
 
@@ -204,8 +206,8 @@ def get_organisms_list(host='', prefix=None):
         conn = pymysql.connect(host=host, user='genome', database='hgcentral')
         xcur = conn.cursor()
     except pymysql.err.InternalError:
-        print('FATAL ({}): Could not connect to UCSC MySQL server at "{}".'.format(print_time(), host))
-        sys.exit(1)
+        log.critical('Could not connect to UCSC MySQL server at "%s". Exiting.', host)
+        sys.exit(65)
     
     org_names = qups("SELECT name FROM dbDb WHERE active = 1{} ORDER BY orderKey ASC".format(prefix_query),
                      xcur)
@@ -267,7 +269,8 @@ def get_priority(db, selection, tracks_source, track_info):
     gene_tracks = track_form.xpath('//tr[starts-with(@id,"genes-")]//select/@name')
     priorities = {}
     if len(gene_tracks) == 0:
-        sys.exit("FATAL: Cannot parse browser page for {} to determine track priorities".format(db))
+        log.critical('Cannot parse browser page for "%s" to determine track priorities. Exiting.', db)
+        sys.exit(66)
     
     for track in selection:
         sel_name = re.sub(r'^all_', '', track)
@@ -467,8 +470,7 @@ def fetch_view_settings(xcur, view_track_name, parent_track):
         if 'view' in settings and 'parent' in settings and settings['parent'] == parent_track:
             return settings
         else:
-            print('WARNING ({}): tried to fetch view "{}" (parent "{}") but its settings are invalid'.format(print_time(), 
-                    view_track_name, parent_track))
+            log.warning('Tried to fetch view "%s" (parent "%s"), settings invalid', view_track_name, parent_track)
     return None
 
 
@@ -522,13 +524,13 @@ def fetch_autosql_for_bigbed(bb_location):
         as_finder = re.compile(b'^basesCovered: ', re.MULTILINE)
         match = as_finder.search(bb_info)
         if match is None or b'as:\n' not in bb_info_with_as:
-            print('WARNING ({}): Couldn\'t fetch autoSql for bigbed file at "{}"'.format(print_time(), bb_location))
+            log.warning('Couldn\'t fetch autoSql for bigbed file at "%s"', bb_location)
             return None
         # Clips out the b"as:\n"
         return bb_info_with_as[match.start() + 4 : -len(bb_info) + match.start()].decode('latin1')
     except sbp.CalledProcessError:
-        print('WARNING ({}): Couldn\'t fetch bigBedInfo for location "{}"'.format(print_time(), bb_location))
-        print(command)
+        log.warning('Couldn\'t fetch bigBedInfo for location "%s"', bb_location)
+        log.debug('Used command: %s', command)
         return None
     return None
 
@@ -623,7 +625,7 @@ def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
 
         print('\t'.join(fields))
 
-    if bed_lines_dropped > 0: print("DEBUG: dropped {} lines on invalid contigs".format(bed_lines_dropped))
+    if bed_lines_dropped > 0: log.debug('dropped %i lines on invalid contigs from "%s"', bed_lines_dropped, bed_file)
 
     with open(asql_file, 'r') as f: asql_lines = re.sub(r'\n(\s*\n)+', '\n', f.read().strip()).split('\n')
 
@@ -645,8 +647,7 @@ def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
 
     bed_nums = (bed_nums[0], field_count - bed_nums[0]) if field_count > bed_nums[0] else (bed_nums[0],)
     new_bed_type = "bed" + "+".join(map(str, bed_nums))
-    print('INFO ({}): [db {}] Fixed AS/BED files for {} ({} -> {})'.format(
-            print_time(), organism, bed_file, bed_type, new_bed_type))
+    log.info('[db %s] Fixed AS/BED files at %s (bed type %s -> %s)', organism, bed_file, bed_type, new_bed_type)
     return new_bed_type
 
 
@@ -694,7 +695,7 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
 
     # Download the table in gzipped TSV format to gz_file (using rsync to enable fast resuming)
     if not fetch_table_tsv_gz(organism, table_name, gz_file):
-        print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "{}".'.format(print_time(), organism, table_name))
+        log.warning('[db %s] FAILED: Couldn\'t download .txt.gz for table "%s"', organism, table_name)
         return (None, None)
 
     # If the BED was previously built successfully, and the CRC32 of the gz_file hasn't changed,
@@ -751,25 +752,25 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     elif bedlike_format == 'psl':
         # See https://genome.ucsc.edu/goldenPath/help/bigPsl.html
         if not cmd_exists('pslToBigPsl'):
-            sys.exit("FATAL: must have pslToBigPsl installed on $PATH")
+            log.critical('Must have pslToBigPsl installed on $PATH. Exiting.')
+            sys.exit(67)
         command = "cat '{}' | zcat {}| pslToBigPsl /dev/stdin stdout | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
                                                                                                   cut_bin_column, location)
     elif bedlike_format in BEDLIKE_FORMATS:
         command = "cat '{}' | zcat {}>'{}'".format(gz_file, cut_bin_column, location)
     else:
-        print('FAILED ({}): [db {}] "{}" {} conversion to BED not handled.'.format(print_time(), organism, table_name, 
-                                                                                   bedlike_format))
+        log.warning('[db %s] FAILED: Converting "%s" type %s to BED not handled.', organism, table_name, bedlike_format)
         return (None, None)
     
     try:
         sbp.check_call(command, shell=True)
         if table_name == 'knownGene':
             location = augment_knownGene_bed_file(organism, location)
-        print('DONE ({}): [db {}] Fetched "{}" into a BED file'.format(print_time(), organism, table_name))
+        log.info('[db %s] DONE: Fetched "%s" into a BED file', organism, table_name)
         with open(crc32_file, 'w') as f: f.write(crc32_of_file(gz_file))
     except sbp.CalledProcessError:
-        print('FAILED ({}): [db {}] Couldn\'t fetch "{}" as a BED file.'.format(print_time(), organism, table_name))
-        print(command)
+        log.warning('[db %s] FAILED: Couldn\'t fetch "%s" as a BED file', organism, table_name)
+        log.debug('Used command: %s', command)
         return (None, None)
     
     return (location, gz_file)
@@ -787,13 +788,14 @@ def get_first_item_from_bed(bed_location):
 
 def get_first_item_from_bigbed(bb_location):
     if not cmd_exists('bigBedToBed'):
-        sys.exit("FATAL: must have bigBedToBed installed on $PATH")
+        log.critical("Must have bigBedToBed installed on $PATH. Exiting.")
+        sys.exit(68)
     command = "bigBedToBed '{}' -maxItems=10 /dev/stdout | head -n 1".format(bb_location)
     try:
         first_line = sbp.check_output(command, shell=True).rstrip().decode()
         return tuple(first_line.split("\t"))
     except sbp.CalledProcessError:
-        print('WARNING ({}): Couldn\'t fetch first item from bigBed file "{}".'.format(print_time(), bb_location))
+        log.warning('Couldn\'t fetch first item from bigBed file "%s"', bb_location)
     return None
 
 
@@ -804,7 +806,7 @@ def augment_knownGene_bed_file(organism, old_location):
     We can also get the itemRgb from the kgColor table.
     Furthermore, we stuff the `description` field from kgXref into the 19th standard bigGenePred column (geneName2).
     """
-    print('INFO ({}): [db {}] Augmenting knownGene table.'.format(print_time(), organism))
+    log.debug('[db %s] Augmenting knownGene table', organism)
     new_location = old_location[:-4] + '.fixed.bed'
     kgXref_gz_file = './{}/build/kgXref.txt.gz'.format(organism)
     kgColor_gz_file = './{}/build/kgColor.txt.gz'.format(organism)
@@ -814,13 +816,13 @@ def augment_knownGene_bed_file(organism, old_location):
     knownCds = dict()
     
     if not fetch_table_tsv_gz(organism, 'kgXref', kgXref_gz_file):
-        print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "kgXref".'.format(print_time(), organism))
+        log.warning('[db %s] FAILED: Couldn\'t download .txt.gz for table "kgXref"', organism)
         return old_location
     elif not fetch_table_tsv_gz(organism, 'kgColor', kgColor_gz_file):
-        print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "kgColor".'.format(print_time(), organism))
+        log.warning('[db %s] FAILED: Couldn\'t download .txt.gz for table "kgColor"', organism)
         return old_location
     elif not fetch_table_tsv_gz(organism, 'knownCds', knownCds_gz_file):
-        print('FAILED ({}): [db {}] Couldn\'t download .txt.gz for table "knownCds".'.format(print_time(), organism))
+        log.warning('[db %s] FAILED: Couldn\'t download .txt.gz for table "knownCds"', organism)
         return old_location
         
     with gzip.open(kgXref_gz_file, 'rt', newline="\n") as kgXref_handle:
@@ -887,7 +889,7 @@ def extract_bed_plus_fields(track_type, as_location=None, as_string=None):
     try:
         as_parsed = AutoSqlDeclaration(as_string)
     except:
-        print('WARNING ({}): Can\'t parse autoSql file: {}'.format(print_time(), as_location or as_string))
+        log.warning('Can\'t parse autoSql file: %s', as_location or as_string)
         return None
     
     field_names = list(as_parsed.field_comments.keys())
@@ -899,7 +901,8 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None
     Generates BigBed file. Make sure you have 'bedToBigBed' and 'bigBedInfo' in your $PATH
     """
     if not cmd_exists('bedToBigBed') or not cmd_exists('bigBedInfo'):
-        sys.exit("FATAL: must have bedToBigBed and bigBedInfo installed on $PATH")
+        log.critical("Must have bedToBigBed and bigBedInfo installed on $PATH. Exiting.")
+        sys.exit(69)
     
     bb_file = organism + '/bigBed/' + os.path.basename(bed_file)[:-4] + '.bb'
     chrom_sizes_file = "./{0}/build/chrom.sizes.txt".format(organism)
@@ -913,7 +916,7 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None
     if not os.path.isfile(chrom_sizes_file):
         urls = list(map(lambda url: url % (organism, organism), get_downloads_chrom_sizes()))
         if not rsync_or_curl(urls, chrom_sizes_file):
-            print('FAILED: Couldn\'t fetch chromosome info')
+            log.warning('[db %s] FAILED: Couldn\'t fetch chromosome info', organism)
             return None
 
     extra_index = ''
@@ -925,11 +928,11 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None
     try:
         sbp.check_call(command, shell=True)
         sbp.check_call('bigBedInfo "{0}" 2>&1 >/dev/null'.format(bb_file), shell=True)
-        print('DONE ({}): Constructed "{}" BigBed file for organism "{}"'.format(print_time(), bb_file, organism))
+        log.info('[db %s] DONE: Constructed "%s" bigBed file', organism, bb_file)
     except sbp.CalledProcessError:
-        print('FAILED ({}): Couldn\'t construct "{}" BigBed file for organism "{}". '.format(print_time(), bb_file, organism))
-        print('DEBUG: Used command: `{}`'.format(command))
-        if os.path.isfile(bb_file): os.remove(bb_file) # Unlinks any incompletely generated files
+        log.warning('[db %s] FAILED: Couldn\'t construct "%s" bigBed file', organism, bb_file)
+        log.debug('Used command: %s', command)
+        if os.path.isfile(bb_file): os.remove(bb_file)  # Unlink any incompletely generated bigBed files
         return None
 
     return bb_file
@@ -949,7 +952,7 @@ def test_default_remote_item_url(organism, table_name, sample_item):
     fields = (organism, sample_item[0], sample_item[1], sample_item[2], sample_item[1], 
                 sample_item[2], table_name, sample_item[3])
     
-    print("DEBUG: " + (get_remote_item_url() % fields))
+    log.debug('[db %s] %s remote item URL: %s', organism, table_name, get_remote_item_url() % fields)
     try:
         response = urllib.request.urlopen(get_remote_item_url() % fields)
         html = response.read()
@@ -977,8 +980,8 @@ def find_bw_location_for_wig(organism, track_name):
             inverted_name = track_name[first_digit.start():] + '.' + track_name[0:first_digit.start()]
             file_location = get_wig_as_bigwig() % (organism, track_name, organism, inverted_name)
         if first_digit is None or not url_exists(file_location):
-            print('FAILED ({}): [db {}] URL for "{}" wig track (as bigWig file) is not reachable: {}'
-                    .format(print_time(), organism, track_name, file_location))
+            log.warning('[db %s] FAILED: URL for "%s" wig track (as bigWig) not reachable: %s', 
+                        organism, track_name, file_location)
             return None
 
     return file_location
@@ -1057,12 +1060,12 @@ def save_to_local_database(organism, localconn, row_vals, children = []):
     query = 'INSERT OR REPLACE INTO tracks VALUES (' + (','.join(['?'] * len(row_vals))) + ')'
     localconn.execute(query, row_vals)
     track_name = row_vals[0]
-    print('INFO ({}): [db {}] Saved local database entry for track "{}".'.format(print_time(), organism, track_name))
+    log.info('[db %s] Saved local database entry for track "%s"', organism, track_name)
     
     # Ensure child tracks of super tracks have parentTrack set correctly.
     for child_track_name in children:
-        print('INFO ({}): [db {}] Also updated parentTrack on child "{}" for supertrack "{}".'.format(print_time(), 
-                organism, child_track_name, track_name))
+        log.info('[db %s] Also updated parentTrack on child "%s" for supertrack "%s"', 
+                 organism, child_track_name, track_name)
         localconn.execute('UPDATE tracks SET parentTrack = ? WHERE name = ?', (track_name, child_track_name))
     
     localconn.commit()
@@ -1079,16 +1082,14 @@ def deprioritize_empty_parent_tracks(organism, localconn):
                         t2.parentTrack = t1.name AND t2.name != t1.name {}) == 0'''
     empty_composite_tracks = [row[0] for row in localconn.execute(query.format('!=', '')).fetchall()]
     for track_name in empty_composite_tracks:
-        print('INFO ({}): [db {}] Setting composite track "{}" priority=999999 for having no children.'.format(
-                print_time(), organism, track_name))
+        log.info('[db %s] Setting composite track "%s" priority=999999 (no children)', organism, track_name)
         localconn.execute('UPDATE tracks SET priority = 999999 WHERE name = ?', (track_name,))
     
     extra_clause = ' AND name NOT IN (' + (','.join(['?'] * len(empty_composite_tracks))) + ')'
     empty_supertracks = [row[0] for row in 
                          localconn.execute(query.format('==', extra_clause), empty_composite_tracks).fetchall()]
     for track_name in empty_supertracks:
-        print('INFO ({}): [db {}] Setting supertrack "{}" priority=999999 for having no non-empty children.'.format(
-                print_time(), organism, track_name))
+        log.info('[db %s] Setting supertrack "%s" priority=999999 (no non-empty children)', organism, track_name)
         localconn.execute('UPDATE tracks SET priority = 999999 WHERE name = ?', (track_name,))
     
     localconn.commit()
