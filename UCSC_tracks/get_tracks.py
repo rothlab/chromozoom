@@ -5,8 +5,10 @@ import argparse
 import time
 import sys
 import re
+import logging as log #FIXME implement this
 from shutil import copyfile
 
+LOG_LEVELS = {-2: log.DEBUG, -1: log.INFO, 0: log.WARNING, 1: log.ERROR, 2: log.CRITICAL, 3: log.CRITICAL + 10}
 
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
 parser.add_argument('-o', '--out', action='store', type=str, default='./data',
@@ -28,6 +30,10 @@ parser.add_argument('-t', '--track_prefix', action='store', type=str, default=No
                     help='Restrict scraping to tracks with names matching this prefix.')
 parser.add_argument('-s', '--skip_tracks', action='store', type=str, default=None,
                     help='Don\'t scrape tracks with names matching this prefix. Takes precedence over --track_prefix')
+parser.add_argument('-q', '--quiet', action='count', type=int, default=0,
+                    help='Log less information to STDERR. Repeat the flag up to 3x to suppress more messages.')
+parser.add_argument('-v', '--verbose', action='verbose', type=int, default=0,
+                    help='Log more information to STDERR. Takes precedence over --quiet. Use twice to see DEBUG messages.')
 parser.add_argument('--table_source', action='store', type=str, default='',
                     help='URL for the Table Browser webpage. Leave blank to retrieve it from the ../ucsc.yaml config file')
 parser.add_argument('--mysql_host', action='store', type=str, default='',
@@ -36,6 +42,8 @@ parser.add_argument('--downloads_base_url', action='store', type=str, default=''
                     help='Base URL for bulk downloads from UCSC. Leave blank to retrieve it from the ../ucsc.yaml config file')
 args = parser.parse_args()
 
+log_level = LOG_LEVELS.get(-min(verbose, 2) if verbose > 0 else min(quiet, 3), log.WARNING)
+log.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level = log_level)
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(args.out): os.makedirs(args.out)
@@ -52,12 +60,12 @@ downloads_base_url = downloads_base_url.rstrip('/')
 # ====================================================================
 
 for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
-    print('#####################################')
-    print('INFO ({}): FETCHING DATA FOR ORGANISM: {}'.format(ut.print_time(), organism))
-    print('INFO ({}): EXTRACTING TRACK HIERARCHY!'.format(ut.print_time()))
+    log.info('#####################################')
+    log.info('FETCHING DATA FOR ORGANISM: %s', organism)
+    log.info('EXTRACTING TRACK HIERARCHY!')
     track_meta = ut.create_hierarchy(organism, table_source)
     if not track_meta:
-        print('WARNING ({}): No tables for {} found. Omitting.'.format(ut.print_time(), organism))
+        log.warning('No tables for {} found. Omitting.'.format(ut.print_time(), organism))
         continue
 
     # Try connecting to the UCSC MySQL database for this organism

@@ -592,9 +592,10 @@ def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
 
     This function returns a normalized BED type "bedN+N" that reflects the actual number of fields in the BED file.
     """
-    # TODO: Other fixes we should implement, based on errors that occur in hg38:
+    # TODO: Other fixes we should implement, based on errors that occur in hg38 or hg19:
     # - BED fields longer than autoSql's 'string' allows (255 bytes). Could change autoSql to 'lstring' or truncate.
     # - For bigPsl, number of elements in oChromStarts not matching blockCount (usually for blockCount >1024)
+    # - Some .as files (eg hg19:ucscToINSDC.as) have malformed quotes
 
     chrom_sizes = get_chrom_sizes(organism)
 
@@ -602,13 +603,16 @@ def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
     def_names = ['chrom', 'chromStart', 'chromEnd', 'name', 'score', 'strand', 'thickStart', 'thickEnd', 'reserved']
     bed_nums = tuple(map(int, re.findall(r'\d+', bed_type)))
     field_count = None
+    bed_lines_dropped = 0
 
     for line in fileinput.input(bed_file, inplace=True):
         fields = line.strip().split('\t')
         if field_count is None: field_count = len(fields)
 
         # Drop any BED data that doesn't map to a valid chr (contig name)
-        if fields[0] not in chrom_sizes: continue
+        if fields[0] not in chrom_sizes: 
+            bed_lines_dropped += 1
+            continue
 
         # Clip the 5th column in the BED file if it is being used as the standard `score` field to the range of 0-1000.
         if bed_nums[0] >= 5:
@@ -619,12 +623,14 @@ def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
 
         print('\t'.join(fields))
 
+    if bed_lines_dropped > 0: print("DEBUG: dropped {} lines on invalid contigs".format(bed_lines_dropped))
+
     with open(asql_file, 'r') as f: asql_lines = re.sub(r'\n(\s*\n)+', '\n', f.read().strip()).split('\n')
 
     # Resets the initial fields in the autoSql that are supposed to conform to BED standards per the declared BED type
     #    i.e. a BED type of 'bed 6 +' will have the first 6 fields reset to BED standard names and types
     # This fixes bedToBigBed errors of the form "column #4 names do not match: Yours=[id]  BED Standard=[name]" 
-    for dtype, dname, eline, lnum in zip(def_types, def_names, asql_lines[3:], range(3, len(asql_lines))):
+    for dtype, dname, eline, lnum in zip(def_types, def_names, asql_lines[3:-1], range(3, len(asql_lines) - 1)):
         default_field = lnum < bed_nums[0] + 3
         if default_field: asql_lines[lnum] = (dtype + ' ' + eline.split(maxsplit=1)[1])
         lin1, lin2 = eline.split(';', maxsplit=1)
