@@ -19,6 +19,9 @@ SCRIPT_DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Cache the parsed config file after the first access
 config_yaml = None
 
+BIGBED_FORMATS = ['bigBed', 'bigLolly', 'bigBarChart', 'bigGenePred', 'bigPsl', 'bigDbSnp']
+BIG_FORMATS = BIGBED_FORMATS + ['bigWig', 'bam', 'vcfTabix']
+
 BEDLIKE_FORMATS = {
     # format: (as_location, bed_type)
     'bed': (None, None),
@@ -26,7 +29,8 @@ BEDLIKE_FORMATS = {
     'psl': ('autosql/bigPsl.as', 'bed12+12'),
     'gvf': ('autosql/bigGvf.as', 'bed8+3'),
     'narrowPeak': ('autosql/bigNarrowPeak.as', 'bed6+4'),
-    'rmsk' : ('autosql/bigRmsk.as', 'bed6+6')
+    'rmsk' : ('autosql/bigRmsk.as', 'bed6+6'),
+    'barChart': ('autosql/bigBarChart.as', 'bed6+5')
 }
 # For some reason bedToBigBed fails to create an extraIndex for BED files above this
 # length, roughly 27GB. Therefore, it's best to disable extraIndex'es for such large BED files.
@@ -195,13 +199,13 @@ def get_numrows(xcur, table_name):
     return qups("SELECT COUNT(*) FROM {}".format(table_name), xcur)[0][0]
 
 
-def get_organisms_list(host='', prefix=None):
+def get_organisms_list(host='', prefix='', skip=''):
     """
     Get list of organism databases that we may want to scrape from UCSC
     """
-    prefix_query = ""
-    if prefix is not None:
-        prefix_query = " AND name LIKE '{}%'".format(prefix)
+    prefix_query = ''
+    if prefix is not '': prefix_query += " AND name LIKE '{}%'".format(prefix)
+    if skip is not '': prefix_query += " AND name NOT LIKE '{}%'".format(skip)
     try:
         conn = pymysql.connect(host=host, user='genome', database='hgcentral')
         xcur = conn.cursor()
@@ -289,7 +293,7 @@ def get_priority(db, selection, tracks_source, track_info):
         if parent_track != sel_name:
             # Composite track subtracks incur additional penalty proportional to number of subtracks
             num_subtracks = len([k for (k, v) in track_info.items() if v['parentTrack'] == parent_track])
-            penalty = 3 if num_subtracks > 10 else (2 if num_subtracks > 3 else 0.5)
+            penalty = 3 if num_subtracks > 30 else (2 if num_subtracks > 10 else (1.5 if num_subtracks > 3 else 0.5))
             priorities[track] = int(priorities[track] * penalty)
         
     return priorities
@@ -297,7 +301,7 @@ def get_priority(db, selection, tracks_source, track_info):
 
 def create_hierarchy(organism, table_source):
     """
-    Creates a file with tables hierarchy for a given organism.
+    Creates a file with the tracks => tables hierarchy for a given organism.
     """
     save_dir = './{}'.format(organism)
     location = save_dir + '/table_hierarchy.txt'.format(organism)
@@ -330,6 +334,11 @@ def create_hierarchy(organism, table_source):
 
 
 def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
+    """
+    Parses the file we created with the tracks => tables hierarchy, and depending on whether we want to 
+    fetch composite tracks or not, returns a list of selected tracks and a TrackInfo() object with 
+    information on all the tracks (and their subtracks, for composite tracks), as well as track groups.
+    """
     selected_tracks = []
     track_info = TrackInfo()
     curr_tgroupname = None
@@ -342,27 +351,34 @@ def distill_hierarchy(hierarchy_location, include_composite_tracks=False):
     def process_tables():
         nonlocal curr_track_tables, selected_tracks, track_info
         if len(curr_track_tables) == 0: return
-        simple_table = [table for table in [curr_track, "all_" + curr_track] if table in curr_track_tables]
-        if len(simple_table) == 1:
-            selected_tracks.append(simple_table[0])
-            track_info[simple_table[0]] = {
-                'displayName': line.split('(', 1)[1][:-2],
+        
+        # If a track contains an identically named table, that table holds the track's data, and it's a "simple track"
+        #   - One exception: the table is sometimes prefixed by "all_" e.g. hg38.all_est
+        simple_track = [table for table in [curr_track, "all_" + curr_track] if table in curr_track_tables]
+        
+        if simple_track:
+            selected_tracks.append(simple_track[0])
+            track_info[simple_track[0]] = {
+                'displayName': curr_trackname,
                 'trackLabel': curr_trackname,
                 'groupLabel': curr_tgroupname,
                 'parentTrack': curr_track
             }
         else:
-            # Complex track
+            # A track that does NOT contain a table with an identical name must be a "composite track"
+            # These tracks contain many subtracks of the same type (each with its own table), sharing certain settings
+            # See https://genome.ucsc.edu/goldenpath/help/trackDb/trackDbHub.html#Composite_Track_Settings
             if include_composite_tracks:
                 selected_tracks.append(curr_track)
                 track_info[curr_track] = {
-                    'displayName': line.split('(', 1)[1][:-2],
+                    'displayName': curr_trackname,
                     'trackLabel': curr_trackname,
                     'groupLabel': curr_tgroupname,
                     'parentTrack': curr_track
                 }
                 selected_tracks += curr_track_tables
                 for table in curr_track_tables:
+                    if table in track_info: continue  # Never steal away a simple track's table into a composite track
                     table_line = curr_track_lines[curr_table]
                     track_info[table] = {
                         'displayName': table_line.split('(', 1)[1][:-2],
@@ -445,7 +461,7 @@ def fetch_supertracks(xcur, track_info):
     Fetches supertrack information from the specified UCSC database, which is in the trackDb table
     """
     tracks = qups("SELECT tableName, type, grp, shortLabel, longLabel, html, settings, url, priority "
-                  "FROM trackDb WHERE settings REGEXP '\\nsuperTrack on[ [.newline.]]' ORDER BY tableName", xcur)
+                  "FROM trackDb WHERE settings REGEXP '\\nsuperTrack on( |\\n)' ORDER BY tableName", xcur)
     
     tracks = [list(track) for track in tracks]
     for track in tracks:
@@ -456,8 +472,8 @@ def fetch_supertracks(xcur, track_info):
             'groupLabel': track_info.groups[track[2]],
             'parentTrack': track[0]
         }
-        children = qups(("SELECT tableName FROM trackDb WHERE settings REGEXP '\\nsuperTrack {}[ [.newline.]]'"
-                         " OR settings REGEXP '\\nparent {}[ [.newline.]]'").format(track[0], track[0]), xcur)
+        children = qups(("SELECT tableName FROM trackDb WHERE settings REGEXP '\\nsuperTrack {}( |\\n)'"
+                         " OR settings REGEXP '\\nparent {}( |\\n)'").format(track[0], track[0]), xcur)
         track.append([child[0] for child in children])
     
     return tracks
@@ -467,10 +483,11 @@ def fetch_view_settings(xcur, view_track_name, parent_track):
     tracks = qups(("SELECT settings FROM trackDb WHERE tableName = \"{}\"").format(view_track_name), xcur)
     if len(tracks) > 0:
         settings = parse_trackdb_settings(tracks[0][0])
-        if 'view' in settings and 'parent' in settings and settings['parent'] == parent_track:
+        if 'view' in settings and 'parent' in settings and settings['parent'].split()[0] == parent_track:
             return settings
         else:
             log.warning('Tried to fetch view "%s" (parent "%s"), settings invalid', view_track_name, parent_track)
+            log.debug('Settings were: %s', settings)
     return None
 
 
@@ -584,70 +601,104 @@ def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
     Tries to fix the BED and autoSql files if initial BigBed building failed.
     
     There are several fixes applied here:
-    1) Up to 9 initial fields in the autoSql are reset to default types and names used by the BED format.
-    2) The remaining fields are renamed so that there are no collisions with default names.
-    3) If the autoSql contains fields not in the (first line of the) BED file, these are trimmed.
-    4) BED data on invalid contigs (checked against chrom.sizes.txt) are filtered out of the BED file.
-    5) The 5th column in the BED file, `score`, is clipped to an integer range of 0-1000.
+
+    1) BED data on invalid contigs (checked against chrom.sizes.txt) are filtered out of the BED file.
+    2) BED columns claiming to be standard types per the `bed_type` are validated; `bed_type` is adjusted if needed.
+    3) If it is being used as a standard `score` field, the 5th column in the BED file is clipped to the range of 0-1000.
+    4) Fields in the autoSql are reset to default types and names if claimed to be standard and validated as such in #2.
+    5) The remaining fields are renamed so that there are no collisions with default names.
+    6) If the autoSql contains fields not in the (first line of the) BED file, these are trimmed.
+    7) 'string' fields in the autoSql that are longer than 255 bytes in the BED data are upsized to 'lstring'.
     
     Note that these fixes should be idempotent, i.e. there is no change if this process is run multiple times.
 
     This function returns a normalized BED type "bedN+N" that reflects the actual number of fields in the BED file.
     """
     # TODO: Other fixes we should implement, based on errors that occur in hg38 or hg19:
-    # - BED fields longer than autoSql's 'string' allows (255 bytes). Could change autoSql to 'lstring' or truncate.
     # - For bigPsl, number of elements in oChromStarts not matching blockCount (usually for blockCount >1024)
-    # - Some .as files (eg hg19:ucscToINSDC.as) have malformed quotes
+    # - Some .as files (eg hg19:ucscToINSDC.as) have malformed quoted strings
+    # - Could fix BED blocks so that the last one aligns with chromEnd (hg38.xenoEst)
 
+    REQUIRED_COLUMNS = 3
+    DEFAULT_TYPES = ['string', 'uint', 'uint', 'string', 'uint', 'char[1]', 'uint', 'uint', 'uint']
+    TYPE_REGEXES = {'string': r'^.{0,255}$', 'uint': r'^\d+$', 'char[1]': r'^.$'}
+    DEFAULT_NAMES = ['chrom', 'chromStart', 'chromEnd', 'name', 'score', 'strand', 'thickStart', 'thickEnd', 'reserved']
+    
     chrom_sizes = get_chrom_sizes(organism)
-
-    def_types = ['string', 'uint', 'uint', 'string', 'uint', 'char[1]', 'uint', 'uint', 'uint']
-    def_names = ['chrom', 'chromStart', 'chromEnd', 'name', 'score', 'strand', 'thickStart', 'thickEnd', 'reserved']
-    bed_nums = tuple(map(int, re.findall(r'\d+', bed_type)))
+    bed_nums = list(map(int, re.findall(r'\d+', bed_type)))
     field_count = None
     bed_lines_dropped = 0
+    field_sizes = None
+    valid_default_fields = bed_nums[0]
 
-    for line in fileinput.input(bed_file, inplace=True):
-        fields = line.strip().split('\t')
-        if field_count is None: field_count = len(fields)
+    with fileinput.input(bed_file, inplace=True) as f:
+        for line in f:
+            fields = line.strip().split('\t')
+            if field_count is None: field_count = len(fields)
+            if field_sizes is None: field_sizes = [0] * field_count
 
-        # Drop any BED data that doesn't map to a valid chr (contig name)
-        if fields[0] not in chrom_sizes: 
-            bed_lines_dropped += 1
-            continue
-
-        # Clip the 5th column in the BED file if it is being used as the standard `score` field to the range of 0-1000.
-        if bed_nums[0] >= 5:
-            if int(fields[4]) > 1000: fields[4] = '1000'
-            if int(fields[4]) < 0: fields[4] = '0'
+            # Drop any BED data that doesn't map to a valid chr (contig name)
+            if fields[0] not in chrom_sizes: 
+                bed_lines_dropped += 1
+                continue
         
-        #TODO: Tally up the max bytelength of each of the fields, if >255 can upconvert string -> lstring in the asql.
-
-        print('\t'.join(fields))
+            for i, field in enumerate(fields):
+                # Tally up the max widths of each of the fields, if >255 can upconvert string -> lstring in the autosql.
+                field_sizes[i] = max(field_sizes[i], len(field))
+                # Check how many columns of the BED match up with the DEFAULT_TYPES
+                if i < min(valid_default_fields, len(DEFAULT_TYPES)):
+                    if not re.match(TYPE_REGEXES[DEFAULT_TYPES[i]], field): valid_default_fields = i
+                
+            print('\t'.join(fields))
+        
+    if valid_default_fields < REQUIRED_COLUMNS:
+        log.warning('[db %s] Cannot fix %s - First 3 columns MUST be string, uint, uint', organism, bed_file)
+        return bed_type
+    
+    if valid_default_fields < bed_nums[0]: log.debug('%i cols don\'t match defaults', bed_nums[0] - valid_default_fields)
+    bed_nums[0] = valid_default_fields
+    
+    # If it is being used as a standard `score` field, clip the 5th column in the BED file to the range of 0-1000.
+    if bed_nums[0] >= 5:
+        with fileinput.input(bed_file, inplace=True) as f:
+            for line in f:
+                fields = line.strip().split('\t')
+                if int(fields[4]) > 1000: fields[4] = '1000'
+                if int(fields[4]) < 0: fields[4] = '0'
+                print('\t'.join(fields))
 
     if bed_lines_dropped > 0: log.debug('dropped %i lines on invalid contigs from "%s"', bed_lines_dropped, bed_file)
 
     with open(asql_file, 'r') as f: asql_lines = re.sub(r'\n(\s*\n)+', '\n', f.read().strip()).split('\n')
 
-    # Resets the initial fields in the autoSql that are supposed to conform to BED standards per the declared BED type
-    #    i.e. a BED type of 'bed 6 +' will have the first 6 fields reset to BED standard names and types
-    # This fixes bedToBigBed errors of the form "column #4 names do not match: Yours=[id]  BED Standard=[name]" 
-    for dtype, dname, eline, lnum in zip(def_types, def_names, asql_lines[3:-1], range(3, len(asql_lines) - 1)):
-        default_field = lnum < bed_nums[0] + 3
-        if default_field: asql_lines[lnum] = (dtype + ' ' + eline.split(maxsplit=1)[1])
-        lin1, lin2 = eline.split(';', maxsplit=1)
-        lin1 = lin1.rsplit(maxsplit=1)
+    # Resets the initial fields in the autoSql that we've validated as conforming to the BED standard
+    #    and will be provided as the number of standard fields in the BED type (e.g. "bed 6 + 2" => 6 standard fields)
+    #    (this fixes bedToBigBed errors of the form "column #4 names do not match: Yours=[id]  BED Standard=[name]")
+    # Also automatically upsizes 'string' non-standard fields that are >255 bytes wide to 'lstring' fields
+    for fnum, line in enumerate(asql_lines[3:-1]):
+        lnum = fnum + 3
+        field_size = field_sizes[fnum] if fnum < len(field_sizes) else 0
+        dtype = DEFAULT_TYPES[fnum] if fnum < len(DEFAULT_TYPES) else None
+        dname = DEFAULT_NAMES[fnum] if fnum < len(DEFAULT_NAMES) else None
+        
+        ftype, rest = line.split(maxsplit=1)
+        if fnum < bed_nums[0] and dtype is not None: line = dtype + ' ' + rest
+        elif ftype == 'string' and field_size > 255: line = 'lstring ' + rest
+        
+        ftypename, rest = line.split(';', maxsplit=1)
+        ftype, fname = ftypename.rsplit(maxsplit=1)
         # When renaming fields, have to avoid collisions with non-default fields that are named the same
-        if default_field: lin1[1] = dname
-        elif lin1[1] in def_names[:bed_nums[0]]: lin[1] = lin[1] + '2'
-        asql_lines[lnum] = '; '.join([' '.join(lin1), lin2])
+        if fnum < bed_nums[0] and dname is not None: fname = dname
+        elif fname in DEFAULT_NAMES[:bed_nums[0]]: fname = fname + '2'
+        asql_lines[lnum] = '; '.join([ftype + ' ' + fname, rest])
 
-    del asql_lines[3 + field_count : -1] # remove autoSQL fields that aren't in the BED file
-    open(asql_file, 'w').write('\n'.join(asql_lines))
+    del asql_lines[3 + field_count : -1]  # remove autoSQL fields that aren't actuallly in the BED file
+    with open(asql_file, 'w') as f: f.write('\n'.join(asql_lines))
 
-    bed_nums = (bed_nums[0], field_count - bed_nums[0]) if field_count > bed_nums[0] else (bed_nums[0],)
+    bed_nums = [bed_nums[0], field_count - bed_nums[0]] if field_count > bed_nums[0] else [bed_nums[0]]
     new_bed_type = "bed" + "+".join(map(str, bed_nums))
     log.info('[db %s] Fixed AS/BED files at %s (bed type %s -> %s)', organism, bed_file, bed_type, new_bed_type)
+    with open(bed_file + '.wasfixed', 'w') as f: f.write(new_bed_type)  # Marks that we fixed the BED/AS files already
     return new_bed_type
 
 
@@ -766,7 +817,7 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
         sbp.check_call(command, shell=True)
         if table_name == 'knownGene':
             location = augment_knownGene_bed_file(organism, location)
-        log.info('[db %s] DONE: Fetched "%s" into a BED file', organism, table_name)
+        log.info('[db %s] Fetched "%s" into a BED file', organism, table_name)
         with open(crc32_file, 'w') as f: f.write(crc32_of_file(gz_file))
     except sbp.CalledProcessError:
         log.warning('[db %s] FAILED: Couldn\'t fetch "%s" as a BED file', organism, table_name)
@@ -776,28 +827,28 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     return (location, gz_file)
 
 
-def get_first_item_from_bed(bed_location):
+def deferred_first_item_from_bigbed(bb_location):
     """
-    Gets the first item from the BED file at bed_location
-    Returns a tuple with the various fields.
+    Returns a getter for a bigBed file that returns the first row of data (if available in <30 seconds)
     """
-    with open(bed_location, 'r') as f:
-        first_line = f.readline().rstrip()
-        return tuple(first_line.split("\t"))
-
-
-def get_first_item_from_bigbed(bb_location):
     if not cmd_exists('bigBedToBed'):
         log.critical("Must have bigBedToBed installed on $PATH. Exiting.")
         sys.exit(68)
-    command = "bigBedToBed '{}' -maxItems=10 /dev/stdout | head -n 1".format(bb_location)
-    try:
-        first_line = sbp.check_output(command, shell=True).rstrip().decode()
-        return tuple(first_line.split("\t"))
-    except sbp.CalledProcessError:
-        log.warning('Couldn\'t fetch first item from bigBed file "%s"', bb_location)
-    return None
+    
+    def get_sample_item():
+        command = "bigBedToBed '{}' -maxItems=10 /dev/stdout | head -n 1".format(bb_location)
+        try:
+            proc = sbp.Popen(command, shell=True, stdout=sbp.PIPE)
+            stdout, stderr = proc.communicate(timeout = 30)
+            stdout = stdout.rstrip()
+            try: return tuple(stdout.decode().split("\t"))
+            except UnicodeDecodeError: return tuple(stdout.decode('latin-1').split("\t"))
+        except (sbp.CalledProcessError, sbp.TimeoutExpired) as e:
+            proc.kill()
+            log.warning('Couldn\'t fetch first item from bigBed file "%s"', bb_location)
+        return None
 
+    return get_sample_item
 
 def augment_knownGene_bed_file(organism, old_location):
     """
@@ -928,7 +979,7 @@ def generate_big_bed(organism, bed_type, as_file, bed_file, bed_plus_fields=None
     try:
         sbp.check_call(command, shell=True)
         sbp.check_call('bigBedInfo "{0}" 2>&1 >/dev/null'.format(bb_file), shell=True)
-        log.info('[db %s] DONE: Constructed "%s" bigBed file', organism, bb_file)
+        log.info('[db %s] SUCCESS: Constructed "%s" bigBed file', organism, bb_file)
     except sbp.CalledProcessError:
         log.warning('[db %s] FAILED: Couldn\'t construct "%s" bigBed file', organism, bb_file)
         log.debug('Used command: %s', command)
@@ -952,7 +1003,7 @@ def test_default_remote_item_url(organism, table_name, sample_item):
     fields = (organism, sample_item[0], sample_item[1], sample_item[2], sample_item[1], 
                 sample_item[2], table_name, sample_item[3])
     
-    log.debug('[db %s] %s remote item URL: %s', organism, table_name, get_remote_item_url() % fields)
+    #log.debug('[db %s] %s remote item URL: %s', organism, table_name, get_remote_item_url() % fields)
     try:
         response = urllib.request.urlopen(get_remote_item_url() % fields)
         html = response.read()
@@ -987,7 +1038,7 @@ def find_bw_location_for_wig(organism, track_name):
     return file_location
 
 
-def translate_settings(xcur, organism, table_name, parent_track, is_composite_track, sample_item, old_settings, 
+def translate_settings(xcur, organism, table_name, parent_track, is_composite_track, get_sample_item, old_settings, 
                        bed_plus_fields=None, url=None):
     """
     Translates the settings field in UCSC's trackDb into a JSON-encoded object with track settings supported by chromozoom
@@ -1001,7 +1052,7 @@ def translate_settings(xcur, organism, table_name, parent_track, is_composite_tr
         new_settings['visibility'] = 'hide' if super_track_pieces[-1] == 'off' else 'show'
     
     if 'parent' in old_settings:
-        parent_pieces = re.split(r'\s+', old_settings['parent'])
+        parent_pieces = old_settings['parent'].split()
         new_settings['visibility'] = 'hide' if parent_pieces[-1] == 'off' else 'show'
         # Inherit settings from a parent trackDb View, if it exists
         # See: https://genome.ucsc.edu/goldenPath/help/trackDb/trackDbHub.html#Composite_-_Views_Settings
@@ -1047,8 +1098,9 @@ def translate_settings(xcur, organism, table_name, parent_track, is_composite_tr
     # inserting these placeholders into the URL tells chromozoom to substitute the corresponding info for each item.
     # https://genome.ucsc.edu/cgi-bin/hgc?db=$D&c=$S&l=${&r=$}&o=${&t=$}&g=$T&i=$$
     table_name = re.sub(r'^all_', '', table_name)
-    if 'url' not in new_settings and test_default_remote_item_url(organism, table_name, sample_item):
-        new_settings['url'] = get_remote_item_url() % ('$D', '$S', '${', '$}', '${', '$}', table_name, '$$')
+    if 'url' not in new_settings:
+        if callable(get_sample_item) and test_default_remote_item_url(organism, table_name, get_sample_item()):
+            new_settings['url'] = get_remote_item_url() % ('$D', '$S', '${', '$}', '${', '$}', table_name, '$$')
     
     return json.dumps(new_settings)
 
@@ -1068,6 +1120,16 @@ def save_to_local_database(organism, localconn, row_vals, children = []):
                  organism, child_track_name, track_name)
         localconn.execute('UPDATE tracks SET parentTrack = ? WHERE name = ?', (track_name, child_track_name))
     
+    localconn.commit()
+
+
+def delete_from_local_database(organism, localconn, track_name):
+    """
+    Deletes a track from the tracks table in the local SQLite database
+    """
+    cursor = localconn.cursor()
+    cursor.execute('DELETE FROM tracks WHERE name = ?', (track_name,))
+    if cursor.rowcount > 0: log.info('[db %s] DELETED local database entry for track "%s"', organism, track_name)
     localconn.commit()
 
 

@@ -145,9 +145,13 @@ function getTopChromSizes($chrom_info_url, $contig_limit) {
 // Converts a type from UCSC's trackDb into its corresponding "big" format
 // e.g., bed -> bigBed; psl -> bigBed; wig -> bigWig etc.
 function littleToBigFormat($format) {
-  $format_map = array('bed' => 'bigBed', 'gvf' => 'bigBed', 'wig' => 'bigWig', 'psl' => 'bigBed',
-                      'genePred' => 'bigGenePred', 'narrowPeak' => 'bigBed', 'rmsk' => 'bigBed 6 +');
-                      // FIXME: make dedicated big* formats for gvf, psl and narrowPeak
+  $format_map = array('bed' => 'bigBed', 'wig' => 'bigWig', 'genePred' => 'bigGenePred', 
+                      // FIXME: make dedicated big* formats in js/custom/track-types for the following BED-like formats
+                      'gvf' => 'bigBed', 'psl' => 'bigBed', 'narrowPeak' => 'bigBed', 'rmsk' => 'bigBed 6 +', 'barChart' => 'bigBed',
+                      // FIXME: make subclasses of js/custom/track-types/bigbed.js for the following bigBed-derived formats
+                      'bigDbSnp' => 'bigBed', 'bigBarChart' => 'bigBed', 'bigPsl' => 'bigBed', 'bigLolly' => 'bigBed'
+                     );
+                      
   $format_parts = explode(' ', $format);
   if (isset($format_map[$format_parts[0]])) { $format_parts[0] = $format_map[$format_parts[0]]; }
   return implode(' ', $format_parts);

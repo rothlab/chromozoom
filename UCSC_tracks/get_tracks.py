@@ -5,11 +5,13 @@ import argparse
 import time
 import sys
 import re
-import logging as log #FIXME implement this
+import logging as log
+import traceback
 from shutil import copyfile
 
 LOG_LEVELS = {-2: log.DEBUG, -1: log.INFO, 0: log.WARNING, 1: log.ERROR, 2: log.CRITICAL, 3: log.CRITICAL + 10}
 
+# Set up arguments and handle argument parsing.
 parser = argparse.ArgumentParser(description='Fetch tracks from UCSC table browser and construct BigBed files.')
 parser.add_argument('-o', '--out', action='store', type=str, default='./data',
                     help='Directory where finished data will be stored (default is ./data).')
@@ -20,6 +22,8 @@ parser.add_argument('-N', '--update_metadata_only', action='store_true', default
 #FIXME: add a new argument to force ut.create_hierarchy() below to refetch the full track **hierarchy** (it sometimes changes)
 parser.add_argument('-g', '--org_prefix', action='store', type=str, default='',
                     help='Restrict scraping to organism database names matching this prefix.')
+parser.add_argument('-G', '--skip_orgs', action='store', type=str, default='',
+                    help='Skip organisms matching this prefix. Takes precedence over --org_prefix')
 parser.add_argument('-C', '--composite_tracks', action='store_true', default=False,
                     help='Also scrape composite tracks from UCSC (default is simple only).')
 parser.add_argument('-S', '--super_tracks', action='store_true', default=False,
@@ -28,11 +32,11 @@ parser.add_argument('-P', '--priority_below', action='store', type=float, defaul
                     help='Restrict scraping to tracks with calculated priority below this number (1-1000).')
 parser.add_argument('-t', '--track_prefix', action='store', type=str, default=None,
                     help='Restrict scraping to tracks with names matching this prefix.')
-parser.add_argument('-s', '--skip_tracks', action='store', type=str, default=None,
+parser.add_argument('-T', '--skip_tracks', action='store', type=str, default=None,
                     help='Don\'t scrape tracks with names matching this prefix. Takes precedence over --track_prefix')
-parser.add_argument('-q', '--quiet', action='count', type=int, default=0,
+parser.add_argument('-q', '--quiet', action='count', default=0,
                     help='Log less information to STDERR. Repeat the flag up to 3x to suppress more messages.')
-parser.add_argument('-v', '--verbose', action='verbose', type=int, default=0,
+parser.add_argument('-v', '--verbose', action='count', default=0,
                     help='Log more information to STDERR. Takes precedence over --quiet. Use twice to see DEBUG messages.')
 parser.add_argument('--table_source', action='store', type=str, default='',
                     help='URL for the Table Browser webpage. Leave blank to retrieve it from the ../ucsc.yaml config file')
@@ -42,7 +46,8 @@ parser.add_argument('--downloads_base_url', action='store', type=str, default=''
                     help='Base URL for bulk downloads from UCSC. Leave blank to retrieve it from the ../ucsc.yaml config file')
 args = parser.parse_args()
 
-log_level = LOG_LEVELS.get(-min(verbose, 2) if verbose > 0 else min(quiet, 3), log.WARNING)
+# Default log level is WARNING. Can use -q, -qq, and -qqq to print less, or -v and -vv to print more.
+log_level = LOG_LEVELS.get(-min(args.verbose, 2) if args.verbose > 0 else min(args.quiet, 3), log.WARNING)
 log.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level = log_level)
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -59,7 +64,7 @@ downloads_base_url = downloads_base_url.rstrip('/')
 # = For every organism in the list of organisms we wish to scrape... =
 # ====================================================================
 
-for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
+for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix, skip=args.skip_orgs):
     log.info('#####################################')
     log.info('FETCHING DATA FOR ORGANISM: %s', organism)
     log.info('EXTRACTING TRACK HIERARCHY!')
@@ -109,25 +114,28 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
     # = Iterate over tracks to be scraped, saving data into local directories and tracks.db =
     # =======================================================================================
     
+    
     for track_name, tr_type, group, short_label, long_label, html_description, settings, url, sort, children in my_tracks:
         parent_track = track_info[track_name]['parentTrack']
-        log.debug('[db %s] Checking table "%s" (track %s)', organism, track_name, parent_track)
+        log.debug('[db %s] Checking table "%s" (track %s) %s (%i)', 
+                    organism, track_name, parent_track, tr_type, track_priority[track_name])
         
-        file_location, bed_location, as_location = (None, None, None)
+        file_location, bed_location, as_location, txt_gz_location = (None, None, None, None)
         bed_plus_fields = None
-        sample_item = None
+        get_sample_item = None
         track_has_a_table = track_name in selected_tracks_having_tables
         remote_settings = ut.parse_trackdb_settings(settings)
         is_composite_or_super = not track_has_a_table and 'bigDataUrl' not in remote_settings
         is_super_track = len(children) > 0
         update_date = None
+        if len(tr_type.strip()) == 0: tr_type = 'bed'
         bedlike_format = ut.is_bedlike_format(tr_type)
 
         # First, check if we need to update the table at all
         update_date = remote_updates.get(track_name, None)
         if track_has_a_table and track_name in last_updates:
             if not args.update_metadata_only and last_updates[track_name] == update_date:
-                log.info('[db %s] data for table "%s" is up to date', organism, track_name)
+                log.info('[db %s] Table "%s" is up to date', organism, track_name)
                 continue
             else:
                 log.debug('[db %s] Need to update metadata for table "%s"', organism, track_name)
@@ -144,8 +152,8 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             # No fetching/conversion to do--only need to translate the settings from UCSC's trackDb format --> chromozoom.
             pass
 
-        # bigWig, bigBed, and BAM processing - these files are already in big* format and accessible by URL, so little to do
-        elif tr_type.startswith('bigWig ') or tr_type.startswith('bigBed ') or tr_type in ('bam', 'vcfTabix'):
+        # big* and BAM/vcfTabix processing - these files are already in big* format and accessible by URL, so little to do
+        elif tr_type.split()[0] in ut.BIG_FORMATS:
             file_location = [[remote_settings.get('bigDataUrl')]]
             if file_location[0][0] is None:
                 file_location = ut.qups("SELECT fileName FROM {}".format(track_name), cur)
@@ -155,22 +163,23 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
             
             if not re.match(r'^https?://', file_location):
                 file_location = downloads_base_url + file_location
-            if tr_type.startswith('bigBed '):
-                sample_item = ut.get_first_item_from_bigbed(file_location)
+            if tr_type.split()[0] in ut.BIGBED_FORMATS:
+                get_sample_item = ut.deferred_first_item_from_bigbed(file_location)
                 as_string = ut.fetch_autosql_for_bigbed(file_location)
                 if as_string is not None:
                     bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_string=as_string)
-            log.info('[db %s] DONE: Fetched remote location for "%s" (%s) file', organism, track_name, tr_type)
+            log.info('[db %s] SUCCESS: Fetched remote location for "%s" (%s) file', organism, track_name, tr_type)
 
         # wig - these tracks are sometimes accessible as bigWig files, so if we can find that, we simply link to its URL
         elif tr_type.startswith('wig '):
             file_location = ut.find_bw_location_for_wig(organism, track_name)
             if file_location is None: continue
-            log.info('[db %s] DONE: Fetched remote location for "%s" (wig) file, as bigWig.', organism, track_name)
+            log.info('[db %s] SUCCESS: Fetched remote location for "%s" (wig) file, as bigWig.', organism, track_name)
 
         # BED, genePred, rmsk, PSL, GVF, and narrowPeak processing - need to save and convert these to bigBed
         elif bedlike_format:
-            if not args.update_metadata_only:
+            if args.update_metadata_only: file_location = './{}/bigBed/{}.bb'.format(organism, track_name)
+            else:
                 bed_location, txt_gz_location = ut.fetch_bed_table(cur, track_name, organism, bedlike_format)
                 if bed_location is None:
                     continue
@@ -184,28 +193,38 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix):
                     bed_type = tr_type.replace(' ', '').rstrip('.')
                 
                 bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_location=as_location)
+                if os.path.isfile(bed_location + '.wasfixed'):
+                    with open(bed_location + '.wasfixed', 'r') as f: bed_type = f.read().strip()
                 file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
                 
-                # If bigBed building failed, try fixing the autosql and BED files and retrying once. Also, don't index `id`.
-                if file_location is None:
-                    bed_type = ut.fix_bed_as_files(organism, bed_location, as_location, bed_type)
-                    file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, None, True)
-           
-            if file_location is None: continue
+                # If bigBed building failed, try fixing the autosql and BED files (if they haven't been already).
+                if file_location is None and not os.path.isfile(bed_location + '.wasfixed'):
+                    try:
+                        bed_type = ut.fix_bed_as_files(organism, bed_location, as_location, bed_type)
+                        file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, None, True)
+                    except:
+                        exc = ''.join(traceback.format_exception(*sys.exc_info()))
+                        log.warning('[db %s] FAILED: error while fixing AS/BED files for %s\n%s', organism, track_name, exc)
+            
+            if file_location and not os.path.isfile(file_location):
+                ut.delete_from_local_database(organism, localconn, track_name)
+                file_location = None
+            if file_location is None: continue  # Don't ever save track metadata if the bigBed file hasn't been built
+            
+            get_sample_item = ut.deferred_first_item_from_bigbed(file_location)
             
             # Delete interim files for successful builds
-            sample_item = ut.get_first_item_from_bigbed(file_location)
-            if bed_location is not None: os.remove(bed_location)
+            if bed_location is not None: [os.remove(f) for f in glob.glob(bed_location + '*')]
             if txt_gz_location is not None: [os.remove(f) for f in glob.glob(txt_gz_location + '*')]
-            if as_location is not None: os.remove(as_location)
+            if as_location is not None: os.remove(as_location) 
             
         else:
-            log.info('[db %s] Unhandled track type "%s" for table "%s"', organism, tr_type, track_name)
+            log.warning('[db %s] FAILED: Unhandled track type "%s" for table "%s"', organism, tr_type, track_name)
             continue
 
-        # Everything went OK! If we've reached this point, it's safe to save track data to the local database.
+        # Everything went OK! If we've reached this point, it's safe to save track metadata to the local database.
         local_settings = ut.translate_settings(cur, organism, track_name, parent_track, 
-                is_composite_or_super and not is_super_track, sample_item, remote_settings, bed_plus_fields, url)
+                is_composite_or_super and not is_super_track, get_sample_item, remote_settings, bed_plus_fields, url)
         row_vals = (track_name, track_info[track_name]['displayName'], tr_type, group, track_info[track_name]['groupLabel'], 
                 parent_track, track_info[track_name]['trackLabel'], short_label, long_label, track_priority[track_name], 
                 file_location, html_description, update_date, settings, local_settings, is_composite_or_super, sort)
