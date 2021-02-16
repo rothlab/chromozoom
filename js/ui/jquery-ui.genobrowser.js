@@ -125,7 +125,7 @@ module.exports = function($, _) {
           $(o.navBar).toggleClass('narrow', self._width < 950).find('.picker').trigger('remaxheight');
         }
       });
-      $(document.body).bind('wheel DOMMouseScroll mousewheel', _.bind(self._recvZoom, self));
+      $(document.body).bind('wheel', _.bind(self._recvZoom, self));
       $(o.zoomBtns[0]).button().click(function() { delete self.centeredOn; self._animateZoom(true, 1000); });
       $(o.zoomBtns[1]).button().click(function() { delete self.centeredOn; self._animateZoom(false, 1000); });
       $elem.mouseenter(function() { self.showReticle('mouseArea', false); });
@@ -405,7 +405,10 @@ module.exports = function($, _) {
         });
         groupNames = _.keys(groups);
         if (_.isArray(o.groupTracksByCategories)) {
-          groupNames = _.sortBy(groupNames, function(cat) { return _.indexOf(o.groupTracksByCategories, cat); });
+          groupNames = _.sortBy(groupNames, function(cat) { 
+            var catIndex = _.indexOf(o.groupTracksByCategories, cat);
+            return catIndex === -1 ? Infinity: catIndex; 
+          });
         }
         self._addTracks(ungrouped, null, 100);
         _.each(groupNames, function(cat) {
@@ -1070,8 +1073,8 @@ module.exports = function($, _) {
       }
       
       function genomeListChoiceClicked(e) {
-        var $choice = $(e.target).closest('.choice').addClass('focus'),
-            db = $choice.data('db'),
+        var $choice = e.type == 'click' ? $(e.target).closest('.choice') : $(this).find('.choice.focus'),
+            db = $choice.addClass('focus').data('db'),
             metadata = $choice.data('metadata') || {},
             sourceType = $choice.hasClass('ucsc') ? 'ucsc' : ($choice.hasClass('igb') ? 'igb' : 'genbank'),
             ajaxUrl = sourceType === 'ucsc' ? o.ajaxDir+'chromsizes.php' : o.ajaxDir+'igb.php',
@@ -2280,7 +2283,10 @@ module.exports = function($, _) {
 
       highPriorityTracks = _.filter(o.availTracks, function(t) { return t.custom && t.custom.opts.priority <= 1; });
       alwaysSearchableTracks = _.filter(highPriorityTracks, function(t) { return t.custom.isSearchable; });
-      searchableVisibleTracks = _.filter(o.tracks, function(t) { return t.custom && t.custom.isSearchable; });
+      searchableVisibleTracks = _.filter(o.tracks, function(t) { 
+        // Limit searchable tracks to those in the UCSC tracks cache as they can be done locally (i.e. are tolerably fast)
+        return t.custom && t.custom.isSearchable && (!t.custom.bigDataUrl || (/^cache:\/\//).test(t.custom.bigDataUrl)); 
+      });
       searchTargets = alwaysSearchableTracks.concat(searchableVisibleTracks);
       loadAllChoicesAfter = _.after(searchTargets.length + (o.custom ? 0 : 1), loadAllChoices);
 
@@ -2535,7 +2541,8 @@ module.exports = function($, _) {
         self._finishZoomDebounced(delta > 0);
       }
 
-      return false; // disable scrolling of the document
+      //FIXME: not returning false ?fixes the "Unable to preventDefault inside passive event listener" error in Chrome
+      //return false; // disable scrolling of the document
     },
 
     // This is fired shortly after tracks believe that all images have loaded.

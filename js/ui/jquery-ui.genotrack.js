@@ -19,7 +19,8 @@ $.widget('ui.genotrack', {
   // Default options that can be overridden
   options: {
     disabled: false,
-    defaultFont: "11px -apple-system, BlinkMacSystemFont,'Segoe UI','Lucida Grande',Helvetica,Arial,sans-serif",
+    defaultFont: "11px '-apple-system',BlinkMacSystemFont,'Segoe UI','Lucida Grande',Helvetica,Arial,sans-serif",
+    chrLabelFont: "bold 21px 'helvetica neue','helvetica','arial',sans-serif",
     scales: {},
     line: null,       // must be specified on instantiation
     side: null        // must be specified on instantiation
@@ -462,7 +463,6 @@ $.widget('ui.genotrack', {
     self.tileLoadCounter -= $notNeeded.children('.loading').length;
     $notNeeded.remove();
     if (prevTop && prevTop != bppps.top) { self.updateDensity(); }
-    this._fixChrLabels(forceRepos);
     this._fixSideClipped();
   },
  
@@ -843,17 +843,15 @@ $.widget('ui.genotrack', {
       canvasAttrs = {"class": 'labels dens-' + density + ($oldC.length ? ' hidden' : ''), width: canvasWidth, height: canvasHeight},
       $c = $.mk('canvas').canvasAttr(canvasAttrs).data('density', density).appendTo($scrollCont),
       ctx = $c.get(0).getContext,
-      defaultFont = o.defaultFont,
       defaultColor = (custom && (/^\d+,\d+,\d+$/).test(custom.opts.color)) || '0,0,0';
       
     if (!ctx) { return; }
     if (!areas) { areas = $tdata.data('areas'); }
     areas = _.filter(areas, function(v) { return !v[6]; }); // Don't draw labels for areas continuing from previous tile
-    if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
     
     $c.css('height', canvasHeight).css('top', -this._scrollTop);
     ctx = $c.get(0).getContext('2d');
-    ctx.font = defaultFont;
+    ctx.font = o.defaultFont;
     ctx.textAlign = 'end';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgb(' + defaultColor + ')';
@@ -1062,29 +1060,6 @@ $.widget('ui.genotrack', {
     return this.uniqId + '-tile-' + bppp.toString().replace('.', '-') + '-' + tileId;
   },
  
-  _fixChrLabels: function(forceRepos) {
-    if (!this.ruler) { return; }
-    var self = this,
-      o = self.options,
-      $elem = self.element,
-      availWidth = o.browser.genobrowser('lineWidth'),
-      pos = o.line.genoline('getPos'),
-      zoom = o.browser.genobrowser('zoom'),
-      leftMarg = pos - availWidth * zoom * 0.5,
-      rightMarg = pos + 1.5 * availWidth * zoom,
-      bppps = this.bppps(),
-      labelsNeeded = _.filter(o.chrLabels, function(v) { return v.p > leftMarg && v.p < rightMarg; }),
-      labelElements = [];
-
-    _.each(labelsNeeded, function(v) {
-      var repos = false, $l = $elem.children('.label-' + v.p);
-      if (!$l.length) { $l = self._addLabel(v, zoom); repos = true; }
-      if (repos || forceRepos) { self._reposLabel($l, v, zoom); }
-      labelElements.push($l.get(0));
-    });
-    $elem.children('.label').not(labelElements).remove();
-  },
- 
   _rulerTile: function($t, tileId, bppp) {
     var self = this,
       o = self.options,
@@ -1121,44 +1096,61 @@ $.widget('ui.genotrack', {
       tooLong = tileId.toString().length > 8 && scale < 6,
       step = scale % 2 ? (tooLong ? 5 : 2) * Math.pow(10, floorHack(scale/2)) : Math.pow(10, scale/2),
       majorStep = scale % 2 ? (tooLong ? [step * 2, step * 2] : [step * 5, step * 5]) : [step * 5, step * 10],
-      start = floorHack((tileId - chr.p) / step) * step + step,
+      start = floorHack((tileId - chr.p) / step) * step,
       newChr;
    
-    if (bppp <= o.bpppNumbersBelow[0]) {
-      $t.toggleClass('tile-halfway', bppp <= o.bpppNumbersBelow[0] && bppp > o.bpppNumbersBelow[1]);
-      $t.toggleClass('tile-loaded', bppp <= o.bpppNumbersBelow[1]);
-      start -= step;
-      var offsetForNtText = !o.chrBands && bppp <= o.ntsBelow[1],
-        canvasHeight = o.chrBands ? 23 : (offsetForNtText ? 12 : 23),
-        canvasWidth = bppp / zoom * o.tileWidth,
-        $oldC = $t.children('canvas.ticks'),
-        canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": "ticks" + ($oldC.length ? ' hidden' : '')},
-        $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
-        ctx = $c.get(0).getContext,
-        textY = o.chrBands ? 16 : (offsetForNtText ? 10 : 16),
-        defaultFont = o.defaultFont;
-      if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
-      if (!ctx) { return; }
+    $t.toggleClass('tile-loaded', bppp <= o.bpppNumbersBelow[0]);
+    if (bppp > o.bpppNumbersBelow[0]) { return; }
 
-      // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
-      $c.canvasAttr(canvasAttrs);
-      ctx = $c.get(0).getContext('2d');
-      ctx.font = defaultFont;
-      for (var t = start; t + chr.p < tileId + bppp * o.tileWidth + step; t += step) {
-        if (t > o.chrLengths[chr.n]) {
-          newChr = o.browser.genobrowser('chrAt', chr.p + t);
-          if (chr === newChr) { break; } // off the end of the last chromosome
-          t = 0;
-          chr = newChr;
-          continue; // the label for 0 is never shown
-        }
+    var chrLabelsOnly = bppp <= o.bpppNumbersBelow[0] && bppp > o.bpppNumbersBelow[1],
+      offsetForNtText = !o.chrBands && bppp <= o.ntsBelow[1],
+      canvasHeight = o.track.h,
+      canvasWidth = bppp / zoom * o.tileWidth,
+      $oldC = $t.children('canvas.ticks'),
+      canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": "ticks" + ($oldC.length ? ' hidden' : '')},
+      $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
+      ctx = $c.get(0).getContext,
+      textY = o.chrBands ? 16 : (offsetForNtText ? 10 : 16),
+      chrTextUpTo = -Infinity,
+      chrText;
+
+    if (!ctx) { return; }
+
+    // draw on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
+    $c.canvasAttr(canvasAttrs);
+    ctx = $c.get(0).getContext('2d');
+    ctx.font = o.defaultFont;
+
+    // Step through all of the possible ticks
+    for (var t = start; t + chr.p < tileId + bppp * o.tileWidth + step; t += step) {
+      // Do we need to advance to the next chr?
+      if (t > chr.w) {
+        newChr = o.browser.genobrowser('chrAt', chr.p + chr.w + 1);
+        if (chr === newChr) { break; } // off the end of the last chromosome
+        t = 0;
+        chr = newChr;
+      }
+
+      var x = ((t + chr.p - tileId + 0.5) / bpPerTile * canvasWidth);
+      if (t == 0) {
+        // This is a new chr boundary; draw a chrLabel
+        ctx.fillStyle = 'red';
+        ctx.fillRect(x - 1, 0, 2, o.track.h);
+        ctx.fillStyle = 'black';
+        ctx.font = o.chrLabelFont;
+        chrText = chr.n.replace(/^chr/, '');
+        chrTextUpTo = x + Math.min(ctx.measureText(chrText).width + 4, chr.w / bpPerTile * canvasWidth);
+        ctx.clearRect(x + 1, 0, Math.max(0, chrTextUpTo - x - 1), o.track.h);
+        if (chrTextUpTo - x > 8) { ctx.fillText(chrText, x + 2, textY + 3, chrTextUpTo - x - 4); }
+        ctx.font = o.defaultFont;
+      } else if (!chrLabelsOnly && x > chrTextUpTo) {
+        // Draw a major or minor tick
         var unit = _.find([[1000000, 'm'], [1000, 'k'], [1, '']], function(v) { return v[0] <= step; }),
           major = floorHack(t / majorStep[1]),
           minor = (t / unit[0]).toString().substr(major > 0 ? major.toString().length : 0),
-          isMajor = !(t % majorStep[0]),
-          x = ((t + chr.p - tileId + 0.5) / bpPerTile * canvasWidth);
+          isMajor = !(t % majorStep[0]);
         if (isMajor) {
-          ctx.font = "bold " + defaultFont;
+          ctx.font = "bold " + o.defaultFont;
           if (major) {
             ctx.textAlign = 'end';
             ctx.fillText(major, x - 1, textY);
@@ -1171,15 +1163,15 @@ $.widget('ui.genotrack', {
           ctx.fillStyle = '#000000';
         }
         ctx.fillText(minor + (isMajor ? unit[1] : ''), x + 2, textY);
-        if (isMajor) { ctx.font = defaultFont; }
+        if (isMajor) { ctx.font = o.defaultFont; }
       }
+    }
 
-      // fade between the old & new canvas elements
-      if ($oldC.length) {
-        $oldC.addClass('hidden');
-        $c.removeClass('hidden');
-        setTimeout(function() { $oldC.remove(); }, 1000);
-      }
+    // fade between the old & new canvas elements
+    if ($oldC.length) {
+      $oldC.addClass('hidden');
+      $c.removeClass('hidden');
+      setTimeout(function() { $oldC.remove(); }, 1000);
     }
   },
  
@@ -1193,71 +1185,70 @@ $.widget('ui.genotrack', {
           gpos100: '#000', gvar: '#000', acen: '#963232'},
       whiteLabel = {gpos50: true, stalk: true, gpos75: true, gpos100: true, gvar: true};
      
-    if (!o.chrBands) { return; }
-    if (zoom <= o.ideogramsAbove) {
-      var firstBandIndex = _.sortedIndex(o.chrBands, [0, 0, leftMarg], function(v) { return v[2]; }),
-        lastBandIndex = _.sortedIndex(o.chrBands, [0, rightMarg], function(v) { return v[1]; }),
-        bandsToDraw = o.chrBands.slice(firstBandIndex, lastBandIndex),
-        canvasHeight = 25,
-        canvasWidth = bppp / zoom * o.tileWidth,
-        $oldC = $t.children('canvas.bands'),
-        canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": 'bands' + ($oldC.length ? ' hidden' : '')},
-        $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
-        ctx = $c.get(0).getContext,
-        defaultFont = o.defaultFont;
-      if ($.browser.opera) { defaultFont = "12px Arial,sans-serif"; } // Opera can only render Arial decently on canvas
-      if (!ctx) { return; }
+    if (!o.chrBands || zoom > o.ideogramsAbove) { return; }
+
+    var firstBandIndex = _.sortedIndex(o.chrBands, [0, 0, leftMarg], function(v) { return v[2]; }),
+      lastBandIndex = _.sortedIndex(o.chrBands, [0, rightMarg], function(v) { return v[1]; }),
+      bandsToDraw = o.chrBands.slice(firstBandIndex, lastBandIndex),
+      canvasHeight = 25,
+      canvasWidth = bppp / zoom * o.tileWidth,
+      $oldC = $t.children('canvas.bands'),
+      canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": 'bands' + ($oldC.length ? ' hidden' : '')},
+      $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
+      ctx = $c.get(0).getContext;
+
+    if (!ctx) { return; }
+   
+    // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
+    $c.canvasAttr(canvasAttrs);
+    ctx = $c.get(0).getContext('2d');
+    ctx.font = o.defaultFont;
+    ctx.textAlign = 'center';
+    _.each(bandsToDraw, function(band, i) {
+      var leftUnclipped = (band[1] - tileId) / zoom,
+        left = Math.max(leftUnclipped, 0),
+        rightUnclipped = (band[2] - tileId) / zoom,
+        right = Math.min(rightUnclipped, canvasWidth),
+        width = right - left,
+        acenHeight = 7,
+        prevBand = o.chrBands[firstBandIndex + i - 1],
+        unclippedWidth, leftClipRatio, rightClipRatio, leftHeight, rightHeight;
      
-      // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
-      $c.canvasAttr(canvasAttrs);
-      ctx = $c.get(0).getContext('2d');
-      ctx.font = defaultFont;
-      ctx.textAlign = 'center';
-      _.each(bandsToDraw, function(band) {
-        var leftUnclipped = (band[1] - tileId) / zoom,
-          left = Math.max(leftUnclipped, 0),
-          rightUnclipped = (band[2] - tileId) / zoom,
-          right = Math.min(rightUnclipped, canvasWidth),
-          width = right - left,
-          acenHeight = 7,
-          unclippedWidth, leftClipRatio, rightClipRatio, leftHeight, rightHeight;
-       
-        if (band[4] == 'acen') {
-          unclippedWidth = rightUnclipped - leftUnclipped;
-          leftHeight = (1 - (left - leftUnclipped) / unclippedWidth) * acenHeight;
-          rightHeight = (rightUnclipped - right) / unclippedWidth * acenHeight;
-          if (band[3].substr(0, 1) == 'q') { 
-            leftHeight = acenHeight - leftHeight;
-            rightHeight = acenHeight - rightHeight;
-          }
-          ctx.fillStyle = giemsaColors.acen;
-          ctx.beginPath();
-          ctx.moveTo(left, 9 - leftHeight);
-          ctx.lineTo(right, 9 - rightHeight);
-          ctx.lineTo(right, 10 + rightHeight);
-          ctx.lineTo(left, 10 + leftHeight);
-          ctx.lineTo(left, 9 - leftHeight);
-          ctx.closePath();
-          ctx.fill();
-        } else {
-          ctx.fillStyle = '#000';
-          ctx.fillRect(left, 2, width, 1);
-          ctx.fillRect(left, 16, width, 1);
-          ctx.fillStyle = giemsaColors[band[4]];
-          ctx.fillRect(left, 3, width, 13);
-          if (width > band[3].length * 10) {
-            ctx.fillStyle = whiteLabel[band[4]] ? '#fff' : '#000';
-            ctx.fillText(band[3], left + width / 2, 14);
-          }
+      if (band[4] == 'acen') {
+        unclippedWidth = rightUnclipped - leftUnclipped;
+        leftHeight = (1 - (left - leftUnclipped) / unclippedWidth) * acenHeight;
+        rightHeight = (rightUnclipped - right) / unclippedWidth * acenHeight;
+        if (band[3].substr(0, 1) == 'q' || (prevBand && prevBand[4] == 'acen')) { 
+          leftHeight = acenHeight - leftHeight;
+          rightHeight = acenHeight - rightHeight;
         }
-      });
-     
-      // fade between the old & new canvas elements
-      if ($oldC.length) {
-        $oldC.addClass('hidden');
-        $c.removeClass('hidden');
-        setTimeout(function() { $oldC.remove(); }, 1000);
+        ctx.fillStyle = giemsaColors.acen;
+        ctx.beginPath();
+        ctx.moveTo(left, 9 - leftHeight);
+        ctx.lineTo(right, 9 - rightHeight);
+        ctx.lineTo(right, 10 + rightHeight);
+        ctx.lineTo(left, 10 + leftHeight);
+        ctx.lineTo(left, 9 - leftHeight);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(left, 2, width, 1);
+        ctx.fillRect(left, 16, width, 1);
+        ctx.fillStyle = giemsaColors[band[4]];
+        ctx.fillRect(left, 3, width, 13);
+        if (width > band[3].length * 10) {
+          ctx.fillStyle = whiteLabel[band[4]] ? '#fff' : '#000';
+          ctx.fillText(band[3], left + width / 2, 14);
+        }
       }
+    });
+   
+    // fade between the old & new canvas elements
+    if ($oldC.length) {
+      $oldC.addClass('hidden');
+      $c.removeClass('hidden');
+      setTimeout(function() { $oldC.remove(); }, 1000);
     }
   },
  
@@ -1311,25 +1302,6 @@ $.widget('ui.genotrack', {
       ctx.fillRect(i * ppbp, 0, ppbp, height);
       prevColor = nextColor;
     }
-  },
- 
-  _addLabel: function(label, zoom) {
-    var o = this.options,
-      $l = $.mk('div').addClass('label label-'+label.p),
-      $lt = $.mk('div').addClass('label-text').prependTo($l).text(label.n.replace(/^chr/,''));
-    if (label.n.indexOf('chr') === 0) { $lt.prepend('<span class="chr">chr</span>'); }
-    $l.prepend('<span class="start-line"></span>');
-    if (label.end === true) { $l.addClass('label-end'); }
-    return $l.appendTo(this.element);
-  },
- 
-  _reposLabel: function($l, label, zoom) {
-    // constrain width of label so it doesn't run over into the next one
-    // max-width doesn't include padding (5px)
-    if (label.end !== true) { $l.children('.label-text').css('max-width', Math.max(label.w / zoom - 5, 0)); }
-    // `+ 1` --> convert 0-based positioning
-    // `- 1` --> label is offset 1px to left to compensate for the 2px width of the red indicator line
-    $l.css('left', (label.p + 1 - this.options.line.genoline('option', 'origin')) / zoom - 1);
   },
  
   _customTileRender: function(e, callback) {

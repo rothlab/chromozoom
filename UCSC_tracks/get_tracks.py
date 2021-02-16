@@ -59,15 +59,16 @@ tracks_source = ut.get_remote_tracks()
 mysql_host = ut.get_mysql_host() if args.mysql_host == '' else args.mysql_host
 downloads_base_url = ut.get_downloads_base_url() if args.downloads_base_url == '' else args.downloads_base_url
 downloads_base_url = downloads_base_url.rstrip('/')
+organism_list = ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix, skip=args.skip_orgs)
 
 # ====================================================================
 # = For every organism in the list of organisms we wish to scrape... =
 # ====================================================================
 
-for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix, skip=args.skip_orgs):
+for org_i, organism in enumerate(organism_list):
     log.info('#####################################')
-    log.info('FETCHING DATA FOR ORGANISM: %s', organism)
-    log.info('EXTRACTING TRACK HIERARCHY!')
+    log.info('FETCHING DATA FOR ORGANISM: %s (%i/%i)', organism, org_i + 1, len(organism_list))
+    log.info('EXTRACTING TRACK HIERARCHY')
     track_meta = ut.create_hierarchy(organism, table_source)
     if not track_meta:
         log.warning('No tables for organism %s found, skipping...', organism)
@@ -180,7 +181,7 @@ for organism in ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix, s
         elif bedlike_format:
             if args.update_metadata_only: file_location = './{}/bigBed/{}.bb'.format(organism, track_name)
             else:
-                bed_location, txt_gz_location = ut.fetch_bed_table(cur, track_name, organism, bedlike_format)
+                bed_location, txt_gz_location = ut.fetch_bed_table(cur, track_name, organism, tr_type.split())
                 if bed_location is None:
                     continue
                 # An uncompressed copy of the cytoBandIdeo track is kept alongside tracks.db

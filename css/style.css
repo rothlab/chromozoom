@@ -1056,7 +1056,7 @@ body.row-resizing * {
   position: absolute;
   font-family: "helvetica neue", "helvetica", "arial", sans-serif;
   font-weight: bold;
-  font-size: 1.3em;
+  font-size: 21px;
   top: 0;
   z-index: 200;
 }
@@ -1068,18 +1068,6 @@ body.row-resizing * {
 }
 .first-label { padding-bottom: 4px; }
 .browser-track .label .chr  { display: none; }
-.browser-track .label.occluded .chr  { display: inline; }
-.browser-track .label .start-line { 
-  position: absolute;
-  height: 1000px;
-  border-left: 2px solid red;
-  left: 0px;
-  top: 0;
-}
-.browser-track .label-end .start-line {
-  width: 1000px;
-  background: #ccc;
-}
 
 .browser-track-ruler .tile-full .tdata {
   margin-top: 20px;
@@ -1099,7 +1087,6 @@ body.row-resizing * {
   left: 0;
   width: 100%;
   opacity: 1;
-  background: white;
   -webkit-transition: opacity 0.5s ease-in-out;
   -moz-transition: opacity 0.5s ease-in-out;
   -o-transition: opacity 0.5s ease-in-out;

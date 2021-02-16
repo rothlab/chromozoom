@@ -91,3 +91,11 @@ function getCytoBandIdeo($cytoband_bed_path, $db) {
   } catch (Exception $e) { return FALSE; }
   return $cytobands;
 }
+
+// Filters a list of categories to just the ones represented in the given $tracks
+// $tracks should be an array created by getTracksForDb() above
+function filterCategoriesForTracks($categories, $tracks) {
+  $categoriesFound = array("Mapping and Sequencing" => TRUE);
+  foreach ($tracks as $track) { $categoriesFound[$track['grp']] = TRUE; }
+  return array_values(array_intersect($categories, array_keys($categoriesFound)));
+}

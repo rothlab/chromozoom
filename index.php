@@ -377,9 +377,10 @@
                 <div class="limit">
                   Fetch
                     <select name="limit">
-                      <option>50</option>
-                      <option selected="selected">100</option>
-                      <option>500</option>
+                      <option>1000</option>
+                      <option selected="selected">5000</option>
+                      <option>10000</option>
+                      <option>20000</option>
                     </select>
                   largest contigs
                 </div>

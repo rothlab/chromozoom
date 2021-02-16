@@ -1,8 +1,10 @@
 // ====================================================================
 // = chrom.sizes format: http://www.broadinstitute.org/igv/chromSizes =
 // ====================================================================
-// Note: we are extending the general use of this to include data loaded from the genome.txt and annots.xml
-// files of an IGB quickload directory,
+// 
+// Note: we are extending the general use of this to also include either:
+//   1) data loaded from the genome.txt and annots.xml iles of an IGB quickload directory, OR
+//   2) metadata loaded from the UCSC MySQL database about a particular UCSC genome.
 
 var utils = require('./utils/utils.js'),
   parseInt10 = utils.parseInt10,

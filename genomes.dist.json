@@ -1,22 +1,23 @@
 {
-    "ucsc:hg38:100": {
+    "ucsc:hg38:5000": {
         "species": "Human",
         "assemblyDate": "Dec. 2013",
         "ver": "GRCh38/hg38"
     },
-    "ucsc:hg19:100": {
+    "ucsc:hg19:5000": {
         "species": "Human",
         "assemblyDate": "Feb. 2009",
         "ver": "GRCh37/hg19"
     },
-    "ucsc:mm10:100": {
+    "ucsc:mm39:5000": {
+        "species": "Mouse",
+        "assemblyDate": "Jun. 2020",
+        "ver": "GRCm39/mm39"
+    },
+    "ucsc:mm10:5000": {
         "species": "Mouse",
         "assemblyDate": "Dec. 2011",
         "ver": "GRCm38/mm10"
-    },
-    "ucsc:mm9:100": {
-        "species": "Mouse",
-        "assemblyDate": "Jul. 2007",
-        "ver": "NCBI37/mm9"
     }
+
 }

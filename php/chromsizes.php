@@ -57,7 +57,7 @@ function getAllGenomes() {
 if (isset($_GET['db'])) {
   // If the db parameter is provided, provide a sorted chrom.sizes file for this genome
   $db = preg_replace('/[^a-zA-Z0-9]/', '', $_GET['db']);
-  $contig_limit = isset($_GET['limit']) ? min(max(intval($_GET['limit']), 50), 500) : 100;
+  $contig_limit = isset($_GET['limit']) ? min(max(intval($_GET['limit']), 50), 20000) : 5000;
   
   $chrom_info_file = realpath(sprintf(dirname(dirname(__FILE__)) . "/" . $chrom_info_file, $db));
   $chrom_info_url = sprintf($chrom_info_url, $db);
@@ -83,7 +83,7 @@ if (isset($_GET['db'])) {
     $response['tracks'] = getTracksForDb($track_db_path, $db, 100, FALSE, FALSE, $also_include_tracks);
     $more_tracks = getTracksForDb($track_db_path, $db, 10000, FALSE, FALSE, FALSE, TRUE) > count($response['tracks']);
     $response['moreTracks'] = $more_tracks ? (dirname($_SERVER['REQUEST_URI']) . "/ucsc_tracks.php?db=$db") : FALSE;
-    $response['categories'] = $ucsc_config['ucsc_track_category_order'];
+    $response['categories'] = filterCategoriesForTracks($ucsc_config['ucsc_track_category_order'], $response['tracks']);
     
     $response['cytoBandIdeo'] = getCytoBandIdeo($cytoband_bed_path, $db);
   

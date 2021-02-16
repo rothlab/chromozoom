@@ -730,7 +730,7 @@ def fetch_table_tsv_gz(organism, table_name, gz_file, retries=3):
     return rsync_or_curl(url, gz_file, retries)
     
 
-def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
+def fetch_bed_table(xcur, table_name, organism, track_type):
     """
     Fetches a table from UCSC as a gzipped TSV file, then converts this to a BED file.
     Certain BED-like formats require additional postprocessing to become the best possible BED file.
@@ -758,7 +758,7 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
     if os.path.isfile(crc32_file): os.unlink(crc32_file)
 
     # Otherwise, start building the BED file from the gz_file, which depends on the BED subformat.
-    if bedlike_format == 'genePred':
+    if track_type[0] == 'genePred':
         # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html which explains what we're doing here
         awk_script = """
         {
@@ -787,9 +787,10 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
             awk_script = awk_script.replace('%s', col_vars)
         else:
             awk_script = awk_script.replace('%s', '"", "unk", "unk", blankExonFrames')
-        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
-                                                                                                    awk_script, location)
-    elif bedlike_format == 'rmsk':
+        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >'{}'"
+        command = command.format(gz_file, awk_script, location)
+        
+    elif track_type[0] == 'rmsk':
         awk_script = """
         {
           score = 1000 - $3 - $4 - $5
@@ -798,17 +799,46 @@ def fetch_bed_table(xcur, table_name, organism, bedlike_format=None):
         """
         if not has_bin_column:
             awk_script = re.sub(r'\$(\d+)\b', lambda m: '$' + str(int(m.group(1)) - 1), awk_script)
-        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
-                                                                                                    awk_script, location)
-    elif bedlike_format == 'psl':
+        command = "cat '{}' | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >'{}'"
+        command = command.format(gz_file, awk_script, location)
+        
+    elif track_type[0] == 'psl':
         # See https://genome.ucsc.edu/goldenPath/help/bigPsl.html
         if not cmd_exists('pslToBigPsl'):
             log.critical('Must have pslToBigPsl installed on $PATH. Exiting.')
             sys.exit(67)
-        command = "cat '{}' | zcat {}| pslToBigPsl /dev/stdin stdout | sort -k1,1 -k2,2n >'{}'".format(gz_file, 
-                                                                                                  cut_bin_column, location)
-    elif bedlike_format in BEDLIKE_FORMATS:
+        awk_script = ''
+        if len(track_type) > 1 and track_type[1] == 'xeno':
+            # Special carve-out for the "xeno" PSL subtype, which seems to require different math on certain columns
+            awk_script = """
+            {
+              blockSizes = $11
+              blockStarts = $12
+              if ($15 == "-") {
+                  split($11, revExonSizes, ",")
+                  split($12, revExonStarts, ",")
+                  for (i = 1; i <= $10; i++) {
+                      exonSizes[i] = revExonSizes[$10 - i + 1]
+                      exonStarts[i] = $20 - ($2 + revExonStarts[$10 - i + 1]) - exonSizes[i] - $2
+                  }
+                  blockSizes = exonSizes[1]
+                  blockStarts = exonStarts[1]
+                  for (i = 2; i <= $10; i++) {
+                      blockSizes = blockSizes "," exonSizes[i]
+                      blockStarts = blockStarts "," exonStarts[i]
+                  }
+              }
+              print ($1, $2, $3, $4, $5, $15, $7, $8, $9, $10, blockSizes, blockStarts, $13, $14, $6, 
+                  $16, $17, $18, $19, $20, $21, $22, $23, $24)
+            }
+            """
+            awk_script = "| awk -v OFS=\"\\t\" -F $'\t' '{}'".format(awk_script)
+        command = "cat '{}' | zcat {}| pslToBigPsl /dev/stdin stdout {}| sort -k1,1 -k2,2n >'{}'"
+        command = command.format(gz_file, cut_bin_column, awk_script, location)
+        
+    elif track_type[0] in BEDLIKE_FORMATS:
         command = "cat '{}' | zcat {}>'{}'".format(gz_file, cut_bin_column, location)
+        
     else:
         log.warning('[db %s] FAILED: Converting "%s" type %s to BED not handled.', organism, table_name, bedlike_format)
         return (None, None)
@@ -849,6 +879,7 @@ def deferred_first_item_from_bigbed(bb_location):
         return None
 
     return get_sample_item
+
 
 def augment_knownGene_bed_file(organism, old_location):
     """

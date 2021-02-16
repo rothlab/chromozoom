@@ -55,7 +55,8 @@ module.exports = (function(global){
             if (!opts) { throw new TrackParseError("Could not parse track line", browserOpts, lineno + 1, line); }
             if (parentOpts && _.isObject(parentOpts)) { opts = _.extend({}, parentOpts, opts); }
             opts.lineNum = lineno + 1;
-            track = new CustomTrack(opts, browserOpts);
+            try { track = new CustomTrack(opts, browserOpts); }
+            catch (err) { throw new TrackParseError(err.message, browserOpts, lineno + 1, line); }
             data = [];
           } else if (/\S/.test(line)) {
             if (!track) { 
