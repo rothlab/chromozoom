@@ -2,6 +2,7 @@ var global = self;  // grab global scole for Web Workers
 require('./jquery.nodom.min.js')(global);
 global._ = require('../underscore.min.js');
 require('./CustomGenomes.js')(global);
+var utils = require('./genome-formats/utils/utils.js');
 
 if (!global.console || !global.console.log) {
   global.console = global.console || {};
@@ -58,7 +59,7 @@ global.addEventListener('message', function(e) {
     ret = CustomGenomeWorker[data.op].apply(CustomGenomeWorker, data.args.concat(callback));
   } else {
     try { ret = CustomGenomeWorker[data.op].apply(CustomGenomeWorker, data.args.concat(callback)); } 
-    catch (err) { global.postMessage({id: data.id, error: JSON.stringify({message: err.message})}); }
+    catch (err) { global.postMessage({id: data.id, error: JSON.stringify(err, utils.replaceErrors)}); }
   }
   
   if (!_.isUndefined(ret)) { callback(ret); }

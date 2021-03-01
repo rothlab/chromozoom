@@ -12,7 +12,7 @@ define('TOO_FEW_PIXELS', 3); // Not worth calling bigWigSummary for this small o
 
 function valid_range($range) { return preg_match(RANGE_PATTERN, $range)===1; }
  
-if (!validate_URL_in_GET_param('url', FALSE)) { forbidden(); }
+if (!validate_URL_in_GET_param('url', TRUE)) { forbidden(); }
 passthru_basic_auth_for_GET_param('url');
 if (!($tmp_dir = ensure_tmp_dir_exists())) { forbidden(); }
 

@@ -33,6 +33,10 @@ var BedFormat = {
     htmlUrl: '',
     searchable: false, // FIXME: switch to on by default once searching is implemented for BEDs with triejs
     drawLimit: {squish: null, pack: null},
+    // How many of the standard BED fields are being used by this track.
+    // Can be overridden by self.typeArgs[0], if it is numeric (e.g. for "bed 6 + 6"); see `initOpts()` below
+    numStandardColumns: null,
+    // Names of nonstandard columns
     bedPlusFields: null,
     // Should we try to draw codons?
     // If the following is set to "given", we use the genome sequence and BED blocks to draw codons
@@ -59,7 +63,7 @@ var BedFormat = {
       o = self.opts,
       altColors = o.colorByStrand.split(/\s+/),
       validColorByStrand = altColors.length > 1 && _.all(altColors, self.validateColor);
-    self.numStandardColumns = BED_STANDARD_FIELDS.length;
+    self.numStandardColumns = o.numStandardColumns || BED_STANDARD_FIELDS.length;
     o.useScore = self.isOn(o.useScore);
     o.itemRgb = self.isOn(o.itemRgb);
     o.searchable = self.isOn(o.searchable);
@@ -390,7 +394,7 @@ var BedFormat = {
       nameFunc(data.d),                                                                 // name
       this.type('bed').calcUrl.call(this, urlTemplate, data.d),                         // href
       data.pInt.oPrev,                                                                  // continuation from previous tile?
-      this.type('bed').calcFeatureColor.call(this, data) || null,
+      this.type().calcFeatureColor.call(this, data) || null,
       null,
       tipTipData
     ]);
@@ -416,6 +420,25 @@ var BedFormat = {
     if (o.itemRgb && itvl.d.itemRgb && this.validateColor(itvl.d.itemRgb)) { color = itvl.d.itemRgb; }
     if (o.useScore) { color = self.type('bed').calcGradient(color, itvl.d.score); }
     return color;
+  },
+  
+  drawExon: function(ctx, canvasWidth, lineY, blockInt, halfHeight, quarterHeight, lineHeightNoGap, color, data) {
+    if (blockInt.w > 0 && blockInt.x + blockInt.w <= canvasWidth && blockInt.x >= 0) {
+      ctx.fillRect(blockInt.x, lineY + halfHeight - quarterHeight + 1, Math.max(blockInt.w, 1), quarterHeight * 2 - 1);
+    }
+    thickOverlap = data.thickInt.w > 0 && utils.pixIntervalOverlap(blockInt, data.thickInt);
+    if (thickOverlap) {
+      ctx.fillRect(thickOverlap.x, lineY + 1, Math.max(thickOverlap.w, 1), lineHeightNoGap);
+    }
+    return thickOverlap;
+  },
+  
+  drawIntron: function(ctx, canvasWidth, lineY, halfHeight, startX, endX, color, data, intronNum) {
+    if (data.d.strand) {
+      // If there are introns, arrows are drawn on the introns, not the exons.
+      ctx.strokeStyle = "rgb(" + color + ")";
+      this.type('bed').drawArrows(ctx, canvasWidth, lineY, halfHeight, startX, endX, data.d.strand);
+    }
   },
   
   drawArrows: function(ctx, canvasWidth, lineY, halfHeight, startX, endX, direction) {
@@ -447,34 +470,28 @@ var BedFormat = {
       quarterHeight = Math.ceil(0.25 * (lineHeight - 1)),
       lineGap = lineHeight > 6 ? 2 : 1,
       thickOverlap = null,
-      prevBInt = null;
+      prevBInt = null,
+      contrastColor = 'white';
     
     // First, determine and set the color we will be using
     // Note that the default color was already set in drawSpec
     if (o.itemRgb || o.altColor || o.useScore) {
-      color = self.type('bed').calcFeatureColor.call(self, data);
+      color = self.type().calcFeatureColor.call(self, data);
       ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")";
+      contrastColor = self.contrastColor(color);
     }
     
     if (data.thickInt) {
       // The coding region is drawn as a thicker line within the gene
       if (data.blockInts) {
-        // If there are exons and introns, draw the introns with a 1px line
+        // If there are exons and introns, the entire feature is first drawn as a 1px line (which becomes the intron)
         prevBInt = null;
         ctx.fillRect(data.pInt.x, y + halfHeight, data.pInt.w, 1);
         ctx.strokeStyle = color;
-        _.each(data.blockInts, function(bInt) {
-          if (bInt.w > 0 && bInt.x + bInt.w <= width && bInt.x >= 0) {
-            ctx.fillRect(bInt.x, y + halfHeight - quarterHeight + 1, Math.max(bInt.w, 1), quarterHeight * 2 - 1);
-          }
-          thickOverlap = data.thickInt.w > 0 && utils.pixIntervalOverlap(bInt, data.thickInt);
-          if (thickOverlap) {
-            ctx.fillRect(thickOverlap.x, y + 1, Math.max(thickOverlap.w, 1), lineHeight - lineGap);
-          }
-          // If there are introns, arrows are drawn on the introns, not the exons.
-          if (data.d.strand && prevBInt) {
-            ctx.strokeStyle = "rgb(" + color + ")";
-            self.type('bed').drawArrows(ctx, width, y, halfHeight, prevBInt.x + prevBInt.w, bInt.x, data.d.strand);
+        _.each(data.blockInts, function(bInt, i) {
+          self.type().drawExon.call(self, ctx, width, y, bInt, halfHeight, quarterHeight, lineHeight - lineGap, color, data);
+          if (prevBInt) {
+            self.type().drawIntron.call(self, ctx, width, y, halfHeight, prevBInt.x + prevBInt.w, bInt.x, color, data, i - 1);
           }
           prevBInt = bInt;
         });
@@ -483,16 +500,16 @@ var BedFormat = {
         ctx.fillRect(data.pInt.x, y + halfHeight - quarterHeight + 1, data.pInt.w, quarterHeight * 2 - 1);
         ctx.fillRect(data.thickInt.x, y + 1, data.thickInt.w, lineHeight - lineGap);
       }
-      // If there were no introns/exons, or if there was only one exon, draw the arrows directly on the exon.
+      // If there were no introns/exons, or if there was only one exon, draw the arrows directly on the single exon.
       if ((!data.blockInts || data.blockInts.length == 1) && !noExonArrows) {
-        ctx.strokeStyle = "white";
+        ctx.strokeStyle = contrastColor;
         self.type('bed').drawArrows(ctx, width, y, halfHeight, data.thickInt.x, data.thickInt.x + data.thickInt.w, data.d.strand);
       }
     } else {
       // Nothing fancy.  It's a box.
       ctx.fillRect(data.pInt.x, y + 1, Math.max(data.pInt.w, 1), lineHeight - lineGap);
       if (!noExonArrows) {
-        ctx.strokeStyle = "white";
+        ctx.strokeStyle = contrastColor;
         self.type('bed').drawArrows(ctx, width, y, halfHeight, data.pInt.x, data.pInt.x + data.pInt.w, data.d.strand);
       }
     }
@@ -684,7 +701,7 @@ var BedFormat = {
     o.colorByStrand = colorByStrandOn && validColorByStrand ? o.color + ' ' + colorByStrand : '';
     o.useScore = $dialog.find('[name=useScore]').is(':checked') ? 1 : 0;
     o.url = $dialog.find('[name=url]').val();
-    this.type('bed').initOpts.call(this);
+    this.type().initOpts.call(this);
   }
 };
 

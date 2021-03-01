@@ -56,7 +56,9 @@ CustomTrack.types = {
   bigbed: require('./track-types/bigbed.js'),
   bam: require('./track-types/bam.js'),
   bigwig: require('./track-types/bigwig.js'),
-  biggenepred: require('./track-types/biggenepred.js')
+  biggenepred: require('./track-types/biggenepred.js'),
+  bigpsl: require('./track-types/bigpsl.js'),
+  bigchain: require('./track-types/bigchain.js')
 };
 
 // ==========================================================================
@@ -279,6 +281,13 @@ CustomTrack.prototype.validateColor = function(color) {
   if (!m) { return false; }
   m.shift();
   return _.all(_.map(m, parseInt10), function(v) { return v >=0 && v <= 255; });
+}
+
+CustomTrack.prototype.contrastColor = function(color) {
+  var m = color.match(/(\d+),(\d+),(\d+)/);
+  if (!m) { return 'white'; }
+  m.shift();
+  return _.sum(_.map(m, parseInt10)) / 3.0 > 127 ? 'black' : 'white';
 }
 
 return CustomTrack;

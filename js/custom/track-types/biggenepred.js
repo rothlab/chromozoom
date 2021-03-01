@@ -1,6 +1,6 @@
-// =====================================================================
-// = bigBed format: http://genome.ucsc.edu/goldenPath/help/bigBed.html =
-// =====================================================================
+// ================================================================================
+// = bigGenePred format: https://genome.ucsc.edu/goldenPath/help/bigGenePred.html =
+// ================================================================================
 
 var bigbed = require('./bigbed.js'),
   utils = require('./utils/utils.js'),

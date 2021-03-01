@@ -24,7 +24,7 @@
 
 + To separate data retrieval and preprocessing (which can be handed off to a Web Worker to not block the UI thread) from drawing to the `<canvas>` and DOM operations (which unavoidably block the UI thread), `.render()` typically is built around a call to `.prerender()` that performs the data retrieval and preprocessing and hands off a `drawSpec` object to a callback. The callback, possibly defined inline within `.render()`, is responsible for drawing everything within `drawSpec` to the `<canvas>`. `drawSpec` is ideally the simplest data structure needed to quickly draw an image (e.g., rows of pixel positions.)
 
-+ `.render()` MUST accept **1-based**, right-open **genomic** coordinates for its start and end parameters. As a result, the formats also store intervals in this coordinate system.
++ `.render()` MUST accept **1-based**, right-open **genomic** coordinates for its `start` and `end` parameters. As a result, the formats also store intervals in this coordinate system.
 
 + `.render()` MAY decide that there's too much data to fetch or draw in a reasonable amount of time. In this case, it SHOULD set the `too-many` class on the `<canvas>` element and set its height to 0 via `canvasElem.unscaledHeight(0)`. 
     
@@ -35,5 +35,3 @@
 + `.render()` will not have access to `.data` or the `CustomTrack.prototype` methods if Web Workers are in use. It will always, however, have access to DOM methods.
 
 + `.renderSequence()` has access to the same object space as `.render()`, and MAY call `.prerender()` in the same fashion as `.render()`. If it has to draw certain objects *after* `.render()` (i.e., on top of what `.render()` drew), it must check the state of the canvas and register callbacks as necessary, because even though `.render()` is guaranteed to be called before `.renderSequence()`, they are both asynchronous and may draw things on the canvas at any time afterward. See the "bam" format for an example of how to do this.
-
-+ `start` and `end`, as passed to `.render()`, are 1-based from the start of the genome and right-open intervals, following the genobrowser convention.

@@ -97,7 +97,8 @@
           </a>
           <div id="link-picker" class="ui-widget ui-widget-content ui-corner-bottom shadow picker">
             <div class="form-line">
-              <strong>link to this view: </strong><label><input type="url" name="linkhere" class="url" /></label>
+              <strong>link to this view: </strong>
+              <label><input name="linkhere" readonly class="url" /><br/><a class="copy-btn">copy to clipboard</a></label>
             </div>
             <div class="form-line">
               <strong>open region in: </strong><label><a name="ucsc" href="#" target="_blank">the UCSC Genome Browser</a></label>

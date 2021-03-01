@@ -608,8 +608,10 @@ module.exports = function($, _) {
         o = self.options,
         $linkBtn = $(o.linking[0]),
         $linkPicker = $(o.linking[1]),
-        $url = $linkPicker.find('.url');
+        $url = $linkPicker.find('.url'),
+        $copyBtn = $linkPicker.find('.copy-btn');
       $linkBtn.button().click(function(e) { _.defer(function () { $url.select().focus(); }); return false; });
+      $copyBtn.button().click(function(e) { _.defer(function() { $linkBtn.click(); document.execCommand("copy"); }) });
       self._createPicker($linkBtn, $linkPicker);
     },
 
@@ -2509,9 +2511,9 @@ module.exports = function($, _) {
         d = [manualDelta, e.originalEvent.deltaY, e.originalEvent.wheelDeltaY, 
           e.originalEvent.wheelDelta, e.originalEvent.axis == 2 && -e.originalEvent.detail],
         userAgent = navigator && navigator.userAgent,
-        // the following adjustments are applied to the legacy, nonstandard "mousewheel" events since every browser
-        // does it a little differently; see https://developer.mozilla.org/en-US/docs/Web/Events/mousewheel
-        mousewheelEventAdjust = [[(/chrome/i), 0.06], [(/safari/i), 0.03], [(/opera|msie/i), 0.01]],
+        // Adjustments must be applied to the "wheel" deltaY since every browser uses a different scale;
+        // see https://github.com/facebookarchive/fixed-data-table/blob/master/src/vendor_upstream/dom/normalizeWheel.js
+        wheelEventAdjust = [[(/firefox/i), 60]],
         value, delta, deltaMode;
 
       // You can scroll the track pickers, select boxes, and textareas as usual
@@ -2526,12 +2528,9 @@ module.exports = function($, _) {
       if (d && self.centeredOn !== null) {
         value = self.$slider.slider('value');
         delta = (o.snapZoom ? (self._wheelDelta += d) : d) / 20;
-        if (e.type === 'wheel') { // W3C standard "wheel" event
-          deltaMode = e.originalEvent.deltaMode;
-          delta *= -(deltaMode === 0 ? 0.09 : (deltaMode === 1 ? 0.006: 0.001));
-        } else if (userAgent && _.isUndefined(manualDelta)) {
-          _.find(mousewheelEventAdjust, function(v) { return v[0].test(userAgent) && (delta *= v[1]); });
-        } else if (e.originalEvent.wheelDeltaY) { delta *= 0.05; }
+        deltaMode = e.originalEvent.deltaMode;
+        delta *= -(deltaMode === 0 ? 0.09 : (deltaMode === 1 ? 0.006: 0.001));
+        _.find(wheelEventAdjust, function(v) { return v[0].test(userAgent) && (delta *= v[1]); });
         if (o.snapZoom) {
           if (Math.abs(delta) > 1.2) {
             self._animateZoom(delta > 0, 1000);
@@ -2540,9 +2539,6 @@ module.exports = function($, _) {
         } else { self.$slider.slider('value', value + delta); }
         self._finishZoomDebounced(delta > 0);
       }
-
-      //FIXME: not returning false ?fixes the "Unable to preventDefault inside passive event listener" error in Chrome
-      //return false; // disable scrolling of the document
     },
 
     // This is fired shortly after tracks believe that all images have loaded.
@@ -2880,13 +2876,14 @@ module.exports = function($, _) {
         $oldMessages = $messages.children('li'),
         $li = $.mk('li').html(message),
         lineno = (error.lineno ? 'line ' + error.lineno + ' of ' : ''),
-        context = error.context && ('In ' + lineno + error.context + ':');
-        
-      $oldMessages.addClass('old');
+        context = error.context && ('In ' + lineno + error.context + ':'),
+        stack = error.stack;
+      
       if (context) {
         if (error.line) { $.mk('div').addClass('line mono').text(error.line).prependTo($li); }
-        $.mk('div').addClass('context').text(context).prependTo($li);
+        $.mk('div').addClass('context').text(context || stack).prependTo($li);
       }
+      if (stack) { console.log(stack); }
       $.mk('div').addClass('num').text(($oldMessages.length + 1) + '.').prependTo($li);
       $li.appendTo($messages);
       self.$trackPicker.add(self.$customTracks).trigger('close');

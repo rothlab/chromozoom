@@ -56,15 +56,20 @@ function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE,
   
   while ($row = $result->fetchArray()) {
     $name = preg_replace('#^all_#', '', $row['name']);
-    $location = (preg_match('#^https?://#', $row['location']) ? "" : "cache://$track_data_dir/") . $row['location'];
     $local_settings = json_decode($row['localSettings'], TRUE);
     $composite_track_child = $row['parentTrack'] != $name;
     
     $override_settings = array(
-      'bigDataUrl' => $location,
+      'bigDataUrl' => $row['location'],
       'priority' => $row['priority']
     );
     if (!$composite_track_child) { $override_settings['visibility'] = $row['priority'] <= 1 ? 'show' : 'hide'; }
+    $merged_settings = array_merge($local_settings, $override_settings);
+    foreach ($merged_settings as $key => $val) {
+      if (preg_match('#DataUrl$#', $key) && !preg_match('#^https?://#', $val)) {
+        $merged_settings[$key] = "cache://$track_data_dir/$val";
+      }
+    }
 
     $track = array(
       'name' => $name,
@@ -74,7 +79,7 @@ function getTracksForDb($track_db_path, $db, $priority=100, $parent_track=FALSE,
       'grp' => $row['grpLabel'],
       'srt' => $row['srt'],
       'type' => littleToBigFormat($row['type']),
-      'opts' => array_merge($local_settings, $override_settings)
+      'opts' => $merged_settings
     );
     if ($composite_track_child) { $track['parent'] = $row['parentTrack']; }
     $tracks[] = $track;

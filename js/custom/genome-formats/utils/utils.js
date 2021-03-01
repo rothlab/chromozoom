@@ -10,6 +10,19 @@ var strip = module.exports.strip = trackUtils.strip;
 
 module.exports.roundToPlaces = function(num, dec) { return Math.round(num * Math.pow(10, dec)) / Math.pow(10, dec); }
 
+// Allows you to JSON.stringify objects that inherit from Error
+// See https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
+module.exports.replaceErrors = function(key, value) {
+  if (value instanceof Error) {
+    var error = {};
+    Object.getOwnPropertyNames(value).forEach(function (key) {
+      error[key] = value[key];
+    });
+    return error;
+  }
+  return value;
+}
+
 // Take a guess at a reasonable initial height for a given track type
 module.exports.trackHeightForType = function(type) {
   type = type.toLowerCase().split(/\s+/)[0];

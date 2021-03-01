@@ -42,6 +42,7 @@ module.exports = (function(global){
     },
     
     _workerScript: 'build/CustomGenomeWorker.js',
+    // NOTE: To temporarily disable Web Worker usage, set this to true.
     _disableWorkers: false,
     worker: global.CustomTracks.worker,
     

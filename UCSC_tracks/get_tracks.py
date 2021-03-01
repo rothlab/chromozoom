@@ -1,4 +1,5 @@
 import lib.ucsc_tracks as ut
+import lib.config as cfg
 import pymysql.cursors
 import os, glob
 import argparse
@@ -21,19 +22,19 @@ parser.add_argument('-N', '--update_metadata_only', action='store_true', default
                     help='Don\'t fetch any track data, just update each track\'s metadata in the local database.')
 #FIXME: add a new argument to force ut.create_hierarchy() below to refetch the full track **hierarchy** (it sometimes changes)
 parser.add_argument('-g', '--org_prefix', action='store', type=str, default='',
-                    help='Restrict scraping to organism database names matching this prefix.')
+                    help='Restrict scraping to organism database names matching this prefix (or comma-separated prefixes).')
 parser.add_argument('-G', '--skip_orgs', action='store', type=str, default='',
-                    help='Skip organisms matching this prefix. Takes precedence over --org_prefix')
+                    help='Skip organisms matching this prefix (or comma-separated prefixes). Takes precedence over --org_prefix')
 parser.add_argument('-C', '--composite_tracks', action='store_true', default=False,
                     help='Also scrape composite tracks from UCSC (default is simple only).')
 parser.add_argument('-S', '--super_tracks', action='store_true', default=False,
                     help='Also scrape supertracks from UCSC (default is simple only).')
 parser.add_argument('-P', '--priority_below', action='store', type=float, default=None,
                     help='Restrict scraping to tracks with calculated priority below this number (1-1000).')
-parser.add_argument('-t', '--track_prefix', action='store', type=str, default=None,
-                    help='Restrict scraping to tracks with names matching this prefix.')
-parser.add_argument('-T', '--skip_tracks', action='store', type=str, default=None,
-                    help='Don\'t scrape tracks with names matching this prefix. Takes precedence over --track_prefix')
+parser.add_argument('-t', '--track_prefix', action='store', type=str, default='',
+                    help='Restrict scraping to tracks with names matching this prefix (or comma-separated prefixes).')
+parser.add_argument('-T', '--skip_tracks', action='store', type=str, default='',
+                    help='Skip tracks matching this prefix or (comma-separated prefixes). Takes precedence over --track_prefix')
 parser.add_argument('-q', '--quiet', action='count', default=0,
                     help='Log less information to STDERR. Repeat the flag up to 3x to suppress more messages.')
 parser.add_argument('-v', '--verbose', action='count', default=0,
@@ -54,10 +55,10 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(args.out): os.makedirs(args.out)
 os.chdir(args.out)
 
-table_source = ut.get_remote_table() if args.table_source == '' else args.table_source
-tracks_source = ut.get_remote_tracks()
-mysql_host = ut.get_mysql_host() if args.mysql_host == '' else args.mysql_host
-downloads_base_url = ut.get_downloads_base_url() if args.downloads_base_url == '' else args.downloads_base_url
+table_source = cfg.remote_table() if args.table_source == '' else args.table_source
+tracks_source = cfg.remote_tracks()
+mysql_host = cfg.mysql_host() if args.mysql_host == '' else args.mysql_host
+downloads_base_url = cfg.downloads_base_url() if args.downloads_base_url == '' else args.downloads_base_url
 downloads_base_url = downloads_base_url.rstrip('/')
 organism_list = ut.get_organisms_list(host=mysql_host, prefix=args.org_prefix, skip=args.skip_orgs)
 
@@ -75,7 +76,7 @@ for org_i, organism in enumerate(organism_list):
         continue
 
     # Try connecting to the UCSC MySQL database for this organism
-    cur = ut.connect_to_ucsc_mysql(host=mysql_host, db=organism)
+    mysqlconn, cur = ut.connect_to_ucsc_mysql(host=mysql_host, db=organism)
     if cur is None: continue
     
     # Setup our local directories where track data will be saved
@@ -86,9 +87,9 @@ for org_i, organism in enumerate(organism_list):
     # ==================================================================================================
 
     selected_tracks, track_info = ut.distill_hierarchy(track_meta, args.composite_tracks)
-    selected_tracks_having_tables = ut.filter_to_existing_tables(selected_tracks, cur)
-    if args.composite_tracks is False:
-        selected_tracks = selected_tracks_having_tables
+    tracks_to_table_names = ut.tracks_to_table_names(selected_tracks, organism, cur)
+    # Composite tracks do *not* have a corresponding table containing their data
+    if args.composite_tracks is False: selected_tracks = tracks_to_table_names.keys()
 
     track_priority = ut.get_priority(db=organism, selection=selected_tracks, tracks_source=tracks_source, 
                                      track_info=track_info)
@@ -97,7 +98,7 @@ for org_i, organism in enumerate(organism_list):
     
     local_db, localconn = ut.create_sqllite3_db(organism)
     last_updates = ut.get_last_local_updates(localconn)
-    remote_updates = ut.get_last_remote_updates(cur, organism, selected_tracks_having_tables)
+    remote_updates = ut.get_last_remote_updates(cur, organism, tracks_to_table_names)
 
     my_tracks = ut.fetch_tracks(xcur=cur, selection=selected_tracks)
     my_tracks = sorted(my_tracks, key=lambda row: (track_info[row[0]]['parentTrack'], row[0]))
@@ -124,9 +125,9 @@ for org_i, organism in enumerate(organism_list):
         file_location, bed_location, as_location, txt_gz_location = (None, None, None, None)
         bed_plus_fields = None
         get_sample_item = None
-        track_has_a_table = track_name in selected_tracks_having_tables
+        table_name = tracks_to_table_names.get(track_name, None)
         remote_settings = ut.parse_trackdb_settings(settings)
-        is_composite_or_super = not track_has_a_table and 'bigDataUrl' not in remote_settings
+        is_composite_or_super = table_name is None and 'bigDataUrl' not in remote_settings
         is_super_track = len(children) > 0
         update_date = None
         if len(tr_type.strip()) == 0: tr_type = 'bed'
@@ -134,12 +135,13 @@ for org_i, organism in enumerate(organism_list):
 
         # First, check if we need to update the table at all
         update_date = remote_updates.get(track_name, None)
-        if track_has_a_table and track_name in last_updates:
+        if table_name is not None and track_name in last_updates:
             if not args.update_metadata_only and last_updates[track_name] == update_date:
                 log.info('[db %s] Table "%s" is up to date', organism, track_name)
                 continue
             else:
-                log.debug('[db %s] Need to update metadata for table "%s"', organism, track_name)
+                noun = "metadata for " if args.update_metadata_only else ""
+                log.debug('[db %s] Need to update %stable "%s"', organism, noun, track_name)
         else:
             track_noun = "supertrack" if is_super_track else ("composite track" if is_composite_or_super else "table")
             log.debug('[db %s] Need to fetch %s "%s"', organism, track_noun, track_name)
@@ -168,20 +170,38 @@ for org_i, organism in enumerate(organism_list):
                 get_sample_item = ut.deferred_first_item_from_bigbed(file_location)
                 as_string = ut.fetch_autosql_for_bigbed(file_location)
                 if as_string is not None:
-                    bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_string=as_string)
+                    bed_plus_fields = ut.extract_bed_plus_fields(track_type=tr_type, as_string=as_string)
             log.info('[db %s] SUCCESS: Fetched remote location for "%s" (%s) file', organism, track_name, tr_type)
 
         # wig - these tracks are sometimes accessible as bigWig files, so if we can find that, we simply link to its URL
-        elif tr_type.startswith('wig '):
+        # Otherwise, convert the .wib files in /gbdb/{organism}/wib to bigWig
+        # TODO: Also convert bedGraph to bigWig
+        elif tr_type.split()[0] == 'wig':
             file_location = ut.find_bw_location_for_wig(organism, track_name)
-            if file_location is None: continue
-            log.info('[db %s] SUCCESS: Fetched remote location for "%s" (wig) file, as bigWig.', organism, track_name)
+            if file_location is not None:
+                log.info('[db %s] SUCCESS: Fetched remote location for "%s" (wig) file, as bigWig.', organism, track_name)
+            elif not args.update_metadata_only:
+                # We have to download the .wib files and convert them to bigWig using hgWiggle and bigWigToWig
+                wib_files = ut.fetch_wib_files(cur, organism, track_name, table_name)
+                if wib_files is not None:
+                    file_location = ut.generate_bigwig(organism, track_name, table_name)
+                
+                if file_location and not os.path.isfile(file_location):
+                    ut.delete_from_local_database(organism, localconn, track_name)
+                    file_location = None
+                if file_location is None: continue  # Don't ever save track metadata if the bigWig file hasn't been built
+                if wib_files is not None: [os.remove(f) for f in wib_files] # Delete interim files for successful builds
 
-        # BED, genePred, rmsk, PSL, GVF, and narrowPeak processing - need to save and convert these to bigBed
+        # BED, genePred, rmsk, PSL, GVF, pgSnp, broadPeak, narrowPeak, chain processing: save and convert these to bigBed
+        # TODO: more formats to implement: netAlign, bedDetail
         elif bedlike_format:
-            if args.update_metadata_only: file_location = './{}/bigBed/{}.bb'.format(organism, track_name)
+            if args.update_metadata_only: 
+                file_location = './{}/bigBed/{}.bb'.format(organism, track_name)
+                if os.path.isfile(file_location):
+                    get_sample_item = ut.deferred_first_item_from_bigbed(file_location)
+                    bed_plus_fields = ut.extract_bed_plus_fields(bigbed_location=file_location)
             else:
-                bed_location, txt_gz_location = ut.fetch_bed_table(cur, track_name, organism, tr_type.split())
+                bed_location, txt_gz_location = ut.fetch_bed_table(cur, organism, track_name, table_name, tr_type.split())
                 if bed_location is None:
                     continue
                 # An uncompressed copy of the cytoBandIdeo track is kept alongside tracks.db
@@ -190,19 +210,31 @@ for org_i, organism in enumerate(organism_list):
             
                 as_location, bed_type = ut.get_as_and_bed_type_for_bedlike_format(bedlike_format, bed_location)
                 if as_location is None: # Generic BED tracks have autoSql specifying their fields on UCSC's MySQL server
-                    as_location = ut.fetch_as_file(bed_location, cur, track_name)
+                    as_location = ut.fetch_as_file(bed_location, cur, table_name)
                     bed_type = tr_type.replace(' ', '').rstrip('.')
-                
-                bed_plus_fields = ut.extract_bed_plus_fields(tr_type, as_location=as_location)
                 if os.path.isfile(bed_location + '.wasfixed'):
                     with open(bed_location + '.wasfixed', 'r') as f: bed_type = f.read().strip()
-                file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, bed_plus_fields)
+
+                bed_plus_fields = ut.extract_bed_plus_fields(track_type=bed_type, as_location=as_location)
+                file_location = ut.generate_bigbed(organism, bed_type, as_location, bed_location, bed_plus_fields)
                 
-                # If bigBed building failed, try fixing the autosql and BED files (if they haven't been already).
-                if file_location is None and not os.path.isfile(bed_location + '.wasfixed'):
+                # Chain tracks require some special logic for also building a bigLink file and fixing them if needed
+                if bedlike_format == 'chain':
+                    if not file_location or ut.generate_biglink(organism, bed_location) is None:
+                        log.debug("Trying to fix chain track")
+                        # By default, we don't sort chain BED files (expensive), but if we failed, retry once and resort
+                        bed_location, txt_gz_location = ut.fetch_bed_table(cur, organism, track_name, table_name, 
+                                                                           tr_type.split(), True)
+                        file_location = ut.generate_bigbed(organism, bed_type, as_location, bed_location, bed_plus_fields)
+                        if file_location: 
+                            file_location = file_location if ut.generate_biglink(organism, bed_location) else None
+                
+                # If bigBed building failed, try fixing the autosql and BED files, if they haven't been fixed before.
+                elif file_location is None and not os.path.isfile(bed_location + '.wasfixed'):
                     try:
                         bed_type = ut.fix_bed_as_files(organism, bed_location, as_location, bed_type)
-                        file_location = ut.generate_big_bed(organism, bed_type, as_location, bed_location, None, True)
+                        bed_plus_fields = ut.extract_bed_plus_fields(track_type=bed_type, as_location=as_location)
+                        file_location = ut.generate_bigbed(organism, bed_type, as_location, bed_location, None, True)
                     except:
                         exc = ''.join(traceback.format_exception(*sys.exc_info()))
                         log.warning('[db %s] FAILED: error while fixing AS/BED files for %s\n%s', organism, track_name, exc)
@@ -240,3 +272,6 @@ for org_i, organism in enumerate(organism_list):
     if not args.dry_run:
         ut.deprioritize_empty_parent_tracks(organism, localconn)
     
+    # Close the connections to the UCSC MySQL database for this organism and the local database that we've updated
+    mysqlconn.close()
+    localconn.close()

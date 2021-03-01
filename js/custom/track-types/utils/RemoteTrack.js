@@ -151,21 +151,23 @@ function _binOverlap(remoteTrk, start, end) {
 
 // Runs the fetcher function on a given bin.
 // The fetcher function is obligated to run a callback function `storeIntervals`, 
-//    passed as its third argument, on a set of intervals that will be inserted into the 
+//    passed as its third argument, on a set of `intervals` that will be inserted into the 
 //    remoteTrk.cache IntervalTree.
-// The `storeIntervals` function may accept a second argument called `cacheIndex`, in case
-//    remoteTrk.cache is actually a container for multiple IntervalTrees, indicating which 
-//    one to store it in.
-// We then call the `callback` given here after that is complete.
+// This callback may optionally be given a second argument, `moreCacheActions`, a callback
+//    that can perform any additional action on the remoteTrk.cache IntervalTree that is 
+//    needed (modifying previously loaded intervals, running calculations, etc.)
+//    `moreCacheActions` is passed the remoteTrk.cache as its only argument.
+// We then call the `callback` argument for this fetch operation after that is all complete.
 function _fetchBin(remoteTrk, binIndex, callback) {
   var start = binIndex * remoteTrk.optimalFetchWindow + 1,
     end = (binIndex + 1) * remoteTrk.optimalFetchWindow + 1;
   remoteTrk.binsLoaded[binIndex] = BIN_LOADING;
-  remoteTrk.fetcher(start, end, function storeIntervals(intervals) {
+  remoteTrk.fetcher(start, end, function storeIntervals(intervals, moreCacheActions) {
     _.each(intervals, function(interval) {
       if (!interval) { return; }
       remoteTrk.cache.addIfNew(interval, interval.id);
     });
+    if (_.isFunction(moreCacheActions)) { moreCacheActions(remoteTrk.cache); }
     remoteTrk.binsLoaded[binIndex] = BIN_LOADED;
     _.isFunction(callback) && callback();
   });

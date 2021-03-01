@@ -9,7 +9,7 @@ var RemoteTrack = require('./utils/RemoteTrack.js').RemoteTrack;
 var bed = require('./bed.js');
 
 // Intended to be loaded into CustomTrack.types.bigbed
-var BigBedFormat = {
+var BigBedFormat = _.extend({}, bed, {
   defaults: _.extend({}, bed.defaults, {
     chromosomes: '',
     drawLimit: {squish: 500, pack: 100},
@@ -50,9 +50,11 @@ var BigBedFormat = {
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
           var intervals = _.map(lines, function(l) { 
-            var itvl = self.type('bed').parseLine.call(self, l);
+            // This allows formats inheriting from `bigbed` to override parseLine(); otherwise the `bed` method is used
+            var itvl = self.type().parseLine.call(self, l);
             // Use BioPerl's Bio::DB:BigBed strategy for deduplicating re-fetched intervals:
-            // "Because BED files don't actually use IDs, the ID is constructed from the feature's name (if any), chromosome coordinates, strand and block count."
+            // "Because BED files don't actually use IDs, the ID is constructed from the feature's name (if any), chromosome 
+            //     coordinates, strand and block count."
             if (_.isUndefined(itvl.id)) {
               itvl.id = [itvl.name, itvl.chrom, itvl.chromStart, itvl.chromEnd, itvl.strand, itvl.blockCount].join("\t");
             }
@@ -250,6 +252,7 @@ var BigBedFormat = {
   loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
   
   saveOpts: function() { return this.type('bed').saveOpts.apply(this, arguments); }
-};
+  
+});
 
 module.exports = BigBedFormat;

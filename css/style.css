@@ -476,9 +476,9 @@ ul.choices::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
   padding: 0.5em 0;
 }
 
-#link-picker .form-line strong { width: 40%; }
-
-#link-picker .form-line .url { width: 56%; font-size: 0.8em; }
+#link-picker .form-line strong { float: left; width: 40%; }
+#link-picker .form-line label { float: left; }
+#link-picker .form-line .url { width: 175px; font-size: 0.8em; margin-bottom: 2px; }
 #link-picker .form-line a { font-size: 0.8em; }
 
 #controls {

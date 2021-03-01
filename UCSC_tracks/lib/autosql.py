@@ -79,6 +79,8 @@ See Also
     <https://github.com/ENCODE-DCC/kentUtils/blob/36d6274459f644d5400843b8fa097b380b8f7867/src/hg/autoSql/autoSql.doc>`_
     Explanation of autoSql grammar
 
+NOTE that newer kentsrc code adds additional types for the 64-bit era, notably bigint and double
+
 `The ENCODE project's tests for autoSql parsers <https://github.com/ENCODE-DCC/kentUtils/tree/master/src/hg/autoSql/tests/input>`_
     Official autoSql unit tests
 
@@ -89,25 +91,28 @@ See Also
 import re
 from collections import OrderedDict
 from abc import abstractmethod
+import sys
 
 # regular expressions that recognize various autoSql elements
 _pattern_bits = { "start"   : r"^\s*",
                   "type"    : r"(?P<type>\w+)",
                   "name"    : r"\s+(?P<name>\w+)\s*",
                   "semi"    : r"\s*;\s*",
-                  "comment" : r"\"(?P<comment>[^\"]*)\"",
+                  # Quoted strings are modified from the "standard" to **always** terminate at newlines.
+                  "comment" : r"\"(?P<comment>[^\"\n]*)[\"\n]",  
                   "size"    : r"\s*\[\s*(?P<size>\w+)\s*\]\s*",
                   "values"  : r"\s*\(\s*(?P<value_names>[^()]+)\s*\)\s*",
                   "optionals" : r"(?P<opt1>\s+primary|\s+auto|\s+index\s*(\[\s*\d+\s*\])?)?\s*(?P<opt2>"
                                 r"\s+primary|\s+auto|\s+index\s*(\[\s*\d+\s*\])?)?\s*(?P<opt3>"
                                 r"\s+primary|\s+auto|\s+index\s*(\[\s*\d+\s*\])?)?", 
                   "declare_type_name" : r"(?P<declare_type>object|simple|table)\s+(?P<declare_name>\w+)\s+",
-                  #"field_text" :  r"\s*\(\s*(?P<field_text>.+)\s*\)",
                   "field_text" :  r"\s*\(\s*(?P<field_text>.*)\)",
                  }
 
-def warn(message):
-    sys.exit(message)
+
+class AutoSqlParseError(Exception):
+    pass
+
 
 class AbstractAutoSqlElement(object):
     """Abstract base class for parsers of autoSql elements
@@ -135,22 +140,24 @@ class AbstractAutoSqlElement(object):
         (Default: "\t")
     """
     match_str = ""
-    match_pattern = re.compile(match_str)
+    match_pattern = re.compile(match_str, flags=re.IGNORECASE)
      
     def __init__(self,autosql,parent=None,delim="\t"):
         self.autosql = autosql
         self.parent  = parent
         self.delim   = delim
-        self.field_types = { "int"    : (int,    "i"),  #32-bit
+        self.field_types = { "int"    : (int,    "i"), #32-bit
                              "uint"   : (int,    "I"), #32-bit
                              "short"  : (int,    "h"), #16-bit
                              "ushort" : (int,    "H"), #16-bit
                              "byte"   : (int,    "b"), #8-bit
                              "ubyte"  : (int,    "B"), #8-bit
+                             "bigint" : (int,    "q"), #64-bit (not in the original spec)
                              "float"  : (float,  "f"), #single-precision
+                             "double" : (float,  "d"), #double-precision (not in the original spec)
                              "char"   : (str,    "c"), #8-bit
                              "string" : (str,    "s"), #variable up to 255bytes
-                             "lstring": (str,    "s"),  #variable up to 2billion bytes
+                             "lstring": (str,    "s"), #variable up to 2billion bytes
                            }
         self.attr = self.match_pattern.search(autosql).groupdict()
     
@@ -209,7 +216,8 @@ class AbstractAutoSqlElement(object):
             List of (comment.start,comment.end), including quotes, for each comment
             in ``text`` 
         """
-        cpat = re.compile(r"\"[^\"]+\"")
+        # Modified from the original to always terminate quoted strings at a newline.
+        cpat = re.compile(r"\"[^\"\n]+[\"\n]", flags=re.IGNORECASE)
         match_locs = []
         for match in cpat.finditer(text):
             my_start = match.start()
@@ -289,7 +297,7 @@ class AutoSqlDeclaration(AbstractAutoSqlElement):
     """
     
     match_str  = r"".join([_pattern_bits[_X] for _X in ("start","declare_type_name","comment","field_text")])
-    match_pattern = re.compile(match_str,re.S)
+    match_pattern = re.compile(match_str, re.DOTALL | re.IGNORECASE)
 
     def __init__(self,autosql,parent=None,delim="\n"):
         """Create an |AutoSqlDeclaration|
@@ -355,7 +363,7 @@ class AutoSqlDeclaration(AbstractAutoSqlElement):
                         while name in self.field_formatters:
                             i += 1
                             name = "%s%s" % (oldname,i)
-                            warn("Element named '%s' of type '%s' already found in autoSql declaration '%s.'"
+                            raise AutoSqlParseError("Element named '%s' of type '%s' already found in autoSql declaration '%s.'"
                                  " Renaming current element of type '%s' to '%s'" % (oldname,
                                                                                      current_type,
                                                                                      self.attr.get("name","unnamed declaration"),
@@ -439,7 +447,7 @@ class AutoSqlField(AbstractAutoSqlElement):
         (Default: newline)
     """
     match_str = r"".join([_pattern_bits[_X] for _X in ("start","type","name","optionals","semi","comment")])
-    match_pattern = re.compile(match_str)
+    match_pattern = re.compile(match_str, flags=re.IGNORECASE)
 
     def __init__(self,autosql,parent=None,delim=""):
         """Create an |AutoSqlField|
@@ -464,8 +472,8 @@ class AutoSqlField(AbstractAutoSqlElement):
                 self.formatter = self.parent.field_types[type_][0]
             except:
                 self.formatter = str
-                warn("Could not find formatter for field '%s' of type '%s'. Casting to 'string' instead." 
-                        % (self.attr["name"],type_))
+                raise AutoSqlParseError("Could not find formatter for field '%s' of type '%s'. "
+                                        "Casting to 'string' instead." % (self.attr["name"],type_))
     
     def __call__(self,text,rec=None):
         """Parse an value matching the field described by ``self.autosql``
@@ -484,10 +492,8 @@ class AutoSqlField(AbstractAutoSqlElement):
             return self.formatter(text)
         except ValueError:
             message = ("Could not convert autoSql value '%s' for field '%s' to type '%s'. "
-                       "Casting to 'string' instead. " % (text,
-                                                         self.attr["name"],
-                                                         self.formatter.__name__))
-            warn(message) 
+                       "Casting to 'string' instead. " % (text, self.attr["name"], self.formatter.__name__))
+            raise AutoSqlParseError(message) 
             return text
 
 
@@ -535,7 +541,7 @@ class SizedAutoSqlField(AutoSqlField):
         specified by this field  
     """    
     match_str = r"".join([_pattern_bits[_X] for _X in ("start","type","size","name","optionals","semi","comment")])
-    match_pattern = re.compile(match_str)
+    match_pattern = re.compile(match_str, flags=re.IGNORECASE)
 
     def __init__(self,autosql,size=1,parent=None,delim=","):
         """Create a |SizedAutoSqlField|
@@ -583,10 +589,8 @@ class SizedAutoSqlField(AutoSqlField):
                 retval = tuple([self.formatter(X) for X in text.strip().strip(self.delim).split(self.delim)])
             except ValueError:
                 message = ("Could not convert autoSql value '%s' in field '%s' to tuple of type '%s'."
-                           " Leaving as str " % (text,
-                                                self.attr["name"],
-                                                self.formatter.__name__))
-                warn(message) 
+                           " Leaving as str " % (text, self.attr["name"], self.formatter.__name__))
+                raise AutoSqlParseError(message) 
                 return text
         else:
             retval = text
@@ -618,7 +622,7 @@ class ValuesAutoSqlField(AbstractAutoSqlElement):
     """
     
     match_str = r"".join([_pattern_bits[_X] for _X in ("start","type","values","name","optionals","semi","comment")])
-    match_pattern = re.compile(match_str)
+    match_pattern = re.compile(match_str, flags=re.IGNORECASE)
     
     def __init__(self,autosql,parent=None,delim=","):
         """Create a |ValuesAutoSqlField|

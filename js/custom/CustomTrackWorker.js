@@ -2,6 +2,7 @@ var global = self;  // grab global scole for Web Workers
 require('./jquery.nodom.min.js')(global);
 global._ = require('../underscore.min.js');
 require('./CustomTracks.js')(global);
+var utils = require('./genome-formats/utils/utils.js');
 
 if (!global.console || !global.console.log) {
   global.console = global.console || {};
@@ -54,7 +55,7 @@ global.addEventListener('message', function(e) {
     ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback));
   } else {
     try { ret = CustomTrackWorker[data.op].apply(CustomTrackWorker, data.args.concat(callback)); } 
-    catch (err) { global.postMessage({id: data.id, error: JSON.stringify(err)}); }
+    catch (err) { global.postMessage({id: data.id, error: JSON.stringify(err, utils.replaceErrors)}); }
   }
   
   if (!_.isUndefined(ret)) { callback(ret); }
