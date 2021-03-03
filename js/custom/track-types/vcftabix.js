@@ -95,8 +95,8 @@ var VcfTabixFormat = {
         data: { range: range },
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
-          var intervals = _.map(lines, function(l) { 
-            var itvl = self.type().parseLine.call(self, l);
+          var intervals = _.map(lines, function(line) { 
+            var itvl = self.type().parseLine(line);
             return itvl;
           });
           storeIntervals(intervals);
@@ -145,7 +145,7 @@ var VcfTabixFormat = {
           o.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
           o.optimalFetchWindow = Math.floor(o.maxFetchWindow / 3);
         }
-        self.type().applyOpts.call(self);
+        self.type().applyOpts();
         
         remote.setupBins(self.browserOpts.genomeSize, o.optimalFetchWindow, o.maxFetchWindow);
       }
@@ -187,7 +187,7 @@ var VcfTabixFormat = {
             drawSpec.push(calcPixInterval(itvl.data));
           });
         } else {
-          drawSpec = {layout: self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval)};
+          drawSpec = {layout: self.type('bed').stackedLayout(intervals, width, calcPixInterval)};
           drawSpec.width = width;
         }
         callback(drawSpec);
@@ -251,6 +251,7 @@ var VcfTabixFormat = {
       if (_.isFunction(callback)) { callback(); }
     });
   }
+  
 };
 
 module.exports = VcfTabixFormat;

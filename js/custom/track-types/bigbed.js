@@ -26,7 +26,7 @@ var BigBedFormat = _.extend({}, bed, {
     if (!this.opts.bigDataUrl) {
       throw new Error("Required parameter bigDataUrl not found for bigBed track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
     }
-    this.type('bed').initOpts.call(this);
+    this.type('bed').initOpts();
   },
   
   applyOpts: function() {
@@ -49,9 +49,9 @@ var BigBedFormat = _.extend({}, bed, {
         data: { range: range },
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
-          var intervals = _.map(lines, function(l) { 
+          var intervals = _.map(lines, function(line) { 
             // This allows formats inheriting from `bigbed` to override parseLine(); otherwise the `bed` method is used
-            var itvl = self.type().parseLine.call(self, l);
+            var itvl = self.type().parseLine(line);
             // Use BioPerl's Bio::DB:BigBed strategy for deduplicating re-fetched intervals:
             // "Because BED files don't actually use IDs, the ID is constructed from the feature's name (if any), chromosome 
             //     coordinates, strand and block count."
@@ -97,7 +97,7 @@ var BigBedFormat = _.extend({}, bed, {
           self.opts.maxFetchWindow = maxItemsToDraw / meanItemsPerBp;
           self.opts.optimalFetchWindow = Math.floor(self.opts.maxFetchWindow / 3);
         }
-        self.type('bigbed').applyOpts.call(self);
+        self.type('bigbed').applyOpts();
         
         remote.setupBins(self.browserOpts.genomeSize, self.opts.optimalFetchWindow, self.opts.maxFetchWindow);
       }
@@ -153,11 +153,10 @@ var BigBedFormat = _.extend({}, bed, {
           
           if (!sequence) {
             // First drawing pass: draw the intervals, including possibly introns/exons and codon stripes
-            drawSpec.layout = self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum);
+            drawSpec.layout = self.type('bed').stackedLayout(intervals, width, calcPixInterval, lineNum);
           } else {
             // Second drawing pass: draw codon sequences
-            drawSpec.codons = self.type('bed').codons.call(self, intervals, width, calcPixInterval, lineNum, 
-                                                           start, end, sequence);
+            drawSpec.codons = self.type('bed').codons(intervals, width, calcPixInterval, lineNum, start, end, sequence);
           }
           drawSpec.width = width;
           drawSpec.bppp = bppp;
@@ -171,7 +170,7 @@ var BigBedFormat = _.extend({}, bed, {
     var self = this;
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       var callbackKey = start + '-' + end + '-' + density;
-      self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+      self.type('bed').drawSpec(canvas, drawSpec, density);
       
       // Have we been waiting to draw sequence data too? If so, do that now, too.
       if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
@@ -194,7 +193,7 @@ var BigBedFormat = _.extend({}, bed, {
     
     function renderSequenceCallback() {
       self.prerender(start, end, density, {width: width, sequence: sequence}, function(drawSpec) {
-        self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+        self.type('bed').drawSpec(canvas, drawSpec, density);
         if (_.isFunction(callback)) { callback(); }
       });
     }
@@ -224,10 +223,10 @@ var BigBedFormat = _.extend({}, bed, {
         if (!_.isFunction(tipTipDataCallback)) { tipTipDataCallback = self.type('bed').tipTipData; }
         
         _.each(lines, function(line) {
-          var match = self.type('bed').parseLine.call(self, line);
+          var match = self.type('bed').parseLine(line);
           if (match === null) { return; }  // matches on contigs not in this genome layout may be returned here as null
           
-          var tipTipData = tipTipDataCallback.call(self, match),
+          var tipTipData = tipTipDataCallback(match),
             niceName = nameFunc(match),
             stdName = match.name || match.id || '',
             pos = match.chrom + ':' + match.chromStart + '-' + match.chromEnd,
@@ -247,11 +246,7 @@ var BigBedFormat = _.extend({}, bed, {
         callback(response);
       }
     });
-  },
-  
-  loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
-  
-  saveOpts: function() { return this.type('bed').saveOpts.apply(this, arguments); }
+  }
   
 });
 

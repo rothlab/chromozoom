@@ -27,7 +27,7 @@ var BigChainFormat = _.extend({}, bigbed, {
     if (!this.opts.linkDataUrl) {
       throw new Error("Required parameter linkDataUrl not found for bigChain track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
     }
-    this.type('bigbed').initOpts.call(this);
+    this.type('bigbed').initOpts();
   },
   
   parse: function(lines) {
@@ -53,7 +53,7 @@ var BigChainFormat = _.extend({}, bigbed, {
           
           var intervals = _.map(chainLines, function(line) { 
             // This allows formats inheriting from `bigbed` to override parseLine(); otherwise the `bed` method is used
-            var itvl = self.type().parseLine.call(self, line);
+            var itvl = self.type().parseLine(line);
             // For bigChains, intervals must have unique `name` fields, which is the ID that the bigLink intervals refer to
             itvl.id = itvl.name;
             // We override a few fields to help the `bed` type's functions draw links from the bigLink file as blocks
@@ -87,7 +87,7 @@ var BigChainFormat = _.extend({}, bigbed, {
               
               // Recalculate intronStyles adjacent to the inserted block
               if (itvl.data.blocks.length <= 1) { return; }
-              intronSpliceArgs = [insIndex - 1, 1];
+              intronSpliceArgs = insIndex == 0 ? [0, 0] : [insIndex - 1, 1];
               if (insIndex > 0) {
                 var prevBlock = itvl.data.blocks[insIndex - 1],
                   single = prevBlock.end - prevBlock.start == block.qStart - prevBlock.qStart;
@@ -118,15 +118,22 @@ var BigChainFormat = _.extend({}, bigbed, {
     return true;
   },
   
+  predrawIntrons: function(ctx, lineY, halfHeight, startX, width) {
+    // The default intronStyle for chain tracks is a double line, because this is far more common for long gaps
+    // than a single line.
+    var doubleLineHalfWidth = halfHeight > 4 ? 3 : 2;
+    ctx.fillRect(startX, lineY + halfHeight - doubleLineHalfWidth, width, 1);
+    ctx.fillRect(startX, lineY + halfHeight + doubleLineHalfWidth, width, 1);
+  },
+  
   drawIntron: function(ctx, canvasWidth, lineY, halfHeight, startX, endX, color, data, intronNum) {
-    if (data.d.strand) {
+    if (data.d.strand && endX - startX > 0 && startX >= 0 && endX <= canvasWidth) {
       ctx.strokeStyle = "rgb(" + color + ")";
-      if (data.d.intronStyles && data.d.intronStyles[intronNum] == CHAIN_DOUBLE_LINE_INTRON) {
+      if (data.d.intronStyles && data.d.intronStyles[intronNum] == CHAIN_SINGLE_LINE_INTRON) {
         var doubleLineHalfWidth = halfHeight > 4 ? 3 : 2;
-        ctx.clearRect(startX, lineY + halfHeight, endX - startX, 1);
-        ctx.fillRect(startX, lineY + halfHeight - doubleLineHalfWidth, endX - startX, 1);
-        ctx.fillRect(startX, lineY + halfHeight + doubleLineHalfWidth, endX - startX, 1);
-      }
+        ctx.clearRect(startX, lineY + halfHeight - doubleLineHalfWidth, endX - startX, doubleLineHalfWidth * 2 + 1);
+        ctx.fillRect(startX, lineY + halfHeight, endX - startX, 1);
+      } 
     }
   },
   

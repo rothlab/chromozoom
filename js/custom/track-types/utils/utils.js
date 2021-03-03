@@ -159,5 +159,6 @@ var chrColorKey = {
   'chrUn': '121,204,61'
 }
 module.exports.colorByChr = function(chr) {
-  return _.find(chrColorKey, function(color, prefix) { return chr.indexOf(prefix) === 0; }) || '0,0,0';
+  var match = _.find(_.keys(chrColorKey).reverse(), function(prefix) { return chr.indexOf(prefix) === 0; });
+  return match ? chrColorKey[match] : '0,0,0';
 }

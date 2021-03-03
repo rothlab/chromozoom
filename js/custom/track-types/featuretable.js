@@ -7,9 +7,11 @@ var utils = require('./utils/utils.js'),
   strip = utils.strip,
   floorHack = utils.floorHack,
   parseInt10 = utils.parseInt10;
+var bed = require('./bed.js');
 
 // Intended to be loaded into CustomTrack.types.featuretable
-var FeatureTableFormat = {
+// Much of the functionality is similar to BED, so we inherit all of the BED format's methods
+var FeatureTableFormat = _.extend({}, bed, {
   defaults: {
     collapseByGene: 'off',
     keyColumnWidth: 21,
@@ -38,7 +40,7 @@ var FeatureTableFormat = {
   },
   
   init: function() {
-    this.type('bed').initOpts.call(this);
+    this.type('bed').initOpts();
     this.opts.collapseByGene = this.isOn(this.opts.collapseByGene);
     this.featureTypeCounts = {};
     this.renderSequenceCallbacks = {};
@@ -195,7 +197,7 @@ var FeatureTableFormat = {
     });
     
     // Save exon frames, which helps in drawing stripes + letters later.
-    this.type('bed').calcExonFrames.call(this, mergeInto, (this.opts.lineNum + 1));
+    this.type('bed').calcExonFrames(mergeInto, this.opts.lineNum + 1);
     return mergeInto;
   },
 
@@ -213,7 +215,7 @@ var FeatureTableFormat = {
     
     function collectLastEntry(lineno) {
       if (lastEntryStart !== null) {
-        feature = self.type().parseEntry.call(self, chrom, lines.slice(lastEntryStart, lineno), lastEntryStart);
+        feature = self.type().parseEntry(chrom, lines.slice(lastEntryStart, lineno), lastEntryStart);
         if (feature) { 
           if (o.collapseByGene) {
             if (_.isUndefined(feature._collapseKey)) {
@@ -243,7 +245,7 @@ var FeatureTableFormat = {
     
     if (o.collapseByGene) {
       _.each(_.values(featuresByCollapseKey).concat(uncollapsibleFeatures), function(features) {
-        data.add(self.type().collapseFeatures.call(self, features));
+        data.add(self.type().collapseFeatures(features));
       });
     }
     
@@ -271,21 +273,8 @@ var FeatureTableFormat = {
       }
     });
     return content;
-  },
+  }
   
-  prerender: function(start, end, density, precalc, callback) {
-    return this.type('bed').prerender.call(this, start, end, density, precalc, callback);
-  },
-  
-  drawSpec: function() { return this.type('bed').drawSpec.apply(this, arguments); },
-  
-  render: function() { return this.type('bed').render.apply(this, arguments); },
-  
-  renderSequence: function() { return this.type('bed').renderSequence.apply(this, arguments); },
-  
-  loadOpts: function() { return this.type('bed').loadOpts.apply(this, arguments); },
-  
-  saveOpts: function() { return this.type('bed').saveOpts.apply(this, arguments); }
-};
+});
 
 module.exports = FeatureTableFormat;

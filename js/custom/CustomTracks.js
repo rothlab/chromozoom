@@ -120,7 +120,7 @@ module.exports = (function(global){
       args = _.toArray(args);
       wrapper = wrapper || _.identity;
       var argsExceptLastOne = _.initial(args),
-        callback = _.last(args),
+        callback = _.last(args) || _.identity,
         w = this.worker();
       // Fallback if web workers are not supported.
       // This could also be tweaked to not use web workers when there would be no performance gain;
@@ -137,6 +137,7 @@ module.exports = (function(global){
         // We replace .prerender() with an asynchronous version.
         return _.map(tracks, function(t) {
           self._tracks[t.id] = _.extend(new CustomTrack(), t, {
+            _boundTypes: {},
             prerender: function() { CustomTrack.prototype.prerenderAsync.apply(this, arguments); }
           });
           return self._tracks[t.id];

@@ -1097,7 +1097,7 @@ $.widget('ui.genotrack', {
       step = scale % 2 ? (tooLong ? 5 : 2) * Math.pow(10, floorHack(scale/2)) : Math.pow(10, scale/2),
       majorStep = scale % 2 ? (tooLong ? [step * 2, step * 2] : [step * 5, step * 5]) : [step * 5, step * 10],
       start = floorHack((tileId - chr.p) / step) * step,
-      newChr;
+      chrAtTileEnd = o.browser.genobrowser('chrAt', tileId + bppp * o.tileWidth);
    
     $t.toggleClass('tile-loaded', bppp <= o.bpppNumbersBelow[0]);
     if (bppp > o.bpppNumbersBelow[0]) { return; }
@@ -1112,7 +1112,7 @@ $.widget('ui.genotrack', {
       ctx = $c.get(0).getContext,
       textY = o.chrBands ? 16 : (offsetForNtText ? 10 : 16),
       chrTextUpTo = -Infinity,
-      chrText;
+      chrText, x;
 
     if (!ctx) { return; }
 
@@ -1120,23 +1120,32 @@ $.widget('ui.genotrack', {
     $c.canvasAttr(canvasAttrs);
     ctx = $c.get(0).getContext('2d');
     ctx.font = o.defaultFont;
+    
+    // First, draw the end of the genome if it is on this tile (so any overlapping ticks are drawn on top)
+    if (chrAtTileEnd.end) {
+      x = ((chrAtTileEnd.p - tileId + 0.5) / bpPerTile * canvasWidth);
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(x - 1, 0, 2, o.track.h);
+      ctx.fillStyle = '#cccccc';
+      ctx.fillRect(x + 1, 0, canvasWidth - x - 1, o.track.h);
+      ctx.fillStyle = '#000000';
+    }
 
     // Step through all of the possible ticks
     for (var t = start; t + chr.p < tileId + bppp * o.tileWidth + step; t += step) {
       // Do we need to advance to the next chr?
       if (t > chr.w) {
-        newChr = o.browser.genobrowser('chrAt', chr.p + chr.w + 1);
-        if (chr === newChr) { break; } // off the end of the last chromosome
+        chr = o.browser.genobrowser('chrAt', chr.p + chr.w + 1);
         t = 0;
-        chr = newChr;
       }
 
-      var x = ((t + chr.p - tileId + 0.5) / bpPerTile * canvasWidth);
+      x = ((t + chr.p - tileId + 0.5) / bpPerTile * canvasWidth);
       if (t == 0) {
         // This is a new chr boundary; draw a chrLabel
-        ctx.fillStyle = 'red';
+        ctx.fillStyle = '#ff0000';
         ctx.fillRect(x - 1, 0, 2, o.track.h);
-        ctx.fillStyle = 'black';
+        if (chr.end) { break; }
+        ctx.fillStyle = '#000000';
         ctx.font = o.chrLabelFont;
         chrText = chr.n.replace(/^chr/, '');
         chrTextUpTo = x + Math.min(ctx.measureText(chrText).width + 4, chr.w / bpPerTile * canvasWidth);

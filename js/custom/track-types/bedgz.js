@@ -29,8 +29,8 @@ var BedGzFormat = _.extend({}, bigbed, {
         data: { range: range },
         success: function(data) {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
-          var intervals = _.map(lines, function(l) { 
-            var itvl = self.type('bed').parseLine.call(self, l);
+          var intervals = _.map(lines, function(line) { 
+            var itvl = self.type('bed').parseLine(line);
             // Use BioPerl's Bio::DB:BigBed strategy for deduplicating re-fetched intervals:
             // "Because BED files don't actually use IDs, the ID is constructed from the feature's name (if any), chromosome coordinates, strand and block count."
             if (_.isUndefined(itvl.id)) {
@@ -116,7 +116,7 @@ var BedGzFormat = _.extend({}, bigbed, {
             drawSpec.push(calcPixInterval(itvl.data));
           });
         } else {
-          drawSpec = {layout: self.type('bed').stackedLayout.call(self, intervals, width, calcPixInterval, lineNum)};
+          drawSpec = {layout: self.type('bed').stackedLayout(intervals, width, calcPixInterval, lineNum)};
           drawSpec.width = width;
         }
         callback(drawSpec);
@@ -134,7 +134,7 @@ var BedGzFormat = _.extend({}, bigbed, {
         // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
         canvas.className = canvas.className + ' too-many';
       } else {
-        self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+        self.type('bed').drawSpec(canvas, drawSpec, density);
       }
       if (_.isFunction(callback)) { callback(); }
     });

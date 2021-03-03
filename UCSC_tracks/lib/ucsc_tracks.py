@@ -1260,7 +1260,7 @@ def generate_bigwig(organism, track_name, table_name, bw_file=None):
     data_dir = os.getcwd()
     bw_file_abs = os.path.abspath(bw_file)
     ensure_hg_conf(data_dir)
-    command = "HOME={} hgWiggle -db={} -lift=1 {} | wigToBigWig -clip /dev/stdin {} {}"
+    command = "HOME={} hgWiggle -db={} -lift=1 {} | pv | wigToBigWig -clip /dev/stdin {} {}"
     command = command.format(q(data_dir), q(organism), q(table_name), 
                              q(os.path.abspath(chrom_sizes_file)), q(bw_file_abs))
     

@@ -3,6 +3,9 @@ c = nil
 
 task :default => :check
 
+# Set JS_DEBUG=1 before the rake invocation to disable javascript minification
+JS_DEBUG = ENV['JS_DEBUG']
+
 directory "bin"
 REQUIRED_LINKS = {
   "bigBedSummary" => "http://hgdownload.cse.ucsc.edu/admin/exe/",
@@ -53,7 +56,11 @@ def sources_for_javascript(js)
   Dir.glob('js/**/*.js').sort_by{ |src| src.match(/#{File.basename js}$/) ? -1 : 1 }
 end
 rule /^build\/.+\.js$/ => proc { |js| sources_for_javascript js } do |t|
-  sh "browserify #{t.sources.first} | uglifyjs > #{t.name}"
+  if JS_DEBUG
+    sh "browserify #{t.sources.first} -d -o #{t.name}"
+  else
+    sh "browserify #{t.sources.first} | uglifyjs > #{t.name}"
+  end
 end
 
 desc "Builds minified (production) ChromoZoom javascripts, outputting them in build/"

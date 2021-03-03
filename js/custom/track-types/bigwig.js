@@ -1,10 +1,10 @@
-
+var wiggle_0 = require('./wiggle_0.js');
 
 // =====================================================================
 // = bigWig format: http://genome.ucsc.edu/goldenPath/help/bigWig.html =
 // =====================================================================
 
-var BigWigFormat = {
+var BigWigFormat = _.extend({}, wiggle_0, {
   defaults: {
     altColor: '128,128,128',
     priority: 100,
@@ -27,13 +27,13 @@ var BigWigFormat = {
     if (!this.opts.bigDataUrl) {
       throw new Error("Required parameter bigDataUrl not found for bigWig track at " + JSON.stringify(this.opts) + (this.opts.lineNum + 1));
     }
-    this.type('wiggle_0').initOpts.call(this);
+    this.type('wiggle_0').initOpts();
   },
   
   _binFunctions: {'minimum':1, 'maximum':1, 'mean':1, 'min':1, 'max':1, 'std':1, 'coverage':1},
   
   applyOpts: function() { 
-    this.type('wiggle_0').applyOpts.apply(this, arguments);
+    this.type('wiggle_0').applyOpts();
     // this.scales needs to be synched back to the DOM side so the $.ui.genotrack can update it
     this.syncProps(['opts', 'drawRange', 'scales']); // FIXME: Move to wiggle_0?
   },
@@ -62,7 +62,7 @@ var BigWigFormat = {
         });
       }
     });
-    self.type().applyOpts.apply(self);
+    self.type().applyOpts();
   },
 
   prerender: function(start, end, density, precalc, callback) {
@@ -74,7 +74,7 @@ var BigWigFormat = {
       ajaxParams = $.param({url: self.opts.bigDataUrl, width: width, winFunc: self.opts.windowingFunction});
   
     function success(data) {
-      var drawSpec = self.type('wiggle_0').initDrawSpec.call(self, precalc),
+      var drawSpec = self.type('wiggle_0').initDrawSpec(precalc),
         lines = data.split(/\s+/g);
       _.each(lines, function(line) {
         if (line == 'n/a') { drawSpec.bars.push(null); }
@@ -96,14 +96,11 @@ var BigWigFormat = {
       ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) { throw "Canvas not supported"; }
     self.prerender(start, end, density, {width: width}, function(drawSpec) {
-      self.type('wiggle_0').drawBars.call(self, ctx, drawSpec, canvas.unscaledHeight(), width);
+      self.type('wiggle_0').drawBars(ctx, drawSpec, canvas.unscaledHeight(), width);
       _.isFunction(callback) && callback();
     });
-  },
-
-  loadOpts: function() { return this.type('wiggle_0').loadOpts.apply(this, arguments); },
-
-  saveOpts: function() { return this.type('wiggle_0').saveOpts.apply(this, arguments); }
-};
+  }
+  
+});
 
 module.exports = BigWigFormat;

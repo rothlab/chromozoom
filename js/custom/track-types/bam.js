@@ -9,8 +9,9 @@ var utils = require('./utils/utils.js'),
   guessChrScheme = utils.guessChrScheme;
 var PairedIntervalTree = require('./utils/PairedIntervalTree.js').PairedIntervalTree;
 var RemoteTrack = require('./utils/RemoteTrack.js').RemoteTrack;
+var bed = require('./bed.js');
 
-var BamFormat = {
+var BamFormat = _.extend({}, bed, {
   defaults: {
     chromosomes: '',
     itemRgb: 'off',
@@ -67,7 +68,7 @@ var BamFormat = {
       throw new Error("Required parameter bigDataUrl not found for BAM track at " +
           JSON.stringify(this.opts) + (this.opts.lineNum + 1));
     }
-    this.type().initOpts.call(this);
+    this.type().initOpts();
     this.browserChrScheme = guessChrScheme(_.keys(this.browserOpts.chrPos));
   },
   
@@ -124,7 +125,7 @@ var BamFormat = {
           var lines = _.filter(data.split('\n'), function(l) { var m = l.match(/\t/g); return m && m.length >= 2; });
           
           // Parse the SAM format into intervals that can be inserted into the IntervalTree cache
-          var intervals = _.map(lines, function(l) { return self.type('bam').parseLine.call(self, l); });
+          var intervals = _.map(lines, function(line) { return self.type('bam').parseLine(line); });
           storeIntervals(intervals);
         }
       });
@@ -188,7 +189,7 @@ var BamFormat = {
         }
       
         sampleIntervals = _.compact(_.map(infoParts[1].split("\n"), function(line) {
-          return self.type('bam').parseLine.call(self, line);
+          return self.type('bam').parseLine(line);
         }));
         if (sampleIntervals.length) {
           meanItemLength = _.reduce(sampleIntervals, function(memo, next) { return memo + (next.end - next.start); }, 0);
@@ -209,7 +210,7 @@ var BamFormat = {
           o.maxFetchWindow = o.optimalFetchWindow * 2;
         }
         if (!self.coverageRange[1]) { self.coverageRange[1] = Math.ceil(meanItemsPerBp * meanItemLength * 2); }
-        self.type('bam').applyOpts.call(self);
+        self.type('bam').applyOpts();
       
         // If there is pairing, we need to tell the PairedIntervalTree what range of insert sizes should trigger pairing.
         if (hasAMatePair) {
@@ -327,10 +328,10 @@ var BamFormat = {
       feature.start = chrPos + parseInt10(feature.pos);        // POS is 1-based, hence no increment as for parsing BED
       feature.desc = feature.qname + ' at ' + feature.rname + ':' + feature.pos;
       feature.tlen = parseInt10(feature.tlen);
-      this.type('bam').parseFlags.call(this, feature, lineno);
-      this.type('bam').parseTags.call(this, feature, fields.slice(cols.length));
+      this.type('bam').parseFlags(feature, lineno);
+      this.type('bam').parseTags(feature, fields.slice(cols.length));
       feature.strand = feature.flags.readStrandReverse ? '-' : '+';
-      this.type('bam').parseCigar.call(this, feature, lineno); // This also sets .end appropriately
+      this.type('bam').parseCigar(feature, lineno); // This also sets .end appropriately
     }
     // We have to come up with something that is a unique label for every line to dedupe rows.
     // The following is technically not guaranteed by a valid BAM (even at GATK standards), but it's the best I got.
@@ -471,8 +472,8 @@ var BamFormat = {
 
         if (!sequence) {
           // First drawing pass, with features that don't depend on sequence.
-          self.type('bam').pileup.call(self, intervals, start, end);
-          drawSpec.layout = self.type('bed').stackedLayout.call(self, intervals, width, calcPixIntervalMated, lineNum);
+          self.type('bam').pileup(intervals, start, end);
+          drawSpec.layout = self.type('bed').stackedLayout(intervals, width, calcPixIntervalMated, lineNum);
           _.each(drawSpec.layout, function(lines) {
             _.each(lines, function(interval) {
               interval.insertionPts = _.map(interval.d.insertions, calcPixInterval);
@@ -488,14 +489,14 @@ var BamFormat = {
               }
             });
           });
-          drawSpec.coverage = self.type('bam').coverage.call(self, start, width, bppp);
+          drawSpec.coverage = self.type('bam').coverage(start, width, bppp);
         } else {
           // Second drawing pass, to draw things that are dependent on sequence, like mismatches (potential SNPs).
           drawSpec.bppp = bppp;  
           // Find allele splits within the coverage graph.
-          drawSpec.alleles = self.type('bam').alleles.call(self, start, sequence, bppp);
+          drawSpec.alleles = self.type('bam').alleles(start, sequence, bppp);
           // Find mismatches within each aligned block.
-          drawSpec.mismatches = self.type('bam').mismatches.call(self, start, sequence, bppp, intervals, width, lineNum);
+          drawSpec.mismatches = self.type('bam').mismatches(start, sequence, bppp, intervals, width, lineNum);
         }
         
         callback(drawSpec);
@@ -634,10 +635,10 @@ var BamFormat = {
       
         if (blockNum == 0 && blockSet.strand == '-' && !bInt.oPrev) {
           ctx.fillRect(bInt.x + 2, blockY, bInt.w - 2, blockHeight);
-          self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x, blockY, blockHeight, -1, lineHeight > 6);
+          self.type('bam').drawStrandIndicator(ctx, bInt.x, blockY, blockHeight, -1, lineHeight > 6);
         } else if (blockNum == blockSet.blockInts.length - 1 && blockSet.strand == '+' && !bInt.oNext) {
           ctx.fillRect(bInt.x, blockY, bInt.w - 2, blockHeight);
-          self.type('bam').drawStrandIndicator.call(self, ctx, bInt.x + bInt.w, blockY, blockHeight, 1, lineHeight > 6);
+          self.type('bam').drawStrandIndicator(ctx, bInt.x + bInt.w, blockY, blockHeight, 1, lineHeight > 6);
         } else {
           ctx.fillRect(bInt.x, blockY, bInt.w, blockHeight);
         }
@@ -719,7 +720,7 @@ var BamFormat = {
       // First draw the coverage graph
       ctx = canvas.getContext('2d');
       ctx.fillStyle = "rgb(159,159,159)";
-      self.type('bam').drawCoverage.call(self, ctx, drawSpec.coverage, covHeight);
+      self.type('bam').drawCoverage(ctx, drawSpec.coverage, covHeight);
                 
       // Now, draw alignments below it
       if (density != 'dense') {
@@ -731,8 +732,8 @@ var BamFormat = {
         _.each(drawSpec.layout, function(l, i) {
           i += lineOffset; // hackish method for leaving space at the top for the coverage graph
           _.each(l, function(data) {
-            self.type('bam').drawAlignment.call(self, ctx, drawSpec.width, data, i, lineHeight, drawSpec.viewAsPairs);
-            self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
+            self.type('bam').drawAlignment(ctx, drawSpec.width, data, i, lineHeight, drawSpec.viewAsPairs);
+            self.type('bed').addArea(areas, data, i, lineHeight, urlTemplate);
           });
         });
       }
@@ -740,13 +741,13 @@ var BamFormat = {
       ctx = canvas.getContext('2d');
       // Second drawing pass, to draw things that are dependent on sequence:
       // (1) allele splits over coverage
-      self.type('bam').drawAlleles.call(self, ctx, drawSpec.alleles, covHeight, 1 / drawSpec.bppp);
+      self.type('bam').drawAlleles(ctx, drawSpec.alleles, covHeight, 1 / drawSpec.bppp);
       // (2) mismatches over the alignments
       ctx.font = "12px 'Menlo','Bitstream Vera Sans Mono','Consolas','Lucida Console',monospace";
       ctx.textAlign = 'center';
       ctx.textBaseline = 'baseline';
       _.each(drawSpec.mismatches, function(mismatch) {
-        self.type('bam').drawMismatch.call(self, ctx, mismatch, lineOffset, lineHeight, 1 / drawSpec.bppp);
+        self.type('bam').drawMismatch(ctx, mismatch, lineOffset, lineHeight, 1 / drawSpec.bppp);
       });
     }
 
@@ -756,7 +757,7 @@ var BamFormat = {
     var self = this;
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       var callbackKey = start + '-' + end + '-' + density;
-      self.type('bam').drawSpec.call(self, canvas, drawSpec, density);
+      self.type('bam').drawSpec(canvas, drawSpec, density);
       
       // Have we been waiting to draw sequence data too? If so, do that now, too.
       if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
@@ -776,7 +777,7 @@ var BamFormat = {
 
     function renderSequenceCallback() {
       self.prerender(start, end, density, {width: canvas.unscaledWidth(), sequence: sequence}, function(drawSpec) {
-        self.type('bam').drawSpec.call(self, canvas, drawSpec, density);
+        self.type('bam').drawSpec(canvas, drawSpec, density);
         if (_.isFunction(callback)) { callback(); }
       });
     }
@@ -800,7 +801,7 @@ var BamFormat = {
     var o = this.opts;
     o.viewAsPairs = $dialog.find('[name=viewAsPairs]').is(':checked');
     o.convertChrScheme = $dialog.find('[name=convertChrScheme]').val();
-    this.type().initOpts.call(this);
+    this.type().initOpts();
     
     // If o.viewAsPairs was changed, we *need* to blow away the genobrowser's areaIndex 
     // and our locally cached areas, as all the areas will change.
@@ -810,6 +811,6 @@ var BamFormat = {
     }
   }
   
-};
+});
 
 module.exports = BamFormat;

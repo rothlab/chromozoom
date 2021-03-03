@@ -47,7 +47,7 @@ var BedGraphFormat = _.extend({}, wiggle_0, {
       data.all.push({start: chrPos + start, end: chrPos + end, val: val});
     });
 
-    return self.type('wiggle_0').finishParse.call(self, data);
+    return self.type('wiggle_0').finishParse(data);
   }
   
 });

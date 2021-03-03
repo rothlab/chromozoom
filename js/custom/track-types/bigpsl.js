@@ -22,7 +22,7 @@ var BigPslFormat = _.extend({}, bigbed, {
   // See http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#PSLDisplay
   parseLine: function(line, lineno) {
     var self = this,
-      itvl = self.type('bed').parseLine.call(self, line, lineno),
+      itvl = self.type('bed').parseLine(line, lineno),
       reverseStrand = itvl.strand === '-';
     itvl.intronStyles = [];
     if (itvl.blocks && itvl.blocks.length > 1 && itvl.extra['oChromStarts']) {
@@ -40,15 +40,21 @@ var BigPslFormat = _.extend({}, bigbed, {
     }
     return itvl;
   },
+  
+  predrawIntrons: function(ctx, lineY, halfHeight, startX, width) {
+    // Normally this function draws the entire feature as a 1px line but PSL has multiple intron styles.
+    // So, this is wasted effort. Therefore, do nothing.
+  },
 
   drawIntron: function(ctx, canvasWidth, lineY, halfHeight, startX, endX, color, data, intronNum) {
-    if (data.d.strand) {
+    if (data.d.strand && endX - startX > 0 && startX >= 0 && endX <= canvasWidth) {
       ctx.strokeStyle = "rgb(" + color + ")";
       if (data.d.intronStyles && data.d.intronStyles[intronNum] == PSL_DOUBLE_LINE_INTRON) {
         var doubleLineHalfWidth = halfHeight > 4 ? 3 : 2;
-        ctx.clearRect(startX, lineY + halfHeight, endX - startX, 1);
         ctx.fillRect(startX, lineY + halfHeight - doubleLineHalfWidth, endX - startX, 1);
         ctx.fillRect(startX, lineY + halfHeight + doubleLineHalfWidth, endX - startX, 1);
+      } else {
+        ctx.fillRect(startX, lineY + halfHeight, endX - startX, 1);
       }
       // Don't draw arrows for "squish" mode
       if (halfHeight > 4) {

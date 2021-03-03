@@ -55,7 +55,7 @@ var BedFormat = {
   },
   
   init: function() {
-    this.type().initOpts.call(this);
+    this.type2().initOpts();
   },
   
   initOpts: function() {
@@ -157,7 +157,7 @@ var BedFormat = {
             block.end = block.start + parseInt10(blockSizes[i]);
             feature.blocks.push(block);
           });
-          this.type('bed').calcExonFrames.call(this, feature, (lineno + 1 + this.opts.lineNum));
+          this.type('bed').calcExonFrames(feature, (lineno + 1 + this.opts.lineNum));
         }
       } else {
         feature.thickStart = feature.thickEnd = null;
@@ -173,7 +173,7 @@ var BedFormat = {
       data = new IntervalTree(floorHack(middleishPos), {startKey: 'start', endKey: 'end'});
     
     _.each(lines, function(line, lineno) {
-      var feature = self.type().parseLine.call(self, line, lineno);
+      var feature = self.type().parseLine(line, lineno);
       if (feature) { data.add(feature); }
     });
     
@@ -332,12 +332,11 @@ var BedFormat = {
     } else {
       if (!sequence) {
         // First drawing pass: draw the intervals, including possibly introns/exons and codon stripes
-        drawSpec = {layout: this.type('bed').stackedLayout.call(this, intervals, width, calcPixInterval, lineNum)};
+        drawSpec = { layout: this.type('bed').stackedLayout(intervals, width, calcPixInterval, lineNum) };
       } else {
         // Second drawing pass: draw codon sequences
         drawSpec = {
-          codons: this.type('bed').codons.call(this, intervals, width, calcPixInterval, lineNum, start, 
-                                               end, sequence)
+          codons: this.type('bed').codons(intervals, width, calcPixInterval, lineNum, start, end, sequence)
         };
       }
       drawSpec.width = width;
@@ -387,14 +386,14 @@ var BedFormat = {
     if (!areas) { return; }
     
     if (!_.isFunction(tipTipDataCallback)) { tipTipDataCallback = this.type('bed').tipTipData; }
-    tipTipData = tipTipDataCallback.call(this, data.d);
+    tipTipData = tipTipDataCallback(data.d);
     
     areas.push([
       data.pInt.x, i * lineHeight + 1, data.pInt.x + data.pInt.w, (i + 1) * lineHeight, // x1, y1, x2, y2
       nameFunc(data.d),                                                                 // name
-      this.type('bed').calcUrl.call(this, urlTemplate, data.d),                         // href
+      this.type('bed').calcUrl(urlTemplate, data.d),                         // href
       data.pInt.oPrev,                                                                  // continuation from previous tile?
-      this.type().calcFeatureColor.call(this, data) || null,
+      this.type().calcFeatureColor(data) || null,
       null,
       tipTipData
     ]);
@@ -433,9 +432,14 @@ var BedFormat = {
     return thickOverlap;
   },
   
+  predrawIntrons: function(ctx, lineY, halfHeight, startX, width) {
+    // If there are exons and introns, the entire feature is first drawn as a 1px line (which becomes each intron)
+    ctx.fillRect(startX, lineY + halfHeight, width, 1);
+  },
+  
   drawIntron: function(ctx, canvasWidth, lineY, halfHeight, startX, endX, color, data, intronNum) {
+    // If a strand is specified, and there are introns, arrows are drawn on top of the introns (not the exons).
     if (data.d.strand) {
-      // If there are introns, arrows are drawn on the introns, not the exons.
       ctx.strokeStyle = "rgb(" + color + ")";
       this.type('bed').drawArrows(ctx, canvasWidth, lineY, halfHeight, startX, endX, data.d.strand);
     }
@@ -476,7 +480,7 @@ var BedFormat = {
     // First, determine and set the color we will be using
     // Note that the default color was already set in drawSpec
     if (o.itemRgb || o.altColor || o.useScore) {
-      color = self.type().calcFeatureColor.call(self, data);
+      color = self.type().calcFeatureColor(data);
       ctx.fillStyle = ctx.strokeStyle = "rgb(" + color + ")";
       contrastColor = self.contrastColor(color);
     }
@@ -484,14 +488,13 @@ var BedFormat = {
     if (data.thickInt) {
       // The coding region is drawn as a thicker line within the gene
       if (data.blockInts) {
-        // If there are exons and introns, the entire feature is first drawn as a 1px line (which becomes the intron)
         prevBInt = null;
-        ctx.fillRect(data.pInt.x, y + halfHeight, data.pInt.w, 1);
+        self.type().predrawIntrons(ctx, y, halfHeight, data.pInt.x, data.pInt.w);
         ctx.strokeStyle = color;
         _.each(data.blockInts, function(bInt, i) {
-          self.type().drawExon.call(self, ctx, width, y, bInt, halfHeight, quarterHeight, lineHeight - lineGap, color, data);
+          self.type().drawExon(ctx, width, y, bInt, halfHeight, quarterHeight, lineHeight - lineGap, color, data);
           if (prevBInt) {
-            self.type().drawIntron.call(self, ctx, width, y, halfHeight, prevBInt.x + prevBInt.w, bInt.x, color, data, i - 1);
+            self.type().drawIntron(ctx, width, y, halfHeight, prevBInt.x + prevBInt.w, bInt.x, color, data, i - 1);
           }
           prevBInt = bInt;
         });
@@ -619,7 +622,7 @@ var BedFormat = {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'baseline';
       _.each(drawSpec.codons, function(codon) {
-        self.type('bed').drawTranslatedCodon.call(self, ctx, drawSpec.width, codon, lineHeight, ppbp > 5 ? -2 : -3);  
+        self.type('bed').drawTranslatedCodon(ctx, drawSpec.width, codon, lineHeight, ppbp > 5 ? -2 : -3);  
       });
     } else {
       if ((drawLimit && drawSpec.layout && drawSpec.layout.length > drawLimit) || drawSpec.tooMany) { 
@@ -634,9 +637,9 @@ var BedFormat = {
       ctx.fillStyle = ctx.strokeStyle = "rgb("+color+")";
       _.each(drawSpec.layout, function(l, i) {
         _.each(l, function(data) {
-          self.type('bed').drawFeature.call(self, ctx, drawSpec.width, data, i, lineHeight, drawCodons);  
-          self.type('bed').addArea.call(self, areas, data, i, lineHeight, urlTemplate);
-          if (drawCodons) { self.type('bed').drawCodons.call(self, ctx, drawSpec.width, data, i, lineHeight, ppbp); }
+          self.type('bed').drawFeature(ctx, drawSpec.width, data, i, lineHeight, drawCodons);  
+          self.type('bed').addArea(areas, data, i, lineHeight, urlTemplate);
+          if (drawCodons) { self.type('bed').drawCodons(ctx, drawSpec.width, data, i, lineHeight, ppbp); }
         });
       });
     }
@@ -646,7 +649,7 @@ var BedFormat = {
     var self = this;
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       var callbackKey = start + '-' + end + '-' + density;
-      self.type().drawSpec.call(self, canvas, drawSpec, density);
+      self.type().drawSpec(canvas, drawSpec, density);
       
       // Have we been waiting to draw sequence data too? If so, do that now, too.
       if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
@@ -669,7 +672,7 @@ var BedFormat = {
 
     function renderSequenceCallback() {
       self.prerender(start, end, density, {width: width, sequence: sequence}, function(drawSpec) {
-        self.type('bed').drawSpec.call(self, canvas, drawSpec, density);
+        self.type('bed').drawSpec(canvas, drawSpec, density);
         if (_.isFunction(callback)) { callback(); }
       });
     }
@@ -701,7 +704,7 @@ var BedFormat = {
     o.colorByStrand = colorByStrandOn && validColorByStrand ? o.color + ' ' + colorByStrand : '';
     o.useScore = $dialog.find('[name=useScore]').is(':checked') ? 1 : 0;
     o.url = $dialog.find('[name=url]').val();
-    this.type().initOpts.call(this);
+    this.type().initOpts();
   }
 };
 

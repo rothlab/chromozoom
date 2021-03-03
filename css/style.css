@@ -1648,6 +1648,7 @@ body.row-resizing * {
   top: 0;
   left: 0;
   z-index: 99999;
+  pointer-events: none;
 }
 
 #tiptip_holder.tip_top {

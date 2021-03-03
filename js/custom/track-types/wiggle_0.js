@@ -25,7 +25,7 @@ var WiggleFormat = {
   },
 
   init: function() {
-    this.type().initOpts.call(this);
+    this.type().initOpts();
   },
   
   _binFunctions: utils.wigBinFunctions,
@@ -121,7 +121,7 @@ var WiggleFormat = {
       }
     });
     
-    return self.type().finishParse.call(self, data);
+    return self.type().finishParse(data);
   },
   
   finishParse: function(data) {
@@ -159,7 +159,7 @@ var WiggleFormat = {
     });
     self.data = data;
     self.stretchHeight = true;
-    self.type('wiggle_0').applyOpts.apply(self);
+    self.type('wiggle_0').applyOpts();
     return true; // success!
   },
   
@@ -177,7 +177,7 @@ var WiggleFormat = {
   prerender: function(start, end, density, precalc, callback) {
     var self = this,
       bppp = (end - start) / precalc.width,
-      drawSpec = self.type().initDrawSpec.call(self, precalc),
+      drawSpec = self.type().initDrawSpec(precalc),
       binFunction = self.type()._binFunctions[self.opts.windowingFunction],
       downsampledData;
     if (self.data._binFunction == self.opts.windowingFunction && (downsampledData = self.data[bppp])) {
@@ -232,7 +232,7 @@ var WiggleFormat = {
       ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) { throw "Canvas not supported"; }
     self.prerender(start, end, density, {width: width}, function(drawSpec) {
-      self.type().drawBars.call(self, ctx, drawSpec, canvas.unscaledHeight(), width);
+      self.type().drawBars(ctx, drawSpec, canvas.unscaledHeight(), width);
       if (_.isFunction(callback)) { callback(); }
     });
   },
@@ -272,7 +272,7 @@ var WiggleFormat = {
     o.windowingFunction = $dialog.find('[name=windowingFunction]').val();
     o.maxHeightPixels = maxHeightPixelsOn ? 
       [maxHeightPixelsMax, maxHeightPixelsMax, $dialog.find('[name=maxHeightPixelsMin]').val()].join(':') : '';
-    this.type('wiggle_0').initOpts.call(this);
+    this.type('wiggle_0').initOpts();
   }
   
 };

@@ -17,8 +17,11 @@ function CustomTrack(opts, browserOpts) {
   if (!opts) { return; } // This is an empty customTrack that will be hydrated with values from a serialized object
   var typeWithArgs = (opts.type && strip(opts.type.toLowerCase()).split(/\s+/)) || ["bed"];
   opts.type = this._type = typeWithArgs[0];
+  this._boundTypes = {};
+  
   var type = this.type();
   if (type === null) { throw new Error("Unsupported track type '"+opts.type+"' encountered on line " + opts.lineNum); }
+  
   this.opts = _.extend({}, this.constructor.defaults, type.defaults || {}, opts);
   this.opts.priority = parseInt10(this.opts.priority);
   _.extend(this, {
@@ -68,28 +71,28 @@ CustomTrack.types = {
 CustomTrack.types.beddetail = _.clone(CustomTrack.types.bed);
 CustomTrack.types.beddetail.defaults = _.extend({}, CustomTrack.types.beddetail.defaults, {detail: true});
 
-// These functions branch to different methods depending on the .type() of the track
+// These functions branch into methods defined via the .type() of the track
 _.each(['init', 'parse', 'render', 'renderSequence', 'prerender', 'search'], function(fn) {
   CustomTrack.prototype[fn] = function() {
     var args = _.toArray(arguments),
-      type = this.type();
-    if (!type[fn]) { return false; }
-    return type[fn].apply(this, args);
+      boundType = this.type();
+    if (!boundType[fn]) { return false; }
+    return boundType[fn].apply(this, args);
   }
 });
 
 // finishSetup does likewise, but we also add a guard so that it can only be called ONCE, ever, on a track
 CustomTrack.prototype.finishSetup = function() {
   var args = _.toArray(arguments),
-    type = this.type();
-  if (!type.finishSetup || this.finishSetupCalled) { return false; }
+    boundType = this.type();
+  if (!boundType.finishSetup || this.finishSetupCalled) { return false; }
   this.finishSetupCalled = true;
-  return type.finishSetup.apply(this, args);
+  return boundType.finishSetup.apply(this, args);
 }
 
 // Loads CustomTrack options into the track options dialog UI when it is opened
 CustomTrack.prototype.loadOpts = function($dialog, genomeSuppliedTrack) {
-  var type = this.type(),
+  var boundType = this.type(),
     o = this.opts,
     description = o.description || ((genomeSuppliedTrack ? 'Genome Annotation ' : 'User Supplied') + ' Track');
   $dialog.find('.custom-opts-form').hide();
@@ -98,17 +101,17 @@ CustomTrack.prototype.loadOpts = function($dialog, genomeSuppliedTrack) {
   $dialog.find('.custom-desc').text(description);
   $dialog.find('.custom-format').text(this._type);
   $dialog.find('[name=color]').val(o.color).change();
-  if (type.loadOpts) { type.loadOpts.call(this, $dialog); }
+  if (boundType.loadOpts) { boundType.loadOpts($dialog); }
   $dialog.find('.enabler').change();
 };
 
 // Saves options changed in the track options dialog UI back to the CustomTrack object
 CustomTrack.prototype.saveOpts = function($dialog) {
-  var type = this.type(),
+  var boundType = this.type(),
     o = this.opts;
   o.color = $dialog.find('[name=color]').val();
   if (!this.validateColor(o.color)) { o.color = '0,0,0'; }
-  if (type.saveOpts) { type.saveOpts.call(this, $dialog); }
+  if (boundType.saveOpts) { boundType.saveOpts($dialog); }
   this.applyOpts();
   global.CustomTracks.worker() && this.applyOptsAsync(); // Apply the changes to the worker too!
 };
@@ -116,9 +119,9 @@ CustomTrack.prototype.saveOpts = function($dialog) {
 // Sometimes newly set options (provided as the first arg) need to be transformed before use or have side effects.
 // This function is run for newly set options in both the DOM and Web Worker scopes (see applyOptsAsync below).
 CustomTrack.prototype.applyOpts = function(opts) {
-  var type = this.type();
+  var boundType = this.type();
   if (opts) { this.opts = opts; }
-  if (type.applyOpts) { type.applyOpts.call(this); }
+  if (boundType.applyOpts) { boundType.applyOpts(); }
 };
 
 // Copies the properties of the CustomTrack (listed in props) from the Web Worker side to the DOM side.
@@ -149,9 +152,20 @@ CustomTrack.prototype.erase = function(canvas) {
   if (ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 }
 
+// Returns a shallow clone of the suite of functions for this track's `type`, if none is given
+// If a specific type is given, that suite is returned instead
+// All functions therein are returned pre-bound to execute with `this` as the CustomTrack instance
+// This allows track types to act like mixins, and they can call each other's functions seamlessly
+// Track types can call `this.type()` to allow subclasses to selectively override their method calls
 CustomTrack.prototype.type = function(type) {
-  if (_.isUndefined(type)) { type = this._type; }
-  return this.constructor.types[type] || null;
+  var self = this;
+  if (_.isUndefined(type)) { type = self._type; }
+  if (!self._boundTypes[type]) {
+    self._boundTypes[type] = _.mapObject(self.constructor.types[type], function(val) { 
+      return _.isFunction(val) ? _.bind(val, self) : val; 
+    });
+  }
+  return self._boundTypes[type] || null;
 };
 
 CustomTrack.prototype.warn = function(warning) {
