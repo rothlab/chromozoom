@@ -210,7 +210,7 @@ for org_i, organism in enumerate(organism_list):
             
                 as_location, bed_type = ut.get_as_and_bed_type_for_bedlike_format(bedlike_format, bed_location)
                 if as_location is None: # Generic BED tracks have autoSql specifying their fields on UCSC's MySQL server
-                    as_location = ut.fetch_as_file(bed_location, cur, table_name)
+                    as_location = ut.fetch_asql_file(cur, organism, bed_location, table_name)
                     bed_type = tr_type.replace(' ', '').rstrip('.')
                 if os.path.isfile(bed_location + '.wasfixed'):
                     with open(bed_location + '.wasfixed', 'r') as f: bed_type = f.read().strip()
@@ -218,23 +218,20 @@ for org_i, organism in enumerate(organism_list):
                 bed_plus_fields = ut.extract_bed_plus_fields(track_type=bed_type, as_location=as_location)
                 file_location = ut.generate_bigbed(organism, bed_type, as_location, bed_location, bed_plus_fields)
                 
-                # Chain tracks require some special logic for also building a bigLink file and fixing them if needed
+                # Chain tracks require a bigLink file to be built
                 if bedlike_format == 'chain':
-                    if not file_location or ut.generate_biglink(organism, bed_location) is None:
-                        log.debug("Trying to fix chain track")
-                        # By default, we don't sort chain BED files (expensive), but if we failed, retry once and resort
-                        bed_location, txt_gz_location = ut.fetch_bed_table(cur, organism, track_name, table_name, 
-                                                                           tr_type.split(), True)
-                        file_location = ut.generate_bigbed(organism, bed_type, as_location, bed_location, bed_plus_fields)
-                        if file_location: 
-                            file_location = file_location if ut.generate_biglink(organism, bed_location) else None
+                    file_location = file_location if ut.generate_biglink(organism, bed_location) else None
                 
                 # If bigBed building failed, try fixing the autosql and BED files, if they haven't been fixed before.
-                elif file_location is None and not os.path.isfile(bed_location + '.wasfixed'):
+                if file_location is None and not os.path.isfile(bed_location + '.wasfixed'):
                     try:
-                        bed_type = ut.fix_bed_as_files(organism, bed_location, as_location, bed_type)
-                        bed_plus_fields = ut.extract_bed_plus_fields(track_type=bed_type, as_location=as_location)
+                        bed_type = ut.fix_bed_and_as_files(organism, bed_location, bed_type, as_location)
                         file_location = ut.generate_bigbed(organism, bed_type, as_location, bed_location, None, True)
+                        if file_location is not None:
+                            bed_plus_fields = ut.extract_bed_plus_fields(bigbed_location=file_location)
+                            if bedlike_format == 'chain':
+                                ut.fix_bed_and_as_files(organism, bed_location + '.link.bed', 'bed4+1', None)
+                                file_location = file_location if ut.generate_biglink(organism, bed_location) else None
                     except:
                         exc = ''.join(traceback.format_exception(*sys.exc_info()))
                         log.warning('[db %s] FAILED: error while fixing AS/BED files for %s\n%s', organism, track_name, exc)

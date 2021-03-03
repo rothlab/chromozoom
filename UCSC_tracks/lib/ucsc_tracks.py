@@ -13,6 +13,7 @@ import gzip
 import zlib
 from shutil import copyfile
 from collections import OrderedDict
+from tqdm import tqdm
 import logging as log
 import traceback
 from shlex import quote as q
@@ -44,6 +45,12 @@ MAX_INDEXABLE_BED_SIZE = 27000 * 1000000
 # Don't bother fetching gzipped table data above this size, because they are liable to expand
 # beyond the aforementioned limit.
 MAX_TSV_GZ_SIZE = 3000 * 1000000
+
+# If any simple query takes longer than this (in seconds), a connection probably stalled
+REQUEST_TIMEOUT = 30
+
+# A place to send output that we don't want
+NULL_DEVICE = open(os.devnull, 'w')
 
 
 class TrackInfo(dict):
@@ -93,6 +100,11 @@ def cmd_exists(cmd):
     """
     return sbp.call("type " + cmd, shell=True, stdout=sbp.PIPE, stderr=sbp.PIPE) == 0
 
+
+def pv():
+    """Use pv when available, which gives us pretty progress bars in the terminal"""
+    return 'pv ' if (cmd_exists('pv') and log.root.level <= log.INFO) else 'cat '
+    
 
 def ensure_hg_conf(homedir):
     """
@@ -146,7 +158,7 @@ def qups(in_cmd, ucur):
 
 def connect_to_ucsc_mysql(host, db):
     try:
-        conn = pymysql.connect(host=host, user='genome', database=db)
+        conn = pymysql.connect(host=host, user='genome', database=db, read_timeout=REQUEST_TIMEOUT)
         return conn, conn.cursor()
     except pymysql.err.InternalError:
         log.warning('No MySQL tables found for "%s". Skipping...', organism)
@@ -581,13 +593,18 @@ def fetch_autosql_for_bigbed(bb_location):
     return None
 
 
-def fetch_as_file(bed_location, xcur, table_name):
+def fetch_asql_file(xcur, organism, bed_location, table_name):
     """
     Creates an autoSql file from UCSC's table metadata and returns its location.
     Applies a few basic cleanup operations before the autoSql file is saved.
     """
     as_file = bed_location[:-4] + '.as'
-    query = 'SELECT autoSqlDef FROM tableDescriptions WHERE tableName IN ("{}", "all_{}", "chrN_{}") LIMIT 1;'
+    
+    first_chrom = first_chrom_name(organism)
+    if first_chrom is None: log.critical("Couldn't fetch chrom.sizes for %s", organism); sys.exit(71)
+    table_name = re.sub('^' + re.escape(first_chrom) + '_', 'chrN_', table_name)
+    
+    query = 'SELECT autoSqlDef FROM tableDescriptions WHERE tableName IN ("{}", "all_{}") LIMIT 1;'
     as_contents = qups(query.format(table_name, table_name, table_name), xcur)[0][0].decode('latin1').strip()
     as_contents = re.sub(r'\n(\s*\n)+', '\n', as_contents) # Kill any whitespace-only lines
     
@@ -625,7 +642,7 @@ def fetch_chrom_sizes(organism):
             chrom_info_gz = chrom_sizes_file + '.gz'
             try:
                 if not rsync_or_curl(urls, chrom_info_gz): raise URLError("chromInfo.txt.gz not available")
-                command = "cat {} | gzcat | cut -f 1,2 >{}".format(q(chrom_info_gz), q(chrom_sizes_file))
+                command = pv() + "{} | gzcat | cut -f 1,2 >{}".format(q(chrom_info_gz), q(chrom_sizes_file))
                 sbp.check_call(command, shell=True) 
                 os.unlink(chrom_info_gz)
             except (sbp.CalledProcessError, URLError) as err:
@@ -654,28 +671,33 @@ def first_chrom_name(organism):
     return None if chrom_sizes is None else next(iter(chrom_sizes.keys()))
 
 
-def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
+def fix_bed_and_as_files(organism, bed_file, bed_type, asql_file=None):
     """
     Tries to fix the BED and autoSql files if initial BigBed building failed.
     
-    There are several fixes applied here:
+    There are several fixes applied to the BED file:
 
     1) BED data on invalid contigs (checked against chrom.sizes.txt) are filtered out of the BED file.
     2) BED columns claiming to be standard types per the `bed_type` are validated; `bed_type` is adjusted if needed.
     3) If it is being used as a standard `score` field, the 5th column in the BED file is clipped to the range of 0-1000.
+    
+    If an autoSql file is provided as `asql_file`:
+    
     4) Fields in the autoSql are reset to default types and names if claimed to be standard and validated as such in #2.
     5) The remaining fields are renamed so that there are no collisions with default names.
     6) If the autoSql contains fields not in the (first line of the) BED file, these are trimmed.
     7) 'string' fields in the autoSql that are longer than 255 bytes in the BED data are upsized to 'lstring'.
     
-    Note that these fixes should be idempotent, i.e. there is no change if this process is run multiple times.
+    Note that these fixes should be idempotent, i.e. there is no change if the fixing process runs multiple times.
 
-    This function returns a normalized BED type "bedN+N" that reflects the actual number of fields in the BED file.
+    Returns a new BED type "bedN+N" that reflects validated field counts (standard and non-standard) in the BED file.
     """
     # TODO: Other fixes we should implement, based on errors that occur in hg38 or hg19:
-    # - Some .as files (eg hg19:ucscToINSDC.as) have malformed quoted strings
     # - Errors with BED blocks, e.g: "BED blocks must be in ascending order without overlap. Blocks 4 and 5 overlap"
+    # ---- possibly addressable with `-allow1bpOverlap` flag for `bedtoBigBed`?
+    # --------- That didn't fix 0-width blocks, e.g. blockStarts [74,74] blockWidths [0,3]
     # - BED features overrunning the end of a chr, e.g. "End coordinate 15279395 bigger than chrII size of 15279316"
+    # - Some .as files (eg hg19:ucscToINSDC.as) have malformed quoted strings (low priority)
 
     REQUIRED_COLUMNS = 3
     DEFAULT_TYPES = ['string', 'uint', 'uint', 'string', 'uint', 'char[1]', 'uint', 'uint', 'uint']
@@ -690,31 +712,34 @@ def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
     bed_lines_dropped = 0
     field_sizes = None
     valid_default_fields = bed_nums[0]
+    pbar_file = sys.stderr if log.root.level <= log.INFO else NULL_DEVICE
 
-    with fileinput.input(bed_file, inplace=True) as f:
-        for line in f:
-            fields = line.strip().split('\t')
-            if field_count is None: field_count = len(fields)
-            if field_sizes is None: field_sizes = [0] * field_count
+    with tqdm(desc="Fixing BED file", total=os.path.getsize(bed_file), file=pbar_file) as pbar:
+        with fileinput.input(bed_file, inplace=True) as f:
+            for line in f:
+                pbar.update(len(line))
+                fields = line.strip().split('\t')
+                if field_count is None: field_count = len(fields)
+                if field_sizes is None: field_sizes = [0] * field_count
 
-            # Drop any BED data that doesn't map to a valid chr (contig name)
-            if fields[0] not in chrom_sizes: 
-                bed_lines_dropped += 1
-                continue
+                # Drop any BED data that doesn't map to a valid chr (contig name)
+                if fields[0] not in chrom_sizes: 
+                    bed_lines_dropped += 1
+                    continue
                 
-            # If it was intended to be a standard `score` field, clip the 5th column in the BED file to the range of 0-1000.
-            if bed_nums[0] >= 5 and len(fields) >= 5:
-                try: score = int(fields[4])
-                except ValueError: score = 1000
-                score = min(max(score, 0), 1000)
-                fields[4] = str(score)
+                # If it was intended to be a standard `score` field, clip the 5th column in the BED file to the range of 0-1000.
+                if bed_nums[0] >= 5 and len(fields) >= 5:
+                    try: score = int(fields[4])
+                    except ValueError: score = 1000
+                    score = min(max(score, 0), 1000)
+                    fields[4] = str(score)
         
-            for i, field in enumerate(fields):
-                # Tally up the max widths of each of the fields, if >255 can upconvert string -> lstring in the autosql.
-                field_sizes[i] = max(field_sizes[i], len(field))
-                # Check how many columns of the BED match up with the DEFAULT_TYPES
-                if i < min(valid_default_fields, len(DEFAULT_TYPES)):
-                    if not re.match(TYPE_REGEXES[DEFAULT_TYPES[i]], field): valid_default_fields = i
+                for i, field in enumerate(fields):
+                    # Tally up the max widths of each of the fields, if >255 can upconvert string -> lstring in the autosql.
+                    field_sizes[i] = max(field_sizes[i], len(field))
+                    # Check how many columns of the BED match up with the DEFAULT_TYPES
+                    if i < min(valid_default_fields, len(DEFAULT_TYPES)):
+                        if not re.match(TYPE_REGEXES[DEFAULT_TYPES[i]], field): valid_default_fields = i
                 
             print('\t'.join(fields))
         
@@ -726,31 +751,32 @@ def fix_bed_as_files(organism, bed_file, asql_file, bed_type):
     if bed_lines_dropped > 0: log.debug('dropped %i lines on invalid contigs from "%s"', bed_lines_dropped, bed_file)
     bed_nums[0] = valid_default_fields
 
-    with open(asql_file, 'r') as f: asql_lines = re.sub(r'\n(\s*\n)+', '\n', f.read().strip()).split('\n')
+    if asql_file:
+        with open(asql_file, 'r') as f: asql_lines = re.sub(r'\n(\s*\n)+', '\n', f.read().strip()).split('\n')
 
-    # Resets the initial fields in the autoSql that we've validated as conforming to the BED standard
-    #    and will be provided as the number of standard fields in the BED type (e.g. "bed 6 + 2" => 6 standard fields)
-    #    (this fixes bedToBigBed errors of the form "column #4 names do not match: Yours=[id]  BED Standard=[name]")
-    # Also automatically upsizes 'string' non-standard fields that are >255 bytes wide to 'lstring' fields
-    for fnum, line in enumerate(asql_lines[3:-1]):
-        lnum = fnum + 3
-        field_size = field_sizes[fnum] if fnum < len(field_sizes) else 0
-        dtype = DEFAULT_TYPES[fnum] if fnum < len(DEFAULT_TYPES) else None
-        dname = DEFAULT_NAMES[fnum] if fnum < len(DEFAULT_NAMES) else None
+        # Resets the initial fields in the autoSql that we've validated as conforming to the BED standard
+        #    which will be the new first number in the BED type (e.g. "bed 6 + 2" => 6 standard fields)
+        #    (this fixes bedToBigBed errors like "column #4 names do not match: Yours=[id]  BED Standard=[name]")
+        # Also automatically upsizes 'string' non-standard fields that are >255 bytes wide to 'lstring' fields
+        for fnum, line in enumerate(asql_lines[3:-1]):
+            lnum = fnum + 3
+            field_size = field_sizes[fnum] if fnum < len(field_sizes) else 0
+            dtype = DEFAULT_TYPES[fnum] if fnum < len(DEFAULT_TYPES) else None
+            dname = DEFAULT_NAMES[fnum] if fnum < len(DEFAULT_NAMES) else None
         
-        ftype, rest = line.split(maxsplit=1)
-        if fnum < bed_nums[0] and dtype is not None: line = dtype + ' ' + rest
-        elif ftype == 'string' and field_size > 255: line = 'lstring ' + rest
+            ftype, rest = line.split(maxsplit=1)
+            if fnum < bed_nums[0] and dtype is not None: line = dtype + ' ' + rest
+            elif ftype == 'string' and field_size > 255: line = 'lstring ' + rest
         
-        ftypename, rest = line.split(';', maxsplit=1)
-        ftype, fname = ftypename.rsplit(maxsplit=1)
-        # When renaming fields, have to avoid collisions with non-default fields that are named the same
-        if fnum < bed_nums[0] and dname is not None: fname = dname
-        elif fname in DEFAULT_NAMES[:bed_nums[0]]: fname = fname + '2'
-        asql_lines[lnum] = '; '.join([ftype + ' ' + fname, rest])
+            ftypename, rest = line.split(';', maxsplit=1)
+            ftype, fname = ftypename.rsplit(maxsplit=1)
+            # When renaming fields, have to avoid collisions with non-default fields that are named the same
+            if fnum < bed_nums[0] and dname is not None: fname = dname
+            elif fname in DEFAULT_NAMES[:bed_nums[0]]: fname = fname + '2'
+            asql_lines[lnum] = '; '.join([ftype + ' ' + fname, rest])
 
-    del asql_lines[3 + field_count : -1]  # remove autoSQL fields that aren't actuallly in the BED file
-    with open(asql_file, 'w') as f: f.write('\n'.join(asql_lines))
+        del asql_lines[3 + field_count : -1]  # remove autoSQL fields that aren't actually in the BED file
+        with open(asql_file, 'w') as f: f.write('\n'.join(asql_lines))
 
     bed_nums = [bed_nums[0], field_count - bed_nums[0]] if field_count > bed_nums[0] else [bed_nums[0]]
     new_bed_type = "bed" + "+".join(map(str, bed_nums))
@@ -774,7 +800,9 @@ def rsync_or_curl(from_urls, to_path, retries=3, max_size=None):
                 return False
         
         if cmd_exists('rsync') and from_url[0:8] == 'rsync://':
-            command = "rsync -avzP --no-R --no-implied-dirs --timeout=30 {} {}".format(q(from_url), q(to_path))
+            partial_progress_flag = '-P' if log.root.level <= log.INFO else '--partial'
+            command = "rsync -avz {} --no-R --no-implied-dirs --timeout={} {} {}"
+            command = command.format(partial_progress_flag, REQUEST_TIMEOUT, q(from_url), q(to_path))
         else:
             command = "curl {} --output {}".format(q(http_url), q(to_path))
         
@@ -811,6 +839,7 @@ def fetch_table_tsv_gz(organism, track_name, gz_file, retries=3, table_name=None
             gz_total_size = 0
             for chrom in sorted(chrom_sizes.keys()):
                 chr_url = cfg.downloads_table_tsv() % (organism, chrom + "_" + track_name)
+                if not url_exists(chr_url): continue  # Not every chrom will have a shard in every track
                 if not rsync_or_curl(chr_url, gz_dir + '/' + chrom + '_' + basename, retries):
                     return False
                 gz_shards.append(gz_dir + '/' + chrom + '_' + basename)
@@ -819,7 +848,7 @@ def fetch_table_tsv_gz(organism, track_name, gz_file, retries=3, table_name=None
                     log.warn("Table data for %s exceeded max_size %i", track_name, max_size)
                     return False
             try:
-                command = "cat '" + ("' '".join(gz_shards)) + "' > '" + gz_file + "'"
+                command = "cat " + (" ".join(map(q, gz_shards))) + " > " + q(gz_file) 
                 sbp.check_call(command, shell=True) 
                 for gz_shard in gz_shards: os.unlink(gz_shard)
                 return True
@@ -832,7 +861,7 @@ def fetch_table_tsv_gz(organism, track_name, gz_file, retries=3, table_name=None
         return rsync_or_curl(url, gz_file, retries=retries, max_size=max_size)
     
 
-def fetch_bed_table(xcur, organism, track_name, table_name, track_type, force_sort=False):
+def fetch_bed_table(xcur, organism, track_name, table_name, track_type):
     """
     Fetches a table from UCSC as a gzipped TSV file, then converts this to a BED file.
     Certain BED-like formats require additional postprocessing to become the best possible BED file.
@@ -855,11 +884,12 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type, force_so
     # forcing a resort of the BED file, we can skip rebuilding the BED file and just return what we have.
     if os.path.isfile(crc32_file):
         with open(crc32_file, 'r') as f: prev_crc32 = f.read().strip()
-    if os.path.isfile(location) and prev_crc32 and crc32_of_file(gz_file) == prev_crc32 and not force_sort:
+    if os.path.isfile(location) and prev_crc32 and crc32_of_file(gz_file) == prev_crc32:
         return (location, gz_file)
     if os.path.isfile(crc32_file): os.unlink(crc32_file)
 
     # Otherwise, start building the BED file from the gz_file, which depends on the BED subformat.
+    log.debug('[db %s] Building BED file(s) for "%s", type %s', organism, track_name, track_type[0])
     if track_type[0] == 'genePred':
         # See https://genome.ucsc.edu/goldenPath/help/bigGenePred.html which explains what we're doing here
         awk_script = """
@@ -889,7 +919,7 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type, force_so
             awk_script = awk_script.replace('%s', col_vars)
         else:
             awk_script = awk_script.replace('%s', '"", "unk", "unk", blankExonFrames')
-        command = "cat {} | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
+        command = pv() + "{} | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
         command = command.format(q(gz_file), awk_script, q(location))
         
     elif track_type[0] == 'rmsk':
@@ -901,7 +931,7 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type, force_so
         """
         if not has_bin_column:
             awk_script = re.sub(r'\$(\d+)\b', lambda m: '$' + str(int(m.group(1)) - 1), awk_script)
-        command = "cat {} | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
+        command = pv() + "{} | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
         command = command.format(q(gz_file), awk_script, q(location))
         
     elif track_type[0] == 'psl':
@@ -935,7 +965,7 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type, force_so
             }
             """
             awk_cmd = "| awk -v OFS=\"\\t\" -F $'\t' '{}'".format(awk_script)
-        command = "cat {} | zcat {}| pslToBigPsl /dev/stdin stdout {}| sort -k1,1 -k2,2n >{}"
+        command = pv() + "{} | zcat {}| pslToBigPsl /dev/stdin stdout {}| sort -k1,1 -k2,2n >{}"
         command = command.format(q(gz_file), cut_bin_column, awk_cmd, q(location))
     
     elif track_type[0] == 'chain':
@@ -946,24 +976,21 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type, force_so
         if not fetch_table_tsv_gz(organism, track_name + 'Link', link_gz_file, max_size=MAX_TSV_GZ_SIZE):
             log.warning('[db %s] FAILED: Couldn\'t download ...link.txt.gz for chain track "%s"', organism, track_name)
             return (None, None)
-        sort_cmd = '| sort -k1,1 -k2,2n' if force_sort else ''
         
         # first, convert the chain table to bigChain
         awk_script = "{ print ($2, $4, $5, $11, 1000, $8, $3, $6, $7, $9, $10, $1) }"
-        command = "cat {} | zcat {}| awk -v OFS=\"\\t\" -F $'\t' '{}' {} >{}"
-        command = command.format(q(gz_file), cut_bin_column, awk_script, sort_cmd, q(location))
+        command = pv() + "{} | zcat {}| awk -v OFS=\"\\t\" -F $'\t' '{}' >{}"
+        command = command.format(q(gz_file), cut_bin_column, awk_script, q(location))
         
-        # then, convert the link table to bigLink
+        # then, convert the link table to bigLink. Oddly link tables need to be sorted, but chain tables often don't
         link_table_fields = fetch_table_fields(xcur, table_name + 'Link')
         link_cut_bin_column = '| cut -f 2- ' if link_table_fields[0] == 'bin' else ''
         awk_script = "{ print ($1, $2, $3, $5, $4) }"
-        command2 = " && cat {} | zcat {}| awk -v OFS=\"\\t\" -F $'\t' '{}' {} >{}"
-        sort_cmd = '| sort -k1,1 -k2,2n'
-        command += command2.format(q(link_gz_file), link_cut_bin_column, awk_script, sort_cmd, q(location + '.link.bed'))
+        command2 = " && {}{} | zcat {}| awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
+        command += command2.format(pv(), q(link_gz_file), link_cut_bin_column, awk_script, q(location + '.link.bed'))
     
     elif track_type[0] in BEDLIKE_FORMATS:
-        #FIXME: Do we always need this sort here? (previously, we skipped it) Could have one attempt without...
-        command = "cat {} | zcat {}| sort -k1,1 -k2,2n >{}".format(q(gz_file), cut_bin_column, q(location))
+        command = pv() + "{} | zcat {}| sort -k1,1 -k2,2n >{}".format(q(gz_file), cut_bin_column, q(location))
         
     else:
         log.warning('[db %s] FAILED: Converting "%s" type %s to BED unhandled.', organism, track_name, bedlike_format)
@@ -994,7 +1021,7 @@ def deferred_first_item_from_bigbed(bb_location):
         command = "bigBedToBed {} -maxItems=10 /dev/stdout | head -n 1".format(q(bb_location))
         try:
             proc = sbp.Popen(command, shell=True, stdout=sbp.PIPE)
-            stdout, stderr = proc.communicate(timeout = 30)
+            stdout, stderr = proc.communicate(timeout=REQUEST_TIMEOUT)
             stdout = stdout.rstrip()
             try: return tuple(stdout.decode().split("\t"))
             except UnicodeDecodeError: return tuple(stdout.decode('latin-1').split("\t"))
@@ -1170,9 +1197,8 @@ def test_default_remote_item_url(organism, table_name, sample_item):
     fields = (organism, sample_item[0], sample_item[1], sample_item[2], sample_item[1], 
                 sample_item[2], table_name, sample_item[3])
     
-    #log.debug('[db %s] %s remote item URL: %s', organism, table_name, cfg.remote_item_url() % fields)
     try:
-        response = urllib.request.urlopen(cfg.remote_item_url() % fields)
+        response = urllib.request.urlopen(cfg.remote_item_url() % fields, timeout=REQUEST_TIMEOUT)
         html = response.read()
     except URLError as e:
         return False
