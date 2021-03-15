@@ -97,7 +97,7 @@ var BigWigFormat = _.extend({}, wiggle_0, {
     if (!ctx) { throw "Canvas not supported"; }
     self.prerender(start, end, density, {width: width}, function(drawSpec) {
       self.type('wiggle_0').drawBars(ctx, drawSpec, canvas.unscaledHeight(), width);
-      _.isFunction(callback) && callback();
+      _.isFunction(callback) && callback({canvas: canvas});
     });
   }
   

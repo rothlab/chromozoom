@@ -49,7 +49,7 @@ MAX_TSV_GZ_SIZE = 3000 * 1000000
 # If any simple query takes longer than this (in seconds), a connection probably stalled
 REQUEST_TIMEOUT = 30
 
-# A place to send output that we don't want
+# A place to send interim stdout/stderr output that we don't want
 NULL_DEVICE = open(os.devnull, 'w')
 
 
@@ -101,9 +101,10 @@ def cmd_exists(cmd):
     return sbp.call("type " + cmd, shell=True, stdout=sbp.PIPE, stderr=sbp.PIPE) == 0
 
 
-def pv():
+def pv(message):
     """Use pv when available, which gives us pretty progress bars in the terminal"""
-    return 'pv ' if (cmd_exists('pv') and log.root.level <= log.INFO) else 'cat '
+    pv_opts = '-N {}'.format(q('  ' + message)) if message else ''
+    return ('pv {} '.format(pv_opts)) if (cmd_exists('pv') and log.root.level <= log.INFO) else 'cat '
     
 
 def ensure_hg_conf(homedir):
@@ -642,7 +643,8 @@ def fetch_chrom_sizes(organism):
             chrom_info_gz = chrom_sizes_file + '.gz'
             try:
                 if not rsync_or_curl(urls, chrom_info_gz): raise URLError("chromInfo.txt.gz not available")
-                command = pv() + "{} | gzcat | cut -f 1,2 >{}".format(q(chrom_info_gz), q(chrom_sizes_file))
+                pv_msg = 'Fetching chrom.sizes'
+                command = pv(pv_msg) + "{} | gzcat | cut -f 1,2 >{}".format(q(chrom_info_gz), q(chrom_sizes_file))
                 sbp.check_call(command, shell=True) 
                 os.unlink(chrom_info_gz)
             except (sbp.CalledProcessError, URLError) as err:
@@ -874,6 +876,7 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type):
     has_bin_column = table_fields[0] == 'bin'
     cut_bin_column = '| cut -f 2- ' if has_bin_column else ''
     has_genePred_fields = table_fields[-4:] == ['name2', 'cdsStartStat', 'cdsEndStat', 'exonFrames']
+    pv_msg = 'Building BED file'
 
     # Download the table in gzipped TSV format to gz_file (using rsync to enable fast resuming)
     if not fetch_table_tsv_gz(organism, track_name, gz_file, table_name=table_name, max_size=MAX_TSV_GZ_SIZE):
@@ -919,7 +922,7 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type):
             awk_script = awk_script.replace('%s', col_vars)
         else:
             awk_script = awk_script.replace('%s', '"", "unk", "unk", blankExonFrames')
-        command = pv() + "{} | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
+        command = pv(pv_msg) + "{} | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
         command = command.format(q(gz_file), awk_script, q(location))
         
     elif track_type[0] == 'rmsk':
@@ -931,7 +934,7 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type):
         """
         if not has_bin_column:
             awk_script = re.sub(r'\$(\d+)\b', lambda m: '$' + str(int(m.group(1)) - 1), awk_script)
-        command = pv() + "{} | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
+        command = pv(pv_msg) + "{} | zcat | awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
         command = command.format(q(gz_file), awk_script, q(location))
         
     elif track_type[0] == 'psl':
@@ -939,7 +942,7 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type):
         if not cmd_exists('pslToBigPsl'):
             log.critical('Must have pslToBigPsl installed on $PATH. Exiting.')
             sys.exit(67)
-        awk_script = ''
+        awk_cmd = ''
         if len(track_type) > 1 and track_type[1] == 'xeno':
             # Special carve-out for the "xeno" PSL subtype, which seems to require different math on certain columns
             awk_script = """
@@ -965,7 +968,7 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type):
             }
             """
             awk_cmd = "| awk -v OFS=\"\\t\" -F $'\t' '{}'".format(awk_script)
-        command = pv() + "{} | zcat {}| pslToBigPsl /dev/stdin stdout {}| sort -k1,1 -k2,2n >{}"
+        command = pv(pv_msg) + "{} | zcat {}| pslToBigPsl /dev/stdin stdout {}| sort -k1,1 -k2,2n >{}"
         command = command.format(q(gz_file), cut_bin_column, awk_cmd, q(location))
     
     elif track_type[0] == 'chain':
@@ -979,18 +982,19 @@ def fetch_bed_table(xcur, organism, track_name, table_name, track_type):
         
         # first, convert the chain table to bigChain
         awk_script = "{ print ($2, $4, $5, $11, 1000, $8, $3, $6, $7, $9, $10, $1) }"
-        command = pv() + "{} | zcat {}| awk -v OFS=\"\\t\" -F $'\t' '{}' >{}"
+        command = pv(pv_msg) + "{} | zcat {}| awk -v OFS=\"\\t\" -F $'\t' '{}' >{}"
         command = command.format(q(gz_file), cut_bin_column, awk_script, q(location))
         
         # then, convert the link table to bigLink. Oddly link tables need to be sorted, but chain tables often don't
         link_table_fields = fetch_table_fields(xcur, table_name + 'Link')
         link_cut_bin_column = '| cut -f 2- ' if link_table_fields[0] == 'bin' else ''
+        link_bed_location = location + '.link.bed'
         awk_script = "{ print ($1, $2, $3, $5, $4) }"
         command2 = " && {}{} | zcat {}| awk -v OFS=\"\\t\" -F $'\t' '{}' | sort -k1,1 -k2,2n >{}"
-        command += command2.format(pv(), q(link_gz_file), link_cut_bin_column, awk_script, q(location + '.link.bed'))
+        command += command2.format(pv(pv_msg), q(link_gz_file), link_cut_bin_column, awk_script, q(link_bed_location))
     
     elif track_type[0] in BEDLIKE_FORMATS:
-        command = pv() + "{} | zcat {}| sort -k1,1 -k2,2n >{}".format(q(gz_file), cut_bin_column, q(location))
+        command = pv(pv_msg) + "{} | zcat {}| sort -k1,1 -k2,2n >{}".format(q(gz_file), cut_bin_column, q(location))
         
     else:
         log.warning('[db %s] FAILED: Converting "%s" type %s to BED unhandled.', organism, track_name, bedlike_format)
@@ -1260,8 +1264,10 @@ def generate_bigwig(organism, track_name, table_name, bw_file=None):
     data_dir = os.getcwd()
     bw_file_abs = os.path.abspath(bw_file)
     ensure_hg_conf(data_dir)
-    command = "HOME={} hgWiggle -db={} -lift=1 {} | pv | wigToBigWig -clip /dev/stdin {} {}"
-    command = command.format(q(data_dir), q(organism), q(table_name), 
+    # HOME and PWD must be temporarily changed while running `hgWiggle` because it looks for `.hg.conf` in HOME
+    # to get connection info for the UCSC MySQL server and it expects .wib files to be in the PWD
+    command = "HOME={} hgWiggle -db={} -lift=1 {} | {} | wigToBigWig -clip /dev/stdin {} {}"
+    command = command.format(q(data_dir), q(organism), q(table_name), pv('Converting wib to bigWig'),
                              q(os.path.abspath(chrom_sizes_file)), q(bw_file_abs))
     
     #TODO: handle the situation where the .wib file contains multiple data for the same location, in which case

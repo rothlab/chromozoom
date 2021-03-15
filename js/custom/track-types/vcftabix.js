@@ -196,22 +196,23 @@ var VcfTabixFormat = {
   },
 
   render: function(canvas, start, end, density, callback) {
-    var ctx = canvas.getContext,
-      urlTemplate = this.opts.url ? this.opts.url : 'javascript:void("'+this.opts.name+':$$")',
+    var self = this,
+      urlTemplate = self.opts.url ? self.opts.url : 'javascript:void("'+self.opts.name+':$$")',
       lineHeight = density == 'pack' ? 27 : 6,
       colors = {a:'255,0,0', t:'255,0,255', c:'0,0,255', g:'0,255,0', other:'114,41,218'},
-      drawLimit = this.opts.drawLimit && this.opts.drawLimit[density],
-      areas = null;
+      drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
+      areas = null,
+      ctx;
 
-    if (!ctx) { throw "Canvas not supported"; }
     // TODO: I disabled regenerating areas here, which assumes that lineNum remains stable across re-renders. Should check on this.
-    if (density == 'pack' && !this.areas[canvas.id]) { areas = this.areas[canvas.id] = []; }
+    if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }
+    canvas.flags = {};
 
-    this.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
+    self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
       if ((drawLimit && drawSpec.length > drawLimit) || drawSpec.tooMany) { 
         canvas.unscaledHeight(0);
         // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
-        canvas.className = canvas.className + ' too-many';
+        canvas.flags.tooMany = true;
       } else if (density == 'dense') {
         canvas.unscaledHeight(15);
         ctx = canvas.getContext('2d');
@@ -248,7 +249,7 @@ var VcfTabixFormat = {
           });
         });
       }
-      if (_.isFunction(callback)) { callback(); }
+      if (_.isFunction(callback)) { callback({canvas: canvas, areas: self.areas[canvas.id]}); }
     });
   }
   

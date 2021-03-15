@@ -128,15 +128,16 @@ var BedGzFormat = _.extend({}, bigbed, {
     var self = this,
       drawLimit = self.opts.drawLimit && self.opts.drawLimit[density];
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
+      canvas.flags = {};
       // Need to add an extra check for tooMany because .bed.gz can max out on 'dense' density, unlike BED/bigBed.
       if ((drawLimit && drawSpec.layout && drawSpec.layout.length > drawLimit) || drawSpec.tooMany) { 
         canvas.unscaledHeight(0);
         // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
-        canvas.className = canvas.className + ' too-many';
+        canvas.flags.tooMany = true;
       } else {
         self.type('bed').drawSpec(canvas, drawSpec, density);
       }
-      if (_.isFunction(callback)) { callback(); }
+      if (_.isFunction(callback)) { callback({canvas: canvas, areas: self.areas[canvas.id]}); }
     });
   }
   

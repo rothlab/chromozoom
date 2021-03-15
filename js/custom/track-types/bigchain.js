@@ -127,7 +127,7 @@ var BigChainFormat = _.extend({}, bigbed, {
   },
   
   drawIntron: function(ctx, canvasWidth, lineY, halfHeight, startX, endX, color, data, intronNum) {
-    if (data.d.strand && endX - startX > 0 && startX >= 0 && endX <= canvasWidth) {
+    if (data.d.strand && endX - startX > 0 && startX <= canvasWidth && endX >= 0) {
       ctx.strokeStyle = "rgb(" + color + ")";
       if (data.d.intronStyles && data.d.intronStyles[intronNum] == CHAIN_SINGLE_LINE_INTRON) {
         var doubleLineHalfWidth = halfHeight > 4 ? 3 : 2;

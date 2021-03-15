@@ -689,7 +689,6 @@ var BamFormat = _.extend({}, bed, {
   
   drawSpec: function(canvas, drawSpec, density) {
     var self = this,
-      ctx = canvas.getContext,
       urlTemplate = 'javascript:void("'+self.opts.name+':$$")',
       drawLimit = self.opts.drawLimit && self.opts.drawLimit[density],
       lineHeight = density == 'pack' ? 14 : 4,
@@ -698,8 +697,8 @@ var BamFormat = _.extend({}, bed, {
       lineOffset = ((covHeight + covMargin) / lineHeight), 
       color = self.opts.color,
       areas = null;
-            
-    if (!ctx) { throw "Canvas not supported"; }
+    
+    canvas.flags = {};
     
     if (!drawSpec.sequence) {
       // First drawing pass, with features that don't depend on sequence.
@@ -707,7 +706,7 @@ var BamFormat = _.extend({}, bed, {
       // If necessary, indicate there was too much data to load/draw and that the user needs to zoom to see more
       if (drawSpec.tooMany || (drawLimit && drawSpec.layout.length > drawLimit)) { 
         canvas.unscaledHeight(0);
-        canvas.className = canvas.className + ' too-many';
+        canvas.flags.tooMany = true;
         return;
       }
       
@@ -754,38 +753,47 @@ var BamFormat = _.extend({}, bed, {
   },
 
   render: function(canvas, start, end, density, callback) {
-    var self = this;
+    var self = this,
+      renderKey = start + '-' + end + '-' + density;
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
-      var callbackKey = start + '-' + end + '-' + density;
+      // If the canvas has already been asked to draw something else, don't proceed any further.
+      if (canvas.rendering != renderKey) { return; }
+      
+      // This does all the actual drawing of the drawSpec to the canvas.
       self.type('bam').drawSpec(canvas, drawSpec, density);
       
       // Have we been waiting to draw sequence data too? If so, do that now, too.
-      if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
-        self.renderSequenceCallbacks[callbackKey]();
-        delete self.renderSequenceCallbacks[callbackKey];
+      if (_.isFunction(self.renderSequenceCallbacks[renderKey])) {
+        self.renderSequenceCallbacks[renderKey]();
+        delete self.renderSequenceCallbacks[renderKey];
       }
       
-      if (_.isFunction(callback)) { callback(); }
+      canvas.lastRendered = renderKey; // Allows `renderSequence` to know we've drawn this region/density
+      if (_.isFunction(callback)) { callback({canvas: canvas, areas: self.areas[canvas.id]}); }
     });
   },
   
   renderSequence: function(canvas, start, end, density, sequence, callback) {
-    var self = this;
+    var self = this,
+      renderKey = start + '-' + end + '-' + density;
     
     // If we weren't able to fetch sequence for some reason, there is no reason to proceed.
     if (!sequence) { return false; }
 
     function renderSequenceCallback() {
       self.prerender(start, end, density, {width: canvas.unscaledWidth(), sequence: sequence}, function(drawSpec) {
+        // If the canvas has already drawn or been asked to draw something else, don't draw sequence data on top.
+        if (canvas.lastRendered != renderKey || (canvas.rendering && canvas.rendering != renderKey)) { return; }
+        // Otherwise, go ahead and draw the sequence data.
         self.type('bam').drawSpec(canvas, drawSpec, density);
-        if (_.isFunction(callback)) { callback(); }
+        if (_.isFunction(callback)) { callback({canvas: canvas}); }
       });
     }
     
-    // Check if the canvas was already rendered (by lack of the class 'unrendered').
+    // Check if this canvas has already rendered the correct region.
     // If yes, go ahead and execute renderSequenceCallback(); if not, save it for later.
-    if ((' ' + canvas.className + ' ').indexOf(' unrendered ') > -1) {
-      self.renderSequenceCallbacks[start + '-' + end + '-' + density] = renderSequenceCallback;
+    if (canvas.lastRendered != renderKey) {
+      self.renderSequenceCallbacks[renderKey] = renderSequenceCallback;
     } else {
       renderSequenceCallback();
     }

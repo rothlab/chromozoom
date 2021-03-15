@@ -32,6 +32,14 @@ module.exports = function($) {
     return hash;
   }
   
+  // A quick way to generate UUIDs
+  utils.uuid = function() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+  
   // Get the last name in a path-like string (after the last slash/backslash)
   utils.basename = function(path) { return path.replace(/^.*[\/\\]/g, ''); };
   utils.dirname = function(path) { var m = path.match(/.*[\/\\]/); return m ? m[0] : ""; }

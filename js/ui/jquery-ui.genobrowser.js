@@ -94,7 +94,8 @@ module.exports = function($, _) {
     _init: function() {
       var self = this,
         $elem = self.element,
-        o = self.options;
+        o = self.options,
+        tracksToParse;
 
       // Some user agents need some minor style tweaking
       $.browser.actuallySafari = $.browser.safari && navigator && !(/chrome/i).test(navigator.userAgent);
@@ -136,14 +137,20 @@ module.exports = function($, _) {
       $(window).bind('popstate', function() { self._initFromParams(null, true); });
 
       // Initialize the footer, the search bar, hotkeys, the AJAX proxy, mobile interactions, IE fixes
-      // Finally, apply params from either the URL or the session state
       self._initFooter();
       self._initJump();
       self._initHotkeys();
       self._initAjax();
       self._initMobileFeatures();
       if ($.browser.msie) { self._initIEFixes(); }
-      $(window).trigger('resize', function() { self._initFromParams(null, true); });
+      
+      // Finally, parse any custom track data provided with the initial genome, and then apply params from either 
+      //     the URL or the session state (to set visible tracks, zoom, position, etc.)
+      tracksToParse = _.filter(o.availTracks, function(t) { return !!t.customData; });
+      self._parseCustomGenomeTracks(tracksToParse, function() {
+        _.each(o.tracks, function(t) { $.extend(t, self.availTracks[t.n]); });
+        $(window).trigger('resize', function() { self._initFromParams(null, true); });
+      });
     },
 
     // Called when a new options object is passed in, typically after a custom genome is loaded
@@ -165,7 +172,7 @@ module.exports = function($, _) {
       // Disable tile fixing until after custom genome tracks are parsed and the nextDirectives are followed
       self.tileFixingEnabled(false);
 
-      tracksToParse = _.filter(o.availTracks, function(t) { return t.customData; });
+      tracksToParse = _.filter(o.availTracks, function(t) { return !!t.customData; });
 
       function finishSetup() {
         _.each(o.tracks, function(t) {
@@ -1454,8 +1461,8 @@ module.exports = function($, _) {
         o = self.options,
         finishSetupAfterParsing;
 
-      function browserOpts() {
-        return {
+      function browserOpts(trackName) {
+        var opts = {
           bppps: o.bppps,
           chrPos: self.chrPos,
           genome: o.genome,
@@ -1464,6 +1471,11 @@ module.exports = function($, _) {
           genomeSize: o.genomeSize,
           ajaxDir: o.ajaxDir
         };
+        if (trackName == 'ruler') { 
+          opts.chrBands = o.chrBands;
+          opts.chrLabels = o.chrLabels;
+        }
+        return opts;
       }
 
       if (tracksToParse.length > 0) {
@@ -1471,12 +1483,13 @@ module.exports = function($, _) {
         _.each(tracksToParse, function(t) {
           // Allow for inheritance of options from parent tracks (e.g. subtracks inheriting from compositeTracks)
           var parentOpts = t.parent && self.compositeTracks[t.parent] && self.compositeTracks[t.parent].opts;
-          CustomTracks.parseAsync(t.customData, browserOpts(), parentOpts, function(customTracks) {
+          CustomTracks.parseAsync(t.customData, browserOpts(t.n), parentOpts, function(customTracks) {
             var customTrack = customTracks[0]; // t.customData should only contain data for one track
             _.each(o.bppps, function(bppp) {
               self.availTracks[t.n].fh[o.bpppFormat(bppp)] = {dense: customTrack.heights.min};
             });
             self.availTracks[t.n].custom = t.custom = customTrack;
+            delete customTrack.customData;
             finishSetupAfterParsing();
           });
         });
@@ -2118,16 +2131,18 @@ module.exports = function($, _) {
           if (fixedHeights[d]) { return heights.push([d, fixedHeights[d]]); }
           var $tdata = $('.browser-track-'+t.n+'>.bppp-'+classFriendly(bppps.top)+'>div>.tdata.dens-'+d);
           if ($tdata.find('.loading').length > 0) { orderFor = null; }
-          var h = Math.max.apply(Math, $tdata.map(function() {
+          var tdataHeights = $tdata.map(function() {
             return this.tagName == 'CANVAS' ? this.unscaledHeight() : (this.naturalHeight || this.height);
-          }).get());
-          // If the user "locks" display at a density, unless it's , we force that density's height to be optimal
-          if (d != base && h > 0 && t.lock === d) { h = height; }
-          heights.push([d, h]);
+          }).get();
+          var maxH = Math.max.apply(Math, tdataHeights);
+          var minH = Math.min.apply(Math, tdataHeights);
+          // If the user "locks" display at a density, we force that density's height to be optimal
+          if (d != base && minH > 0 && t.lock === d) { maxH = height; }
+          heights.push([d, maxH, minH]);
         });
         heights = _.map(heights, function(v, j) {
           var deltaY;
-          v[2] = v[1] === 0;
+          v[2] = v[2] === 0;
           v[1] = v[2] ? 1000000 : v[1];      // effectively, never show 0 height tiles.
                                              // 0 height tiles are a special condition indicating the tile couldn't
                                              // be drawn. See js/custom/track-types/README.md.

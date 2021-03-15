@@ -55,7 +55,7 @@ var BedFormat = {
   },
   
   init: function() {
-    this.type2().initOpts();
+    this.type().initOpts();
   },
   
   initOpts: function() {
@@ -79,6 +79,7 @@ var BedFormat = {
     else { o.altColor = altColors[1]; }
     self.expectsSequence = o.drawCodons = o.baseColorUseCds === "given";
     self.expectedSequencePadding = o.mostIntronsBelow;
+    self.expectsAreaLabels = true;
   },
   
   // Given the feature's thickStart, thickEnd, and blocks, this saves an .exonFrame to each block.
@@ -422,7 +423,7 @@ var BedFormat = {
   },
   
   drawExon: function(ctx, canvasWidth, lineY, blockInt, halfHeight, quarterHeight, lineHeightNoGap, color, data) {
-    if (blockInt.w > 0 && blockInt.x + blockInt.w <= canvasWidth && blockInt.x >= 0) {
+    if (blockInt.w > 0 && blockInt.x + blockInt.w >= 0 && blockInt.x <= canvasWidth) {
       ctx.fillRect(blockInt.x, lineY + halfHeight - quarterHeight + 1, Math.max(blockInt.w, 1), quarterHeight * 2 - 1);
     }
     thickOverlap = data.thickInt.w > 0 && utils.pixIntervalOverlap(blockInt, data.thickInt);
@@ -593,19 +594,17 @@ var BedFormat = {
     var self = this,
       o = self.opts,
       ppbp = drawSpec.bppp && 1 / drawSpec.bppp,
-      ctx = canvas.getContext,
       urlTemplate = o.url ? o.url : 'javascript:void("' + o.name + ':$$")',
       drawLimit = o.drawLimit && o.drawLimit[density],
       drawCodons = o.drawCodons && drawSpec.bppp <= o.drawCodonsUnder,
       lineHeight = density == 'pack' ? 15 : 6,
       color = o.color,
-      areas = null;
+      areas = null,
+      ctx;
     
     if (!urlTemplate.match(/\$\$/)) { urlTemplate += '$$'; }
-    
-    if (!ctx) { throw "Canvas not supported"; }
-    // TODO: I disabled regenerating areas here, which assumes that lineNum remains stable across re-renders. Should check on this.
-    if (density == 'pack' && !self.areas[canvas.id]) { areas = self.areas[canvas.id] = []; }
+    if (density == 'pack') { areas = self.areas[canvas.id] = []; }
+    canvas.flags = {};
     
     if (density == 'dense') {
       canvas.unscaledHeight(15);
@@ -628,7 +627,7 @@ var BedFormat = {
       if ((drawLimit && drawSpec.layout && drawSpec.layout.length > drawLimit) || drawSpec.tooMany) { 
         canvas.unscaledHeight(0);
         // This applies styling that indicates there was too much data to load/draw and that the user needs to zoom to see more
-        canvas.className = canvas.className + ' too-many';
+        canvas.flags.tooMany = true;
         return;
       }
       // A tile that successfully rendered should always be at least 1px high (because of genobrowser's densityOrder algorithm)
@@ -646,18 +645,23 @@ var BedFormat = {
   },
 
   render: function(canvas, start, end, density, callback) {
-    var self = this;
+    var self = this,
+      renderKey = start + '-' + end + '-' + density;
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
-      var callbackKey = start + '-' + end + '-' + density;
+      // If the canvas has already been asked to draw something else, don't proceed any further.
+      if (canvas.rendering != renderKey) { return; }
+      
+      // This does all the actual drawing of the drawSpec to the canvas.
       self.type().drawSpec(canvas, drawSpec, density);
       
       // Have we been waiting to draw sequence data too? If so, do that now, too.
-      if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
-        self.renderSequenceCallbacks[callbackKey]();
-        delete self.renderSequenceCallbacks[callbackKey];
+      if (_.isFunction(self.renderSequenceCallbacks[renderKey])) {
+        self.renderSequenceCallbacks[renderKey]();
+        delete self.renderSequenceCallbacks[renderKey];
       }
       
-      if (_.isFunction(callback)) { callback(); }
+      canvas.lastRendered = renderKey; // Allows `renderSequence` to know we've drawn this region/density
+      if (_.isFunction(callback)) { callback({canvas: canvas, areas: self.areas[canvas.id]}); }
     });
   },
   
@@ -665,25 +669,94 @@ var BedFormat = {
     var self = this,
       width = canvas.unscaledWidth(),
       drawCodons = self.opts.drawCodons,
-      drawCodonsUnder = self.opts.drawCodonsUnder;
+      drawCodonsUnder = self.opts.drawCodonsUnder,
+      renderKey = start + '-' + end + '-' + density;
     
     // If we're not drawing codons or we weren't able to fetch sequence, there is no reason to proceed.
     if (!drawCodons || !sequence || (end - start) / width > drawCodonsUnder) { return false; }
 
     function renderSequenceCallback() {
       self.prerender(start, end, density, {width: width, sequence: sequence}, function(drawSpec) {
+        // If the canvas has already drawn or been asked to draw something else, don't draw sequence data on top.
+        if (canvas.lastRendered != renderKey || (canvas.rendering && canvas.rendering != renderKey)) { return; }
+        // Otherwise, go ahead and draw the sequence data.
         self.type('bed').drawSpec(canvas, drawSpec, density);
-        if (_.isFunction(callback)) { callback(); }
+        if (_.isFunction(callback)) { callback({canvas: canvas}); }
       });
     }
     
-    // Check if the canvas was already rendered (by lack of the class 'unrendered').
+    // Check if this canvas has already rendered the correct region.
     // If yes, go ahead and execute renderSequenceCallback(); if not, save it for later.
-    if ((' ' + canvas.className + ' ').indexOf(' unrendered ') > -1) {
-      self.renderSequenceCallbacks[start + '-' + end + '-' + density] = renderSequenceCallback;
+    if (canvas.lastRendered != renderKey) {
+      self.renderSequenceCallbacks[renderKey] = renderSequenceCallback;
     } else {
       renderSequenceCallback();
     }
+  },
+
+  renderAreaLabels: function(canvas, areas, height, width, overhangRatio, bppp, zoom, bgColor, callback) {
+    var self = this,
+      o = self.opts,
+      xPad = 2,
+      tileWidth = width / (1 + overhangRatio),
+      leftOverhang = tileWidth * overhangRatio,
+      canvasXScale = bppp / zoom,
+      lineHeight = 12, 
+      color = (/^\d+,\d+,\d+$/).test(o.color) ? o.color : '0,0,0',
+      ctx;
+
+    canvas.unscaledHeight(height);
+    canvas.unscaledWidth(width);
+    ctx = canvas.getContext('2d');
+    ctx.font = o.font;
+    ctx.textAlign = 'end';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgb(' + color + ')';
+ 
+    _.each(areas, function(area, i) {
+      if (area[6]) { return; } // Don't draw labels for areas continuing from previous tile
+      
+      var x = floorHack(area[0] * canvasXScale - xPad + leftOverhang),
+        y = floorHack((area[1] + area[3]) * 0.5),
+        textWidths = [],
+        textWidth, maxTextWidth, lines;
+          
+      if (area[8]) {
+        lines = area[8].split("\n");
+        // potentially marked up + multiline text
+        _.each(lines, function(l, i) {
+          var altColorRegexp = /\[(\d+,\d+,\d+)\]$/,
+            m = l.match(altColorRegexp),
+            lineY = y - (lines.length - 1) * lineHeight/2 + i * lineHeight,
+            lineTextColor = null;
+          if (m) {
+            lineTextColor = m[1];
+            l = l.replace(altColorRegexp, '');
+          }
+          ctx.fillStyle = bgColor;
+          textWidth = ctx.measureText(l).width + 1;
+          textWidths.push(textWidth);
+          ctx.fillRect(x - textWidth, lineY - lineHeight * 0.5, textWidth, lineHeight);
+          ctx.fillStyle = 'rgb(' + (lineTextColor ? lineTextColor : (area[7] ? area[7] : color)) + ')';
+          ctx.fillText(l, x, lineY);
+        });
+      } else {
+        ctx.fillStyle = bgColor;
+        textWidth = ctx.measureText(area[4]).width + 1;
+        textWidths = [textWidth];
+        ctx.fillRect(x - textWidth, y - lineHeight * 0.5, textWidth, lineHeight);
+        ctx.fillStyle = 'rgb(' + ((/^\d+,\d+,\d+$/).test(area[7]) ? area[7] : color) + ')';
+        ctx.fillText(area[4], x, y);
+      }
+      ctx.fillStyle = 'rgb(' + color + ')';
+    
+      maxTextWidth = Math.max.apply(Math, textWidths);
+      // Add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
+      // This allows the user to mouseover the text instead of just the feature itself (which can be very small)
+      area[10] = Math.ceil(maxTextWidth);
+    });
+    
+    if (_.isFunction(callback)) { callback({canvas: canvas, areas: areas}); } 
   },
 
   loadOpts: function($dialog) {

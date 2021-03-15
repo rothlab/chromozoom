@@ -1,5 +1,5 @@
 /*
- * This module enhances the HTMLCanvasElement to permit easier usage on Retina screens.
+ * This module enhances HTMLCanvasElement and OffscreenCanvas to permit easier usage on Retina screens.
  *
  * It is similar to the approach used in https://github.com/jondavidjohn/hidpi-canvas-polyfill
  * except please note that webkitBackingStorePixelRatio is now deprecated in Safari:
@@ -16,38 +16,49 @@
  */
 
 module.exports = function(global, jQuery) {
-
-  (function(prototype, $) {
   
-    var _superGetContext = prototype.getContext;
+  var globalCanvasPixelRatio = -1;
+
+  function enhanceCanvasPrototype(CanvasElem, $) {
+  
+    var prototype = CanvasElem.prototype,
+      _superGetContext = prototype.getContext;
   
     // A helper to calculate and cache the CSS to device pixel ratio for the <canvas> element
-    // This is calculated only once, even if the <canvas> is moved to a different display.
+    // Note: this is calculated only once, even if the window is moved to a different display.
     prototype.calculateRatio = function(context) {
-      var ratio = $(this).data('ratio'),
+      var ratio = this._ratio,
         backingStore, context;
     
       if (ratio) { return ratio; }
-      context = context || _superGetContext.call(this, '2d');
+      
+      if (globalCanvasPixelRatio == -1) {
+        context = context || _superGetContext.call($('<canvas/>').get(0), '2d');
     
-      backingStore = context.backingStorePixelRatio ||
-            context.webkitBackingStorePixelRatio ||
-            context.mozBackingStorePixelRatio ||
-            context.msBackingStorePixelRatio ||
-            context.oBackingStorePixelRatio || 1;
+        backingStore = context.backingStorePixelRatio ||
+              context.webkitBackingStorePixelRatio ||
+              context.mozBackingStorePixelRatio ||
+              context.msBackingStorePixelRatio ||
+              context.oBackingStorePixelRatio || 1;
     
-      ratio = (global.devicePixelRatio || 1) / backingStore;
-      $(this).data('ratio', ratio);
-      return ratio;
+        ratio = globalCanvasPixelRatio = (global.devicePixelRatio || 1) / backingStore;
+      } else {
+        ratio = globalCanvasPixelRatio;
+      }
+
+      return this._ratio = ratio;
     };
   
     // Sets or returns the height of the canvas in CSS pixels.
     prototype.unscaledHeight = function(height) {
       var ratio = this.calculateRatio();
-      if (typeof(height) == 'undefined') { return this.height / ratio; }
-      else {
+      // We can set shadow props `this._height` and `this._width` on a <canvas> to pretend it has different dimensions
+      // This is useful when we've delegated drawing to an OffscreenCanvas which has changed the underlying dimensions
+      if (typeof(height) == 'undefined') { 
+        return (typeof(this._height) == 'undefined' ? this.height : this._height) / ratio; 
+      } else {
         // anytime you change canvas dimensions, the drawing context resets
-        $(this).data('currentScale', 1);
+        this._currentScale = 1;
         this.height = height * ratio;
         return height;
       }
@@ -56,10 +67,13 @@ module.exports = function(global, jQuery) {
     // Sets or returns the width of the canvas in CSS pixels.
     prototype.unscaledWidth = function(width) {
       var ratio = this.calculateRatio();
-      if (typeof(width) == 'undefined') { return this.width / ratio; }
-      else {
+      // We can set shadow props `this._height` and `this._width` on a <canvas> to pretend it has different dimensions
+      // This is useful when we've delegated drawing to an OffscreenCanvas which has changed the underlying dimensions
+      if (typeof(width) == 'undefined') { 
+        return (typeof(this._width) == 'undefined' ? this.width : this._width) / ratio; 
+      } else {
         // anytime you change canvas dimensions, the drawing context resets
-        $(this).data('currentScale', 1);
+        this._currentScale = 1;
         this.width = width * ratio;
         return width;
       }
@@ -69,23 +83,24 @@ module.exports = function(global, jQuery) {
     prototype.getContext = function(type) {
       var backingStore, ratio, currentScale,
         context = _superGetContext.call(this, type),
-        currentScale = $(this).data('currentScale') || 1;
+        currentScale = this._currentScale || 1;
 
       if (type === '2d') {
         ratio = this.calculateRatio(context);
 
         if (ratio / currentScale > 1) { 
           context.scale(ratio / currentScale, ratio / currentScale);
-          $(this).data('currentScale', ratio);
+          this._currentScale = ratio;
         }
       }
 
       return context;
     };
   
-  })(global.HTMLCanvasElement.prototype, jQuery);
+  };
   
-  
+  if (global.HTMLCanvasElement) { enhanceCanvasPrototype(global.HTMLCanvasElement, jQuery); }
+  if (global.OffscreenCanvas) { enhanceCanvasPrototype(global.OffscreenCanvas, jQuery); }  
   
   (function($) {
     

@@ -850,10 +850,10 @@ ul.choices::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
   bottom: 0;
   border-bottom: 1px solid #d2d2d2;
   opacity: 0;
-  -webkit-transition: opacity 0.5s ease-in-out;
+/*  -webkit-transition: opacity 0.5s ease-in-out;
   -moz-transition: opacity 0.5s ease-in-out;
   -o-transition: opacity 0.5s ease-in-out;
-  transition: opacity 0.5s ease-in-out;
+  transition: opacity 0.5s ease-in-out;*/
   visibility: hidden;
 }
 .browser-track .tile.tile-loaded.tile-show {
@@ -904,20 +904,21 @@ ul.choices::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
   width: 80%;
   z-index: 1;
   opacity: 0;
-  -webkit-transition: opacity 0.5s ease-in-out;
+/*  -webkit-transition: opacity 0.5s ease-in-out;
   -moz-transition: opacity 0.5s ease-in-out;
   -o-transition: opacity 0.5s ease-in-out;
-  transition: opacity 0.5s ease-in-out;
+  transition: opacity 0.5s ease-in-out;*/
 }
 .browser-track .tile .tdata.dens-best {
   opacity: 1;
   z-index: 2;
+/*  background-image: url(wheel.png);*/
 }
 .browser-track .tile-custom .tdata.unrendered.dens-best {
-  opacity: 0.5;
+  opacity: 0;
   background-color: transparent;
   background-image: url(barberpole-trans.gif);
-  background-size: 10px 10px;
+  background-size: 10px 10px; 
   background-repeat: repeat;
   /* FIXME: is the GIF or the CSS better? */
 /*  background-size: 10px 10px;
@@ -941,10 +942,10 @@ ul.choices::-webkit-scrollbar-thumb, select::-webkit-scrollbar-thumb {
   width: 100%;
   pointer-events: none;  /* Disables any mouse interactions */
   opacity: 0;
-  -webkit-transition: opacity 0.5s ease-in-out;
+/*  -webkit-transition: opacity 0.5s ease-in-out;
   -moz-transition: opacity 0.5s ease-in-out;
   -o-transition: opacity 0.5s ease-in-out;
-  transition: opacity 0.5s ease-in-out;
+  transition: opacity 0.5s ease-in-out;*/
 }
 .browser-track .tile .labels.dens-best {
   opacity: 1;
@@ -1081,7 +1082,7 @@ body.row-resizing * {
   content: '\2190  the genome is back there';
 }
 
-.browser-track-ruler .ticks, .browser-track-ruler .bands {
+.browser-track-ruler .ticks {
   position: absolute;
   top: 0;
   left: 0;
@@ -1092,16 +1093,9 @@ body.row-resizing * {
   -o-transition: opacity 0.5s ease-in-out;
   transition: opacity 0.5s ease-in-out;
 }
-.browser-track-ruler .ticks.hidden, .browser-track-ruler .bands.hidden {
+.browser-track-ruler .ticks.hidden {
   opacity: 0;
 }
-.browser-track-ruler .bands {
-  top: 23px;
-}
-.browser-track-ruler.ruler-collapsed .bands { display: none; }
-.browser-track-ruler .tile.tile-halfway .ticks { display: none; }
-.browser-track-ruler .tile.tile-halfway { opacity: 1; }
-
 
 .browser-track-ruler .ntdata {
   position: absolute;

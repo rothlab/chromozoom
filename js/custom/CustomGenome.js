@@ -57,7 +57,8 @@ CustomGenome.defaults = {
       n: "ruler",    // short unique name for the track
       s: ["dense"],  // possible densities for tiles, e.g. ["dense", "squish", "pack"]
       h: 25,         // starting height in px
-      srt: 0         // put this at the top of its category
+      srt: 0,        // put this at the top of its category
+      customData: [{ruler: true}]  // this is a special object which CustomTrack parses to create a ruler type track
     }
   ],
   compositeTracks: [],
@@ -100,7 +101,10 @@ CustomGenome.prototype.parse = function() {
 CustomGenome.prototype.format = function(format) {
   var self = this;
   if (_.isUndefined(format)) { format = self._format; }
+  // TODO: prebind the self.constructor.formats[format] methods to `this`, as in `CustomTrack.prototype.type()`
+  //       Will need to modify `CustomGenomes.parseAsync` if any caching is done (this likely breaks serialization)
   var FormatWrapper = function() { _.extend(this, self.constructor.formats[format]); return this; };
+  // TODO: unclear on the reason for the format inheriting from the CustomGenome itself?
   FormatWrapper.prototype = self;
   return new FormatWrapper();
 };
@@ -156,7 +160,7 @@ CustomGenome.prototype.setBppps = function(windowOpts) {
   o.initZoom = bppps[0];
   
   // if custom genomes have ideograms, we draw them at all zoom levels
-  o.ideogramsAbove = o.ideogramsAbove ? bppps[0] : 0;
+  o.ideogramsAbove = o.ideogramsAbove ? 0 : bppps[0];
 };
 
 // Construct a complete configuration for $.ui.genobrowser based on the information parsed from the genome file

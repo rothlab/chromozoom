@@ -9,6 +9,8 @@ module.exports = function(global) {
 
 var _ = require('../underscore.min.js');
 
+if (!_.sum) { _.sum = function(list){ return _.reduce(list, function(memo, num){ return memo + num; }, 0); }; }
+
 var utils = require('./track-types/utils/utils.js'),
   strip = utils.strip;
   parseInt10 = utils.parseInt10;
@@ -46,10 +48,20 @@ CustomTrack.defaults = {
   name: 'User Track',
   description: '',
   color: '0,0,0',
-  priority: 1
+  priority: 1,
+  font: "11px SystemWebFont,Roboto,'Segoe UI','Lucida Grande',Helvetica,Arial,sans-serif"
+  //FIXME: using system fonts ('-apple-system', BlinkMacSystemFont) for MacOS crashes in OffscreenCanvas on Chrome?
+  //font: "11px '-apple-system',BlinkMacSystemFont,'Segoe UI','Lucida Grande',Helvetica,Arial,sans-serif"
 };
 
+CustomTrack.OFFSCREEN_CANVAS_METHODS = ['render', 'renderSequence', 'renderAreaLabels'];
+CustomTrack.WORKER_METHODS = ['prerender', 'search', 'applyOpts', 'finishSetup']
+CustomTrack.WORKER_METHODS = CustomTrack.WORKER_METHODS.concat(CustomTrack.OFFSCREEN_CANVAS_METHODS);
+CustomTrack.BRANCH_BY_TYPE_METHODS = ['init', 'parse', 'prerender', 'search'];
+CustomTrack.BRANCH_BY_TYPE_METHODS = CustomTrack.BRANCH_BY_TYPE_METHODS.concat(CustomTrack.OFFSCREEN_CANVAS_METHODS);
+
 CustomTrack.types = {
+  ruler: require('./track-types/ruler.js'),
   bed: require('./track-types/bed.js'),
   featuretable: require('./track-types/featuretable.js'),
   bedgraph: require('./track-types/bedgraph.js'),
@@ -71,8 +83,24 @@ CustomTrack.types = {
 CustomTrack.types.beddetail = _.clone(CustomTrack.types.bed);
 CustomTrack.types.beddetail.defaults = _.extend({}, CustomTrack.types.beddetail.defaults, {detail: true});
 
+// Returns a shallow clone of the suite of functions for this track's `type`, if none is given
+// If a specific type is given, that suite is returned instead
+// All functions therein are returned pre-bound to execute with `this` as the CustomTrack instance
+// This allows track types to act like mixins, and they can call each other's functions seamlessly
+// Track types can call `this.type()` to allow subclasses to selectively override their method calls
+CustomTrack.prototype.type = function(type) {
+  var self = this;
+  if (_.isUndefined(type)) { type = self._type; }
+  if (!self._boundTypes[type]) {
+    self._boundTypes[type] = _.mapObject(self.constructor.types[type], function(val) { 
+      return _.isFunction(val) ? _.bind(val, self) : val; 
+    });
+  }
+  return self._boundTypes[type] || null;
+};
+
 // These functions branch into methods defined via the .type() of the track
-_.each(['init', 'parse', 'render', 'renderSequence', 'prerender', 'search'], function(fn) {
+_.each(CustomTrack.BRANCH_BY_TYPE_METHODS, function(fn) {
   CustomTrack.prototype[fn] = function() {
     var args = _.toArray(arguments),
       boundType = this.type();
@@ -146,27 +174,12 @@ CustomTrack.prototype.syncProps = function(props, receiving) {
   }
 };
 
-CustomTrack.prototype.erase = function(canvas) {
+CustomTrack.prototype.erase = function(canvas, callback) {
   var self = this,
     ctx = canvas.getContext && canvas.getContext('2d');
   if (ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  if (_.isFunction(callback)) { callback({canvas: canvas}); }
 }
-
-// Returns a shallow clone of the suite of functions for this track's `type`, if none is given
-// If a specific type is given, that suite is returned instead
-// All functions therein are returned pre-bound to execute with `this` as the CustomTrack instance
-// This allows track types to act like mixins, and they can call each other's functions seamlessly
-// Track types can call `this.type()` to allow subclasses to selectively override their method calls
-CustomTrack.prototype.type = function(type) {
-  var self = this;
-  if (_.isUndefined(type)) { type = self._type; }
-  if (!self._boundTypes[type]) {
-    self._boundTypes[type] = _.mapObject(self.constructor.types[type], function(val) { 
-      return _.isFunction(val) ? _.bind(val, self) : val; 
-    });
-  }
-  return self._boundTypes[type] || null;
-};
 
 CustomTrack.prototype.warn = function(warning) {
   if (this.opts.strict) {
@@ -223,26 +236,71 @@ CustomTrack.prototype.chrRange = function(start, end, outputZeroBasedRightOpen) 
   }
 }
 
-CustomTrack.prototype.prerenderAsync = function() {
-  global.CustomTracks.async(this, 'prerender', arguments, [this.id]);
-};
+// ===============================================================================
+// = Setup asynchronous versions of above functions that forward to a Web Worker =
+// ===============================================================================
 
-CustomTrack.prototype.applyOptsAsync = function() {
-  global.CustomTracks.async(this, 'applyOpts', [this.opts, function(){}], [this.id]);
-};
+_.each(CustomTrack.WORKER_METHODS, function(fn) {
+  var fnAsync = fn + 'Async',
+    asyncMethod;
+    
+  // These functions require special handling because a <canvas> may need to be converted to OffscreenCanvas
+  if (_.contains(CustomTrack.OFFSCREEN_CANVAS_METHODS, fn)) {
+    asyncMethod = function() {
+      var self = this,
+        args = _.toArray(arguments),
+        canvas = _.first(args),
+        transferables = [],
+        renderKey = canvas.rendering,
+        offscreen;
 
-CustomTrack.prototype.finishSetupAsync = function() {
-  global.CustomTracks.async(this, 'finishSetup', arguments, [this.id]);
-};
+      // Converts the first argument, a <canvas>, into a wrapped OffscreenCanvas that the web worker can draw onto.
+      // If .transferControlToOffscreen() fails, we've already transferred control before, and the web worker can find 
+      //    the right OffscreenCanvas using the `canvas.id`.
+      try { offscreen = canvas.transferControlToOffscreen(); transferables.push(offscreen); }
+      catch (DOMException) { offscreen = true; }
+      // offscreen = true;
+      args[0] = {
+        offscreen: offscreen,
+        id: canvas.id,
+        // width: canvas.width,
+        // height: canvas.height,
+        rendering: canvas.rendering,
+        _ratio: canvas.calculateRatio()
+      };
+    
+      // We also do some work in a callback wrapper to restore properties of the <canvas> that were changed by the worker.
+      // We update the `className` of our <canvas> to reflect anything the worker changed.
+      // We set shadow props `this._height` and `this._width` on the <canvas> to track the dimensions of the new 
+      //     OffscreenCanvas -- see how this affects `.unscaledHeight()` et al. in `jquery.retina-canvas.js`
+      // We also add areas that were generated by the worker to the CustomTrack on this side of the fence.
+      global.CustomTracks.async(self, fn, args, [self.id], function wrapper(renderResult) {
+        canvas.flags = renderResult.canvas.flags;
+        canvas.lastRendered = renderResult.canvas.lastRendered;
+        canvas._height = renderResult.canvas.height;
+        canvas._width = renderResult.canvas.width;
+        if (renderResult.areas) { self.areas[canvas.id] = renderResult.areas; }
+        return {canvas: canvas, areas: renderResult.areas};
+      }, transferables);  // The OffscreenCanvas is supplied in `transferables` to transfer ownership to the web worker.
+    }
+  } else if (fn == 'applyOpts') {
+    asyncMethod = function() { global.CustomTracks.async(this, fn, [this.opts, function(){}], [this.id]); }
+  } else {
+    asyncMethod = function() { global.CustomTracks.async(this, fn, arguments, [this.id]); }
+  }
 
-CustomTrack.prototype.searchAsync = function() {
-  global.CustomTracks.async(this, 'search', arguments, [this.id]);
-};
+  CustomTrack.prototype[fnAsync] = asyncMethod;
+});
+
 
 CustomTrack.prototype.ajaxDir = function() {
   // Web Workers fetch URLs relative to the JS file itself.
   return (global.HTMLDocument ? '' : '../') + this.browserOpts.ajaxDir;
 };
+
+// ======================================
+// = Utility functions related to color =
+// ======================================
 
 CustomTrack.prototype.rgbToHsl = function(r, g, b) {
   r /= 255, g /= 255, b /= 255;

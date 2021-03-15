@@ -167,18 +167,23 @@ var BigBedFormat = _.extend({}, bed, {
   },
 
   render: function(canvas, start, end, density, callback) {
-    var self = this;
+    var self = this,
+      renderKey = start + '-' + end + '-' + density;
     self.prerender(start, end, density, {width: canvas.unscaledWidth()}, function(drawSpec) {
-      var callbackKey = start + '-' + end + '-' + density;
+      // If the canvas has already been asked to draw something else, don't proceed any further.
+      if (canvas.rendering != renderKey) { return; }
+      
+      // This does all the actual drawing of the drawSpec to the canvas.
       self.type('bed').drawSpec(canvas, drawSpec, density);
       
       // Have we been waiting to draw sequence data too? If so, do that now, too.
-      if (_.isFunction(self.renderSequenceCallbacks[callbackKey])) {
-        self.renderSequenceCallbacks[callbackKey]();
-        delete self.renderSequenceCallbacks[callbackKey];
+      if (_.isFunction(self.renderSequenceCallbacks[renderKey])) {
+        self.renderSequenceCallbacks[renderKey]();
+        delete self.renderSequenceCallbacks[renderKey];
       }
       
-      if (_.isFunction(callback)) { callback(); }
+      canvas.lastRendered = renderKey; // Allows `renderSequence` to know we've drawn this region/density
+      if (_.isFunction(callback)) { callback({canvas: canvas, areas: self.areas[canvas.id]}); }
     });
   },
   
@@ -186,22 +191,26 @@ var BigBedFormat = _.extend({}, bed, {
     var self = this,
       width = canvas.unscaledWidth(),
       drawCodons = self.opts.drawCodons,
-      drawCodonsUnder = self.opts.drawCodonsUnder;
+      drawCodonsUnder = self.opts.drawCodonsUnder,
+      renderKey = start + '-' + end + '-' + density;
     
     // If we're not drawing codons or we weren't able to fetch sequence, there is no reason to proceed.
     if (!drawCodons || !sequence || (end - start) / width > drawCodonsUnder) { return false; }
     
     function renderSequenceCallback() {
       self.prerender(start, end, density, {width: width, sequence: sequence}, function(drawSpec) {
+        // If the canvas has already drawn or been asked to draw something else, don't draw sequence data on top.
+        if (canvas.lastRendered != renderKey || (canvas.rendering && canvas.rendering != renderKey)) { return; }
+        // Otherwise, go ahead and draw the sequence data.
         self.type('bed').drawSpec(canvas, drawSpec, density);
-        if (_.isFunction(callback)) { callback(); }
+        if (_.isFunction(callback)) { callback({canvas: canvas}); }
       });
     }
     
-    // Check if the canvas was already rendered (by lack of the class 'unrendered').
+    // Check if this canvas has already rendered the correct region.
     // If yes, go ahead and execute renderSequenceCallback(); if not, save it for later.
-    if ((' ' + canvas.className + ' ').indexOf(' unrendered ') > -1) {
-      self.renderSequenceCallbacks[start + '-' + end + '-' + density] = renderSequenceCallback;
+    if (canvas.lastRendered != renderKey) {
+      self.renderSequenceCallbacks[renderKey] = renderSequenceCallback;
     } else {
       renderSequenceCallback();
     }

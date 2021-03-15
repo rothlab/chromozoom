@@ -9,7 +9,8 @@ var utils = require('./utils.js')($),
   pad = utils.pad,
   classFriendly = utils.classFriendly,
   shortHash = utils.shortHash,
-  floorHack = utils.floorHack;
+  floorHack = utils.floorHack,
+  uuid = utils.uuid;
 
 // Polyfill Math.log10 for Internet Explorer
 if (_.isUndefined(Math.log10)) { Math.log10 = function (x) { return Math.log(x) / Math.LN10; }; }
@@ -19,8 +20,6 @@ $.widget('ui.genotrack', {
   // Default options that can be overridden
   options: {
     disabled: false,
-    defaultFont: "11px '-apple-system',BlinkMacSystemFont,'Segoe UI','Lucida Grande',Helvetica,Arial,sans-serif",
-    chrLabelFont: "bold 21px 'helvetica neue','helvetica','arial',sans-serif",
     scales: {},
     line: null,       // must be specified on instantiation
     side: null        // must be specified on instantiation
@@ -28,14 +27,14 @@ $.widget('ui.genotrack', {
  
   // Called automatically when widget is instantiated
   _init: function() {
-    var self = this,
+	var self = this,
       $elem = this.element,
       o = this.options;
     if (!o.line) { throw "Cannot instantiate ui.genotrack without specifying 'line' option"; }
     if (!o.side) { throw "Cannot instantiate ui.genotrack without specifying 'side' option"; }
     self.ruler = o.track.n === 'ruler';
     self.sliderBppps = o.bppps.concat(o.overzoomBppps);
-    self.tileLoadCounter = self.areaLoadCounter = 0;
+    self.areaLoadCounter = 0;
     self.custom = !!o.track.custom;
     self.birth = (new Date()).getTime();
     self.$side = $(o.side);
@@ -48,6 +47,7 @@ $.widget('ui.genotrack', {
       // Some custom track types defer expensive parts of setup until they're about to be displayed
       o.track.custom.finishSetupAsync();
       o.track.custom.onSyncProps = function(props) { self._customTrackPropsUpdated(props); };
+      self._customCanvasCounter = 0;
     }
    
     $elem.addClass('browser-track-'+o.track.n).toggleClass('no-ideograms', self.ruler && !o.chrBands);
@@ -433,14 +433,19 @@ $.widget('ui.genotrack', {
     var self = this,
       $elem = self.element,
       o = self.options;
+    
     if (!o.browser.genobrowser('tileFixingEnabled')) { return; }
+    
     var pos = o.line.genoline('getPos'),
       zoom = o.browser.genobrowser('zoom'),
       availWidth = o.browser.genobrowser('lineWidth'),
       allTilesNeeded = [],
+      missingTiles = [],
       prevTop = this._bppps && this._bppps.top,
       bppps = this.bppps(forceRepos),
-      $notNeeded;
+      $recyclableTiles, recyclableTiles;
+    
+    // Based on our current zoom and position, figure out which tiles we need, and which are missing
     _.each(bppps.nearest, function(bppp, i) {
       var bpPerTile = o.tileWidth * bppp,
         tileId = floorHack((pos - availWidth * bppp * (bppps.preload[i] ? 0 : 0.75)) / bpPerTile) * bpPerTile + 1,
@@ -450,43 +455,49 @@ $.widget('ui.genotrack', {
       while ((tileId += bpPerTile) < rightMargin) { tilesNeeded.push(tileId); }
       _.each(tilesNeeded, function(tileId) {
         var repos = false, $t = $('#' + self._tileId(tileId, bppp));
-        if (!$t.length) {
-          $t = self._addTile(tileId, bppp, bestDensity, bppps.preload[i], bppps.top);
-          repos = true;
+        if ($t.length) { 
+          allTilesNeeded.push($t.get(0));
+          if (forceRepos) { self._reposTile($t, tileId, zoom, bppp); }
+        } else { 
+          missingTiles.push([tileId, bppp, bestDensity, bppps.preload[i], bppps.top]); 
         }
-        self._showTile($t);
-        if (repos || forceRepos) { self._reposTile($t, tileId, zoom, bppp); }
-        allTilesNeeded.push($t.get(0));
       });
     });
-    $notNeeded = $elem.children('.tile').not(allTilesNeeded);
-    self.tileLoadCounter -= $notNeeded.children('.loading').length;
-    $notNeeded.remove();
+    
+    // Some unneeded tiles are blank, and can be deleted.
+    // Some unneded tiles will contain prebuilt custom tile HTML, and can be recycled into new tiles.
+    // This avoids the overhead of DOM element creation and destruction, which is expensive.
+    $elem.children('.tile.tile-blank').not(allTilesNeeded).remove();
+    $recyclableTiles = $elem.children('.tile').not(allTilesNeeded);
+    recyclableTiles = $recyclableTiles.get();
+    
+    // For each missing tile, see if we can fill it with a recycled tile, otherwise add a new one.
+    _.each(missingTiles, function(tileSpec) {
+      var tileId = tileSpec[0],
+        bppp = tileSpec[1],
+        $t, oldTile;
+      if (recyclableTiles.length && tileId > 0 && tileId < o.genomeSize) {
+        oldTile = recyclableTiles.pop();
+        $t = self._recycleTile.apply(self, [oldTile].concat(tileSpec));
+      } else {
+        $t = self._addTile.apply(self, tileSpec);
+      }
+      self._setTileZIndex($t, bppp);
+      self._reposTile($t, tileId, zoom, bppp);
+    });
+    
+    // FIXME Previously we didn't ever recycle tiles. This is the alternative to the above chunk.
+    // _.each(missingTiles, function(tileSpec) {
+    //   var $t = self._addTile.apply(self, tileSpec);
+    //   self._setTileZIndex($t, tileSpec[1]);
+    //   self._reposTile($t, tileSpec[0], zoom, tileSpec[1]);
+    // });
+    
+    // Delete all the remaining unneeded tiles that we weren't able to recycle.
+    $(recyclableTiles).remove();
+    
     if (prevTop && prevTop != bppps.top) { self.updateDensity(); }
     this._fixSideClipped();
-  },
- 
-  _setImgDims: function(e) {
-    // NOTE: this is only used as bound to a tile <img>'s onLoad! See _addTile
-    var self = this,
-      h = this.naturalHeight || this.height;
-    $(this).css('height', h);
-  },
- 
-  _trackLoadFire: function(e) {
-    // NOTE: this is only used as bound to a tile <img>'s onLoad! See _addTile
-    var self = e.data.self,
-      trackH = self.options.track.h,
-      $t = e.data.tile,
-      h = this.naturalHeight || this.height;
-    $(this).removeClass('loading');
-    if (e.data.isBest && e.type !== 'error') {
-      $t.addClass('tile-loaded');
-      if (h > trackH) { $t.addClass('clipped'); }
-      if (!e.data.cached) { self._showTile($t); }
-    }
-    // e.data.self.availDensities[bppp] = _.without(densities, density); // FIXME, how to knock out tracks that don't load?
-    if (--self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); }
   },
  
   _addTile: function(tileId, bppp, bestDensity, cached, topBppp) {
@@ -495,47 +506,95 @@ $.widget('ui.genotrack', {
       $elem = self.element,
       $d = $.mk('div').attr('class', 'tile' + (bppp == topBppp ? ' bppp-top' : '')),
       bpPerTile = o.tileWidth * bppp,
-      special = self._specialTile(tileId, bppp),
+      tileType = self._tileType(tileId, bppp),
       densities = self.availDensities[bppp],
       $tileBefore = $('#' + self._tileId(tileId - bpPerTile, bppp)),
       $sc;
 
-    if ($tileBefore.length) { $d.insertAfter($tileBefore); }
-    else { $d.prependTo(self.element); }
-    $d.attr('id', self._tileId(tileId, bppp)).data({zIndex: _.indexOf(self.sliderBppps, bppp), tileId: tileId});
-    $d.data('nextTileId', self._tileId(tileId + bpPerTile, bppp));
+    $d.appendTo(self.element);
+    $d.attr('id', self._tileId(tileId, bppp)).data({bppp: bppp, tileId: tileId});
+    $d.data({prevTileId: self._tileId(tileId - bpPerTile, bppp), nextTileId: self._tileId(tileId + bpPerTile, bppp)});
     if ($.support.touch) { self._tileTouchEvents($d); }
     else { $d.mousemove({self: self}, self._tileMouseMove).mouseout({self: self}, self._tileMouseOut); }
-   
-    // The following handle special case tiles: blank tiles, custom track tiles, or ruler tiles
-    if (special) {
-      if (special.blank) { $d.addClass('tile-blank').addClass('tile-off-' + (special.left ? 'l' : 'r')); }
-      else if (special.custom) { self._customTile($d, tileId, bppp, bestDensity); }
-      else { self._rulerTile($d, tileId, bppp); } // special.ruler === true
-      return $d;
-    }
-   
-    // The remaining code here is for "chromozoom v1" <img> based tiles, which are deprecated
-    $d.addClass('tile-full bppp-'+classFriendly(bppp));
-    $sc = $.mk('div').attr('class', 'tsc tile-scroll-cont').appendTo($d);
-    _.each(densities, function(density) {
-      var tileSrc = self._tileSrc(tileId, bppp, density),
-        fixedHeight = o.track.fh[tileSrc.bpppFormat] && o.track.fh[tileSrc.bpppFormat][density],
-        $i = $.mk('img').addClass('tdata loading dens-'+density).attr('id', 'img-' + $d.attr('id') + '-' + density);
-      if (fixedHeight) {
-        $i.css('height', fixedHeight);
-      } else {
-        $i.bind('load', self._setImgDims);
-      }
-      $sc.append($i);
-      self.tileLoadCounter++;
-      $i.bind('load error', {self: self, tile: $d, isBest: density==bestDensity, cached: cached}, self._trackLoadFire);
-      $i.toggleClass('dens-best', density == bestDensity);
-      if (o.track.m && _.include(o.track.m, density)) { $i.addClass('no-areas'); }
-     
-      $i.attr('src', o.tileDir + tileSrc.full);
-    });
+
+    if (tileType.blank) { $d.addClass('tile-blank').addClass('tile-off-' + (tileType.left ? 'l' : 'r')); }
+    else if (tileType.custom) { self._customTile($d, tileId, bppp, bestDensity); }
+    else { self._rulerTile($d, tileId, bppp); } // tileType.ruler === true
     return $d;
+  },
+  
+  _recycleTile: function(tileDiv, tileId, bppp, bestDensity, cached, topBppp) {
+    var self = this,
+      o = self.options,
+      $d = $(tileDiv),
+      bpPerTile = o.tileWidth * bppp,
+      zoom = o.browser.genobrowser('zoom'),
+      end = tileId + bpPerTile,
+      tileType = self._tileType(tileId, bppp),
+      densities = self.availDensities[bppp],
+      $tileBefore = $('#' + self._tileId(tileId - bpPerTile, bppp)),
+      $sc;
+    
+    $d.attr('id', self._tileId(tileId, bppp)).data({bppp: bppp, tileId: tileId});
+    $d.data({prevTileId: self._tileId(tileId - bpPerTile, bppp), nextTileId: self._tileId(tileId + bpPerTile, bppp)});
+    
+    if (tileType.custom) { 
+      $d.attr('class', 'tile tile-custom tile-full tile-loaded bppp-' +classFriendly(bppp));
+      $d.toggleClass('bppp-top', bppp == topBppp);
+      $sc = $d.children('.tile-scroll-cont');
+      _.each(o.track.s, function(density) {
+        var $c = $sc.children('.tdata.dens-' + density),
+          $lc = $sc.children('.labels.dens-' + density);
+        if (density != 'dense') { $c.css('top', -self._scrollTop); }
+        $c.data('areas', null).data('renderingCallbacks', []);
+
+        $c.attr('class', 'tdata unrendered dens-' + density); // Reset all the extra classes, e.g. too-many, no-areas, etc.
+        // TODO: any value to erasing vs just setting unrendered
+        $c.unbind('render', self._customTileRender);
+        $c.bind('render', {start: tileId, end: end, density: density, self: self, custom: o.track.custom}, self._customTileRender);
+        $c.add($lc).toggleClass('dens-best', density == bestDensity);
+      });
+      $sc.children('.tdata.dens-best').trigger('render');
+    } else {  // tileType.ruler must be true
+      $d.attr('class', 'tile tile-ruler bppp-'+classFriendly(bppp)).data('bppp', bppp);
+      $d.toggleClass('bppp-top', bppp == topBppp);
+      self._drawRulerCanvasTicksAndBands($d, tileId, bppp, zoom);
+    } 
+    
+    return $d;
+  },
+
+  _setTileZIndex: function($t, bppp) {
+    // NOTE that the following assumes nobody would ever horizontally scroll 50,000 tile widths before zooming in/out
+    var baseZIndex = _.indexOf(this.sliderBppps, bppp) * 100000 + 50000,
+      $prevTile = $('#' + $t.data('prevTileId')),
+      $nextTile = $('#' + $t.data('nextTileId')),
+      zIndex;
+    if ($prevTile.length) { zIndex = $prevTile.data('zIndex') + 1; }
+    else if ($nextTile.length) { zIndex = $nextTile.data('zIndex') - 1; }
+    else { zIndex = baseZIndex; }
+    $t.addClass('tile-show').data('zIndex', zIndex).css('z-index', zIndex);
+  },
+ 
+  // Repositions tiles in the X-direction after any zooming, origin change, etc.
+  // Tile data's Y-position is set by the _scroll handler above (or during creation, from self._scrollTop)
+  _reposTile: function($tile, tileId, zoom, bppp) {
+    var o = this.options,
+      left = (tileId - o.line.genoline('option', 'origin')) / zoom,
+      width = Math.ceil(o.tileWidth * bppp / zoom);
+    // Absolutely ugly hack to preclude strange re-painting bug on Chrome that only occurs for the tile just left of 0
+    // at the highest zoom level. It's a blank tile, so it doesn't matter that we stretch it a teensy bit.
+    if (left === -o.tileWidth && zoom === o.bppps[0]) { width += 0.1; }
+    $tile.css('left', left);
+    $tile.css('width', width);
+   
+    if (this.ruler && bppp <= o.ntsBelow[0]) {
+      $tile.find('svg').each(function() {
+        var width = $tile.width() + 'px';
+        this.setAttributeNS(null, "width", width);
+        this.firstChild.setAttributeNS(null, "y", "11");
+      });
+    }
   },
  
   // Shows orange clipping indicators if any of the best density tiles have data cut off at the bottom
@@ -577,7 +636,7 @@ $.widget('ui.genotrack', {
     this._maxTileHeight = Math.max.apply(Math, heights);
     this.$side.toggleClass('clipped', clipped);
     this.$side.toggleClass('clipped-bottom', clipped);
-    if (!dontFixScrollbar) { this._fixSideScroll(); }
+    if (!dontFixScrollbar && clipped) { this._fixSideScroll(); }
   },
   
   _fixSideScroll: function() {
@@ -827,83 +886,36 @@ $.widget('ui.genotrack', {
   },
  
   _drawAreaLabels: function($scrollCont, bppp, density, areas) {
-    var o = this.options,
-      custom = o.track.custom,
-      xPad = 2,
-      fillBg = $(this.element).is(':nth-child(even)') ? '#f3f6fa' : '#ffffff',
+    //return; //FIXME
+    var self = this,
+      o = this.options,
+      custom = o.track.custom;
+
+    if (!custom.expectsAreaLabels) { return; }
+      
+    var fillBg = $(self.element).is(':nth-child(even)') ? '#f3f6fa' : '#ffffff',
       zoom = o.browser.genobrowser('zoom'),
-      bestDensity = this._bestDensity(bppp),
+      bestDensity = self._bestDensity(bppp),
       $tile = $scrollCont.parent(),
       $tdata = $scrollCont.children('.tdata.dens-' + density),
-      $oldC = $scrollCont.children('canvas.labels.dens-' + density),
-      canvasXScale = bppp / zoom,
-      canvasWidth = $tile.width() * 1.25,
-      leftOverhang = $tile.width() * 0.25,
+      overhangRatio = 0.25,
+      canvasWidth = $tile.width() * (1 + overhangRatio),
+      leftOverhang = $tile.width() * overhangRatio,
       canvasHeight = $tdata.height(),
-      canvasAttrs = {"class": 'labels dens-' + density + ($oldC.length ? ' hidden' : ''), width: canvasWidth, height: canvasHeight},
-      $c = $.mk('canvas').canvasAttr(canvasAttrs).data('density', density).appendTo($scrollCont),
-      ctx = $c.get(0).getContext,
-      defaultColor = (custom && (/^\d+,\d+,\d+$/).test(custom.opts.color)) || '0,0,0';
+      canvasAttrs = {"class": 'labels dens-' + density, width: canvasWidth, height: canvasHeight},
+      $c = $scrollCont.children('canvas.labels').eq(0);
       
-    if (!ctx) { return; }
     if (!areas) { areas = $tdata.data('areas'); }
-    areas = _.filter(areas, function(v) { return !v[6]; }); // Don't draw labels for areas continuing from previous tile
-    
     $c.css('height', canvasHeight).css('top', -this._scrollTop);
-    ctx = $c.get(0).getContext('2d');
-    ctx.font = o.defaultFont;
-    ctx.textAlign = 'end';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgb(' + defaultColor + ')';
-   
-    _.each(areas, function(area, i) {
-      var x = area[0] * canvasXScale - xPad + leftOverhang,
-        y = floorHack((area[1] + area[3]) * 0.5),
-        lineHeight = 12,
-        textWidths = [],
-        textWidth, maxTextWidth, lines, lineTextColor;
-            
-      if (area[8]) {
-        lines = area[8].split("\n");
-        // potentially marked up + multiline text
-        _.each(lines, function(l, i) {
-          var altColorRegexp = /\[(\d+,\d+,\d+)\]$/,
-            m = l.match(altColorRegexp),
-            lineY = y - (lines.length - 1) * lineHeight/2 + i * lineHeight,
-            lineTextColor = null;
-          if (m) {
-            lineTextColor = m[1];
-            l = l.replace(altColorRegexp, '');
-          }
-          ctx.fillStyle = fillBg;
-          textWidth = ctx.measureText(l).width + 1;
-          textWidths.push(textWidth);
-          ctx.fillRect(x - textWidth, lineY - lineHeight * 0.5, textWidth, lineHeight);
-          ctx.fillStyle = 'rgb(' + (lineTextColor ? lineTextColor : (area[7] ? area[7] : defaultColor)) + ')';
-          ctx.fillText(l, x, lineY);
-        });
-      } else {
-        ctx.fillStyle = fillBg;
-        textWidth = ctx.measureText(area[4]).width + 1;
-        textWidths = [textWidth];
-        ctx.fillRect(x - textWidth, y - lineHeight * 0.5, textWidth, lineHeight);
-        ctx.fillStyle = 'rgb(' + ((/^\d+,\d+,\d+$/).test(area[7]) ? area[7] : defaultColor) + ')';
-        ctx.fillText(area[4], x, y);
+    
+    custom.renderAreaLabels($c.get(0), areas, canvasHeight, canvasWidth, overhangRatio, bppp, zoom, fillBg, function(renderRes) {
+      // If the renderer added a textWidth to the area, save that in our area data so it can be used by `_tileMouseMove`
+      // The areas must be modified directly (instead of reassigning the whole array) to avoid breaking the areaIndex
+      if (renderRes.areas && $tdata.data('areas') && renderRes.areas.length == $tdata.data('areas').length) { 
+        _.each($tdata.data('areas'), function(area, i) { area[10] = renderRes.areas[i][10]; });
       }
-      ctx.fillStyle = 'rgb(' + defaultColor + ')';
-      
-      maxTextWidth = Math.max.apply(Math, textWidths);
-      // Add an adjusted x1 in area[10] that will be used in preference to area[0] during _tileMouseMove if set.
-      // This allows the user to mouseover the text instead of just the feature itself (which can be very small)
-      area[10] = Math.ceil(maxTextWidth);
+      $c.removeClass('to-erase').toggleClass('dens-best', density == self._bestDensity(bppp));
     });
-   
-    $c.toggleClass('dens-best', density == bestDensity);
-    if ($oldC.length) {
-      $oldC.addClass('hidden');
-      $c.removeClass('hidden');
-      setTimeout(function() { $oldC.remove(); }, 1000);
-    }
   },
  
   redrawAreaLabels: function() {
@@ -917,15 +929,7 @@ $.widget('ui.genotrack', {
       self._drawAreaLabels($scrollCont, $tdata.data('bppp'), density);
     });
   },
- 
-  _areaDataFetch: function(e) {
-    $.ajax(e.data.src + '.json', {
-      dataType: 'json',
-      success: e.data.success,
-      beforeSend: e.data.beforeSend
-    });
-  },
- 
+  
   _areaDataLoad: function(data, statusText, jqXHR) {
     // NOTE: this is used as an AJAX callback, so this/self must be reobtained from the jqXHR object
     var self = jqXHR._self,
@@ -991,55 +995,22 @@ $.widget('ui.genotrack', {
       });
     }
    
-    if (tagName == 'img') {
-      // TODO: make this abortable, for when fixTiles(forceRepos=true) is called before it finishes!
-      edata = {src: tdataElem.src, success: self._areaDataLoad, beforeSend: beforeSend};
-      if (density==bestDensity) { self._areaDataFetch({data: edata}); }
-      else { $tdata.one('bestDensity', edata, self._areaDataFetch); }
-    } else if (tagName == 'canvas' && o.track.custom.areas && (areaData = o.track.custom.areas[tdataElem.id])) {
+    if (o.track.custom.areas && (areaData = o.track.custom.areas[tdataElem.id])) {
       // For <canvas> tiles on custom tracks, we should already have this info in o.track.custom.areas
       mockJqXHR = {_custom: o.track.custom};
       beforeSend(mockJqXHR);
       self._areaDataLoad(areaData, '', mockJqXHR);
-    } else {
-      self.areaLoadCounter--;
-      $(tdataElem).removeClass('areas-loading');
     }
   },
  
-  _showTile: function($t) {
-    $t.addClass('tile-show').css('z-index', $t.data('zIndex'));
-  },
- 
-  // Repositions tiles in the X-direction after any zooming, origin change, etc.
-  // Tile data's Y-position is set by the _scroll handler above (or during creation, from self._scrollTop)
-  _reposTile: function($tile, tileId, zoom, bppp) {
-    var o = this.options,
-      left = (tileId - o.line.genoline('option', 'origin')) / zoom,
-      width = Math.ceil(o.tileWidth * bppp / zoom);
-    // Absolutely ugly hack to preclude strange re-painting bug on Chrome that only occurs for the tile just left of 0
-    // at the highest zoom level. It's a blank tile, so it doesn't matter that we stretch it a teensy bit.
-    if (left === -o.tileWidth && zoom === o.bppps[0]) { width += 0.1; }
-    $tile.css('left', left);
-    $tile.css('width', width);
-   
-    if (this.ruler && bppp <= o.ntsBelow[0]) {
-      $tile.find('svg').each(function() {
-        var width = $tile.width() + 'px';
-        this.setAttributeNS(null, "width", width);
-        this.firstChild.setAttributeNS(null, "y", "11");
-      });
-    }
-  },
- 
-  // Is the tile given by tileId and bppp "special", meaning it is either:
-  // (1) blank (2) from a custom track or (3) part of a ruler
-  // If so, return a simple object describing what kind of special tile it is
-  _specialTile: function(tileId, bppp) {
+  // Determines if this tile will be (1) blank (2) from a custom track or (3) part of a ruler
+  // Returns a simple object describing the tile type and any additional qualifiers
+  _tileType: function(tileId, bppp) {
     var o = this.options;
     if (tileId < 0 || tileId > o.genomeSize) { return {blank: true, left: tileId < 0}; }
+    if (this.ruler) { return {ruler: true}; }
     if (o.track.custom) { return {custom: true}; }
-    if (this.ruler && (bppp <= o.ideogramsAbove || !o.chrBands)) { return {ruler: true}; }
+    return {};
   },
  
   _tileSrc: function(tileId, bppp, density) {
@@ -1064,12 +1035,18 @@ $.widget('ui.genotrack', {
     var self = this,
       o = self.options,
       bpPerTile = bppp * o.tileWidth,
-      zoom = o.browser.genobrowser('zoom');
+      zoom = o.browser.genobrowser('zoom'),
+      $c;
+      
     $t.addClass('tile-ruler bppp-'+classFriendly(bppp)).data('bppp', bppp);
+    $c = $.mk('canvas').addClass('ticks').prependTo($t);
+    $c.attr('id', 'ticks-' + self.uniqId + '-' + self._customCanvasCounter++);
+    $c.get(0).unscaledHeight(o.track.h);
+
+    self._drawRulerCanvasTicksAndBands($t, tileId, bppp, zoom);
    
-    self._drawRulerCanvasTicks($t, tileId, bppp, zoom);
-    self._drawRulerCanvasChrBands($t, tileId, bppp, zoom);
-   
+    // FIXME: this should be drawn instead on the .ticks <canvas> above using `.renderSequence()` in the CustomTrack
+    return $t;
     if (bppp <= o.ntsBelow[0]) {
       var showNtText = bppp <= o.ntsBelow[1],
         canvasHeight = (showNtText ? 12 : 3) + (o.chrBands ? 1 : 0), // with bands, we need an extra pixel
@@ -1087,178 +1064,29 @@ $.widget('ui.genotrack', {
     }
   },
  
-  _drawRulerCanvasTicks: function($t, tileId, bppp, zoom) {
+  _drawRulerCanvasTicksAndBands: function($t, tileId, bppp, zoom) {
+    //return; //FIXME
     var self = this,
       o = self.options,
-      chr = o.browser.genobrowser('chrAt', tileId),
+      track = o.track,
       bpPerTile = bppp * o.tileWidth,
-      scale = Math.round(Math.log(bpPerTile / 10)/Math.log(10)*2),
-      tooLong = tileId.toString().length > 8 && scale < 6,
-      step = scale % 2 ? (tooLong ? 5 : 2) * Math.pow(10, floorHack(scale/2)) : Math.pow(10, scale/2),
-      majorStep = scale % 2 ? (tooLong ? [step * 2, step * 2] : [step * 5, step * 5]) : [step * 5, step * 10],
-      start = floorHack((tileId - chr.p) / step) * step,
-      chrAtTileEnd = o.browser.genobrowser('chrAt', tileId + bppp * o.tileWidth);
-   
-    $t.toggleClass('tile-loaded', bppp <= o.bpppNumbersBelow[0]);
-    if (bppp > o.bpppNumbersBelow[0]) { return; }
-
-    var chrLabelsOnly = bppp <= o.bpppNumbersBelow[0] && bppp > o.bpppNumbersBelow[1],
-      offsetForNtText = !o.chrBands && bppp <= o.ntsBelow[1],
       canvasHeight = o.track.h,
       canvasWidth = bppp / zoom * o.tileWidth,
-      $oldC = $t.children('canvas.ticks'),
-      canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": "ticks" + ($oldC.length ? ' hidden' : '')},
-      $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
-      ctx = $c.get(0).getContext,
-      textY = o.chrBands ? 16 : (offsetForNtText ? 10 : 16),
-      chrTextUpTo = -Infinity,
-      chrText, x;
-
-    if (!ctx) { return; }
-
-    // draw on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
-    $c.canvasAttr(canvasAttrs);
-    ctx = $c.get(0).getContext('2d');
-    ctx.font = o.defaultFont;
+      $c = $t.children('canvas.ticks').eq(0),
+      canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": "ticks"};
+      
+    $c.css('height', canvasHeight);
+    var renderOpts = {
+      canvasWidth: canvasWidth,
+      drawChrLabels: bppp <= o.bpppNumbersBelow[0],
+      drawTicks: bppp <= o.bpppNumbersBelow[1],
+      drawIdeograms: zoom > o.ideogramsAbove,
+      offsetForNtText: !o.chrBands && bppp <= o.ntsBelow[1]
+    };
     
-    // First, draw the end of the genome if it is on this tile (so any overlapping ticks are drawn on top)
-    if (chrAtTileEnd.end) {
-      x = ((chrAtTileEnd.p - tileId + 0.5) / bpPerTile * canvasWidth);
-      ctx.fillStyle = '#ff0000';
-      ctx.fillRect(x - 1, 0, 2, o.track.h);
-      ctx.fillStyle = '#cccccc';
-      ctx.fillRect(x + 1, 0, canvasWidth - x - 1, o.track.h);
-      ctx.fillStyle = '#000000';
-    }
-
-    // Step through all of the possible ticks
-    for (var t = start; t + chr.p < tileId + bppp * o.tileWidth + step; t += step) {
-      // Do we need to advance to the next chr?
-      if (t > chr.w) {
-        chr = o.browser.genobrowser('chrAt', chr.p + chr.w + 1);
-        t = 0;
-      }
-
-      x = ((t + chr.p - tileId + 0.5) / bpPerTile * canvasWidth);
-      if (t == 0) {
-        // This is a new chr boundary; draw a chrLabel
-        ctx.fillStyle = '#ff0000';
-        ctx.fillRect(x - 1, 0, 2, o.track.h);
-        if (chr.end) { break; }
-        ctx.fillStyle = '#000000';
-        ctx.font = o.chrLabelFont;
-        chrText = chr.n.replace(/^chr/, '');
-        chrTextUpTo = x + Math.min(ctx.measureText(chrText).width + 4, chr.w / bpPerTile * canvasWidth);
-        ctx.clearRect(x + 1, 0, Math.max(0, chrTextUpTo - x - 1), o.track.h);
-        if (chrTextUpTo - x > 8) { ctx.fillText(chrText, x + 2, textY + 3, chrTextUpTo - x - 4); }
-        ctx.font = o.defaultFont;
-      } else if (!chrLabelsOnly && x > chrTextUpTo) {
-        // Draw a major or minor tick
-        var unit = _.find([[1000000, 'm'], [1000, 'k'], [1, '']], function(v) { return v[0] <= step; }),
-          major = floorHack(t / majorStep[1]),
-          minor = (t / unit[0]).toString().substr(major > 0 ? major.toString().length : 0),
-          isMajor = !(t % majorStep[0]);
-        if (isMajor) {
-          ctx.font = "bold " + o.defaultFont;
-          if (major) {
-            ctx.textAlign = 'end';
-            ctx.fillText(major, x - 1, textY);
-          }
-          ctx.textAlign = 'start';
-          ctx.fillRect(x, offsetForNtText ? 1 : 3, 1, 19);
-        } else {
-          ctx.fillStyle = '#666666';
-          ctx.fillRect(x, offsetForNtText ? 1 : 7, 1, 14);
-          ctx.fillStyle = '#000000';
-        }
-        ctx.fillText(minor + (isMajor ? unit[1] : ''), x + 2, textY);
-        if (isMajor) { ctx.font = o.defaultFont; }
-      }
-    }
-
-    // fade between the old & new canvas elements
-    if ($oldC.length) {
-      $oldC.addClass('hidden');
-      $c.removeClass('hidden');
-      setTimeout(function() { $oldC.remove(); }, 1000);
-    }
-  },
- 
-  _drawRulerCanvasChrBands: function($t, tileId, bppp, zoom) {
-    var self = this,
-      o = self.options,
-      leftMarg = tileId,
-      bpPerTile = bppp * o.tileWidth,
-      rightMarg = tileId + bpPerTile,
-      giemsaColors = {gneg: '#e3e3e3', gpos25: '#8e8e8e', gpos50: '#555', stalk: '#555', gpos75: '#393939',
-          gpos100: '#000', gvar: '#000', acen: '#963232'},
-      whiteLabel = {gpos50: true, stalk: true, gpos75: true, gpos100: true, gvar: true};
-     
-    if (!o.chrBands || zoom > o.ideogramsAbove) { return; }
-
-    var firstBandIndex = _.sortedIndex(o.chrBands, [0, 0, leftMarg], function(v) { return v[2]; }),
-      lastBandIndex = _.sortedIndex(o.chrBands, [0, rightMarg], function(v) { return v[1]; }),
-      bandsToDraw = o.chrBands.slice(firstBandIndex, lastBandIndex),
-      canvasHeight = 25,
-      canvasWidth = bppp / zoom * o.tileWidth,
-      $oldC = $t.children('canvas.bands'),
-      canvasAttrs = {width: canvasWidth, height: canvasHeight, "class": 'bands' + ($oldC.length ? ' hidden' : '')},
-      $c = $.mk('canvas').css('height', canvasHeight).prependTo($t),
-      ctx = $c.get(0).getContext;
-
-    if (!ctx) { return; }
-   
-    // draw the ticks on the new canvas $c, which is before (and therefore behind) the old canvas $oldC, if it exists
-    $c.canvasAttr(canvasAttrs);
-    ctx = $c.get(0).getContext('2d');
-    ctx.font = o.defaultFont;
-    ctx.textAlign = 'center';
-    _.each(bandsToDraw, function(band, i) {
-      var leftUnclipped = (band[1] - tileId) / zoom,
-        left = Math.max(leftUnclipped, 0),
-        rightUnclipped = (band[2] - tileId) / zoom,
-        right = Math.min(rightUnclipped, canvasWidth),
-        width = right - left,
-        acenHeight = 7,
-        prevBand = o.chrBands[firstBandIndex + i - 1],
-        unclippedWidth, leftClipRatio, rightClipRatio, leftHeight, rightHeight;
-     
-      if (band[4] == 'acen') {
-        unclippedWidth = rightUnclipped - leftUnclipped;
-        leftHeight = (1 - (left - leftUnclipped) / unclippedWidth) * acenHeight;
-        rightHeight = (rightUnclipped - right) / unclippedWidth * acenHeight;
-        if (band[3].substr(0, 1) == 'q' || (prevBand && prevBand[4] == 'acen')) { 
-          leftHeight = acenHeight - leftHeight;
-          rightHeight = acenHeight - rightHeight;
-        }
-        ctx.fillStyle = giemsaColors.acen;
-        ctx.beginPath();
-        ctx.moveTo(left, 9 - leftHeight);
-        ctx.lineTo(right, 9 - rightHeight);
-        ctx.lineTo(right, 10 + rightHeight);
-        ctx.lineTo(left, 10 + leftHeight);
-        ctx.lineTo(left, 9 - leftHeight);
-        ctx.closePath();
-        ctx.fill();
-      } else {
-        ctx.fillStyle = '#000';
-        ctx.fillRect(left, 2, width, 1);
-        ctx.fillRect(left, 16, width, 1);
-        ctx.fillStyle = giemsaColors[band[4]];
-        ctx.fillRect(left, 3, width, 13);
-        if (width > band[3].length * 10) {
-          ctx.fillStyle = whiteLabel[band[4]] ? '#fff' : '#000';
-          ctx.fillText(band[3], left + width / 2, 14);
-        }
-      }
+    track.custom.render($c.get(0), tileId, tileId + bpPerTile, renderOpts, function() {
+      $t.addClass('tile-loaded');
     });
-   
-    // fade between the old & new canvas elements
-    if ($oldC.length) {
-      $oldC.addClass('hidden');
-      $c.removeClass('hidden');
-      setTimeout(function() { $oldC.remove(); }, 1000);
-    }
   },
  
   redrawRulerCanvasTicksAndBands: function() {
@@ -1268,8 +1096,7 @@ $.widget('ui.genotrack', {
       zoom = o.browser.genobrowser('zoom');
     $elem.children('.tile-ruler').each(function() {
       var $t = $(this);
-      self._drawRulerCanvasTicks($t, $t.data('tileId'), $t.data('bppp'), zoom);
-      self._drawRulerCanvasChrBands($t, $t.data('tileId'), $t.data('bppp'), zoom);
+      self._drawRulerCanvasTicksAndBands($t, $t.data('tileId'), $t.data('bppp'), zoom);
     });
   },
  
@@ -1299,6 +1126,7 @@ $.widget('ui.genotrack', {
         fill: '#FFFFFF'
       }).text(dna).appendTo($svg);
     }
+    // FIXME: this should go into `renderSequence` in the `ruler` type of CustomTrack
     canvas = extraData._c && extraData._c.get(0);
     height = canvas.unscaledHeight();
     ctx = canvas.getContext && canvas.getContext('2d');
@@ -1321,18 +1149,22 @@ $.widget('ui.genotrack', {
       track = self.options.track,
       $tile = $canvas.closest('.tile'),
       $browser = self.options.browser,
+      renderingKey = d.start + '-' + d.end + '-' + d.density,
       seqPadding = d.custom.expectedSequencePadding || 0;
-     
+    
     function pushCallback() { _.isFunction(callback) && $canvas.data('renderingCallbacks').push(callback); }
-    if ($canvas.data('rendering') === true) { pushCallback(); return; }
+    // If 'render' is triggered >1x on the same region + <canvas>, add the callback to a queue and don't repeat work
+    if (canvas.rendering == renderingKey) { pushCallback(); return; } 
    
-    $canvas.data('rendering', true);
+    canvas.rendering = renderingKey;
     $canvas.data('renderingCallbacks', []);
-    if (d.density != 'dense') { self.tileLoadCounter++; }
     pushCallback();
    
-    // Note: d.start and d.end are 1-based genomic coordinates
+    // Note: d.start and d.end are 1-based genomic coordinates. This is an asynchronous function call.
     d.custom.render(canvas, d.start, d.end, d.density, function() {
+      // Check if the canvas was recycled and was already asked to render a different region; if so, exit early
+      if (canvas.rendering != renderingKey) { return; }
+      
       $canvas.css('height', d.custom.stretchHeight ? '100%' : canvas.unscaledHeight());
       $canvas.toggleClass('stretch-height', d.custom.stretchHeight);
       $canvas.removeClass('unrendered').addClass('no-areas');
@@ -1340,17 +1172,17 @@ $.widget('ui.genotrack', {
       self.fixClickAreas();
       self.fixClippedDebounced();
      
-      // If the too-many class was set, we couldn't draw/load the data at this density because there's too much of it
+      // If the tooMany flag was set, we couldn't draw/load the data at this density because there's too much of it
       // If this is at "squish" density, we also add the class to parent <div> to tell the user that she needs to zoom
-      if ($canvas.hasClass('too-many')) {
+      if (canvas.flags.tooMany) {
+        $canvas.addClass('too-many');
         if (d.density != 'pack') { $tile.addClass('too-many'); }
         if (d.density == 'dense') { $tile.addClass('too-many-for-dense'); }
       }
      
       _.each($canvas.data('renderingCallbacks'), function(f) { f(); });
-      $canvas.data('rendering', false);
-     
-      if (d.density != 'dense' && --self.tileLoadCounter === 0) { self.element.trigger('trackload', self.bppps()); }
+      canvas.rendering = false;
+      // FIXME: trigger self.element.trigger('trackload', self.bppps()) if everything in this track is done rendering
     });
    
     if (d.custom.expectsSequence && (d.end - d.start) < $browser.genobrowser('option', 'maxNtRequest')) {
@@ -1367,20 +1199,33 @@ $.widget('ui.genotrack', {
       o = self.options,
       bpPerTile = bppp * o.tileWidth,
       end = tileId + bpPerTile,
-      $ts;
+      $sc;
+      
     $t.addClass('tile-custom tile-full tile-loaded bppp-'+classFriendly(bppp));
     $sc = $.mk('div').attr('class', 'tsc tile-scroll-cont').appendTo($t);
     $.mk('div').attr('class', 'clip-indicator top').appendTo($t);
     $.mk('div').attr('class', 'clip-indicator bottom').appendTo($t);
+    
     _.each(o.track.s, function(density) {
-      var canvasHTML = '<canvas class="tdata unrendered dens-' +density + '" id="canvas-' + self._tileId(tileId, bppp) + '-' +
-          density + '"></canvas>',
-        $c = $(canvasHTML).appendTo($sc);
+      var $c = $.mk('canvas').attr('class', 'tdata unrendered dens-' + density), 
+        $lc = [];
+      
+      $c.attr('id', 'canvas-' + self.uniqId + '-' + self._customCanvasCounter++);
+      $c.appendTo($sc);
       if (density != 'dense') { $c.css('top', -self._scrollTop); }
       $c.canvasAttr({width: o.tileWidth, height: o.track.h});
+      
+      if (density == 'pack') {
+        $lc = $.mk('canvas').data('density', density).appendTo($sc);
+        $lc.attr('class', 'labels dens-' + density);
+        $lc.attr('id', 'labels-' + self.uniqId + '-' + self._customCanvasCounter++);
+      }
+
       $c.bind('render', {start: tileId, end: end, density: density, self: self, custom: o.track.custom}, self._customTileRender);
-      $c.bind('erase', function() { o.track.custom.erase($c.get(0)); $c.addClass('unrendered'); });
-      if (density == bestDensity) { $c.addClass('dens-best').trigger('render'); }
+      // FIXME: the following doesn't actually erase the canvas the way we originally intended. Is this method even needed?
+      $c.add($lc).bind('erase', function() { $(this).addClass('unrendered'); }); //o.track.custom.erase($c.get(0));  });
+    
+      if (density == bestDensity) { $c.add($lc).addClass('dens-best'); $c.trigger('render'); }
       $c.one('bestDensity', function() { if ($c.hasClass('unrendered')) { $c.trigger('render'); } });
     });
   },

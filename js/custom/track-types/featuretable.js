@@ -10,7 +10,8 @@ var utils = require('./utils/utils.js'),
 var bed = require('./bed.js');
 
 // Intended to be loaded into CustomTrack.types.featuretable
-// Much of the functionality is similar to BED, so we inherit all of the BED format's methods
+// After parsing, much of the functionality is similar to BED, so we inherit all of the BED format's methods
+
 var FeatureTableFormat = _.extend({}, bed, {
   defaults: {
     collapseByGene: 'off',

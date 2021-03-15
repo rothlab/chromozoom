@@ -233,7 +233,7 @@ var WiggleFormat = {
     if (!ctx) { throw "Canvas not supported"; }
     self.prerender(start, end, density, {width: width}, function(drawSpec) {
       self.type().drawBars(ctx, drawSpec, canvas.unscaledHeight(), width);
-      if (_.isFunction(callback)) { callback(); }
+      if (_.isFunction(callback)) { callback({canvas: canvas}); }
     });
   },
   

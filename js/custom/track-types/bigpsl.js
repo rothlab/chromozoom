@@ -17,24 +17,33 @@ var BigPslFormat = _.extend({}, bigbed, {
         'chromSize', 'match', 'misMatch', 'repMatch', 'nCount']
   }),
 
+  init: function() {
+    this.opts.xeno = this.opts.xeno || this.typeArgs[0] === 'xeno';
+    this.type('bigbed').initOpts();
+  },
+
   // PSL tracks display two parallel lines over double-sided alignment gaps
   // We implement this by extending each BED feature with an array of intronStyles
   // See http://genome.ucsc.edu/goldenPath/help/hgTracksHelp.html#PSLDisplay
   parseLine: function(line, lineno) {
     var self = this,
       itvl = self.type('bed').parseLine(line, lineno),
-      reverseStrand = itvl.strand === '-';
+      // Tracks of type "bigPsl xeno" need to have their oChromStarts/blocks compared in reverse when
+      //   on the negative strand of the target sequence
+      reverseMode = itvl.strand === '-' && self.opts.xeno;
+      
     itvl.intronStyles = [];
     if (itvl.blocks && itvl.blocks.length > 1 && itvl.extra['oChromStarts']) {
       var oChromStarts = _.map(itvl.extra['oChromStarts'].replace(/,+$/, '').split(','), parseInt10),
-        blocks = reverseStrand ? itvl.blocks.slice(1).reverse() : itvl.blocks.slice(0, -1);
+        blocks = reverseMode ? itvl.blocks.slice(1).reverse() : itvl.blocks.slice(0, -1);
       if (oChromStarts.length !== itvl.blocks.length) {
         self.warn("Incorrect number of oChromStarts to calculate intron styles for " + itvl.name);
         return itvl; 
       }
+      var a = '', b = '';
       _.each(blocks, function(block, i) {
         var doubleSidedGap = oChromStarts[i + 1] - oChromStarts[i] > block.end - block.start,
-          intronNum = reverseStrand ? blocks.length - i - 1 : i;
+          intronNum = reverseMode ? blocks.length - i - 1 : i;
         itvl.intronStyles[intronNum] = doubleSidedGap ? PSL_DOUBLE_LINE_INTRON : PSL_SINGLE_LINE_INTRON;
       });
     }
@@ -47,7 +56,7 @@ var BigPslFormat = _.extend({}, bigbed, {
   },
 
   drawIntron: function(ctx, canvasWidth, lineY, halfHeight, startX, endX, color, data, intronNum) {
-    if (data.d.strand && endX - startX > 0 && startX >= 0 && endX <= canvasWidth) {
+    if (data.d.strand && endX - startX > 0 && endX >= 0 && startX <= canvasWidth) {
       ctx.strokeStyle = "rgb(" + color + ")";
       if (data.d.intronStyles && data.d.intronStyles[intronNum] == PSL_DOUBLE_LINE_INTRON) {
         var doubleLineHalfWidth = halfHeight > 4 ? 3 : 2;
